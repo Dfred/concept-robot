@@ -1,0 +1,21 @@
+Abstract:
+=========
+
+This software is the CONCEPT project from the University of Plymouth.
+The team involves :
+
+- Dr tony Belpaeme, Supervisor
+- frederic Delaunay, human-robot interaction
+- joachim De Greeff, conceptual modeling
+
+The project is expected to end around oct. 2011.
+In the meantime, you are welcomed to try the software and submit bugfixes.
+
+More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
+
+
+
+Requirements:
+=============
+
+- python 2.5
