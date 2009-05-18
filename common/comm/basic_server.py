@@ -169,7 +169,7 @@ class BasicHandler(asyncore.dispatcher):
         try:
             self.connect(addr_port)
         except socket.error, err: # TODO: handle windows (WSAECONNREFUSED)
-            LOG.warning("connection error: %s", err)
+            LOG.warning("connection error to %s : %s", addr_port, err)
             self.del_channel()
             return False
         finally:
@@ -275,4 +275,5 @@ class BasicServer(asyncore.dispatcher):
         return True
 
     def get_clients(self):
+        """Return connected clients"""
         return (cl for cl in asyncore.socket_map.values() if cl.connected)
