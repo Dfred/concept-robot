@@ -75,9 +75,6 @@ class ClientFoo(Client):
         print "I'm a ClientFoo, strongly connecting and aware of your pongZ !"
 
         comm.BasicHandler.__init__(self)
-        # another way of defining the process method
-        self.process = comm.process
-
         self.received_pong = False
         # we want a synchronous connect without waiting more than 500ms,
         # timeout allows us to retry to connect in case of connection failure.
@@ -104,6 +101,9 @@ class ClientFoo(Client):
         """Answer for the 'clients' command is pretty-printed."""
         print args[0]+" connected client(s):"
         pprint.pprint(args.split('>')[1:])
+
+# another (rather dirty) way of defining the process method
+ClientFoo.process = comm.process
         
 
 class Server(comm.BasicServer):
@@ -170,8 +170,8 @@ if __name__ == '__main__':
         comm.loop()
 
     elif server:     # (you *should* have only one)
-        import pdb
-        pdb.set_trace()
+#        import pdb
+#        pdb.set_trace()
         while server.is_readable:           # a server is not writable
             comm.loop(5, count=1)       # block for 500ms or new data event
 
