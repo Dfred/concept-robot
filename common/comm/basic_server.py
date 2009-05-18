@@ -36,7 +36,7 @@ Other specifications:
 import logging
 import asyncore
 import socket
-
+import os
 
 LOG = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class BasicHandler(asyncore.dispatcher):
     def handle_connect(self):
         """self.connected is always True here (also for disconnected socket)."""
         self.id = self._fileno
-        print self, "handle_connect, connected:", self.connected 
+        LOG.debug("%s> handle_connect, connected: %s", self.id, self.connected)
         return self.addr is not None
 
     def connect_to(self, addr_port, timeout=0.0):
@@ -175,7 +175,6 @@ class BasicHandler(asyncore.dispatcher):
         finally:
             if timeout: self.socket.settimeout(old_timeout)
 
-        self.is_writable = True
         self.is_readable = True
         return True
 
@@ -211,30 +210,32 @@ class BasicServer(asyncore.dispatcher):
         self.id                 = "server"
         asyncore.dispatcher.__init__(self)
 
-    def listen_to(self, inet_addr_port):
+    def listen_to(self, addr_port):
         """Open the port for incoming connections.
-         inet_addr_port: tuple (address of inet interface to use, port number).
+         addr_port: tuple (address of inet interface to use, port number).
         """
-        socket_family, inet_addr_port = get_socket_family(inet_addr_port)
+        socket_family, addr_port = get_socket_family(addr_port)
         self.create_socket(socket_family[0], SOCKET_TYPE)
         self.set_reuse_addr()
         
-        LOG.debug("binding: AF=%s %s", socket_family[1], inet_addr_port)
+        LOG.debug("binding: AF=%s %s", socket_family[1], addr_port)
+        if type(addr_port) is type("") and os.path.exists(addr_port):
+            LOG.warning("UNIX socket '%s' already present!", addr_port)
         try:
-            self.bind(inet_addr_port)
+            self.bind(addr_port)        # sets self.addr
         except socket.error, err: # TODO: handle more errors
             # dirty raise not to confuse between create_socket, bind and listen
             raise UserWarning(err)
 
         self.listen(self.MAX_QUEUED_CONNECTIONS)
         self.is_readable = True
-        self.is_writable = True
-        LOG.debug("listen: max queued:%d" % self.MAX_QUEUED_CONNECTIONS)
+        LOG.info("server listening (max queued clients :%d)" %
+                 self.MAX_QUEUED_CONNECTIONS)
 
     def shutdown(self, msg="server_shutdown"):
         """Disconnects all clients and terminates the server."""        
         clients = sorted(asyncore.socket_map.values())
-        LOG.info("server disconnecting %i clients", len(clients)-1)
+        LOG.debug("server disconnecting %i clients", len(clients)-1)
 
         for client in clients:
             LOG.debug("%s> closing connection.", client.id)
@@ -243,7 +244,10 @@ class BasicServer(asyncore.dispatcher):
             client.is_readable = False
             client.is_writable = False
             client.close()
-        LOG.debug("server shutdown complete")
+
+        if type(self.addr) == type(""):
+            os.remove(self.addr)
+        LOG.info("server shutdown complete")
 
     def handle_accept(self):
         """Handles incoming connections: creates an instance of the
@@ -252,7 +256,6 @@ class BasicServer(asyncore.dispatcher):
         conn_sock, client_addr_port = self.accept()
         LOG.info("new connection from %s", client_addr_port or "local")
         if self.verify_request(conn_sock, client_addr_port):
-            # TODO: all fd are handled by asyncore.socket_map so handle the map?
             client = self.handlerClass()
             client.set_socket(conn_sock)
             client.addr = client_addr_port
@@ -270,3 +273,6 @@ class BasicServer(asyncore.dispatcher):
         """TODO: Implements policy for incoming connections..."""
         LOG.info("For production use, remember to set a connexion policy for security reasons")
         return True
+
+    def get_clients(self):
+        return (cl for cl in asyncore.socket_map.values() if cl.connected)

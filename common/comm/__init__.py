@@ -31,10 +31,11 @@ server mode: [interface_address:port]
 
 __author__  = "frederic Delaunay f dot d at chx-labs dot org"
 __status__  = "beta"
-__version__ = "0.2"
+__version__ = "0.3"
 __date__    = "$$"
 
 import re
+import os
 import logging
 import asyncore
 
@@ -44,7 +45,7 @@ from basic_server import BasicHandler, BasicServer
 
 # deal with logging 1st
 LOG = logging.getLogger("comm")
-
+FORMAT = "%(filename)s[%(lineno)d] -%(levelname)s- %(message)s"
 
 class NullHandler(logging.Handler):
     """A dummy Handler.
@@ -55,19 +56,19 @@ class NullHandler(logging.Handler):
         pass
 
 
-logging.basicConfig(level=logging.DEBUG,
-                    format="%(asctime)5s-%(name)s l.%(lineno)03d [%(levelname)s] %(message)s")
-
 
 # now our specifics
 RE_NAME   = r'(?P<NAME>\w+)'
 RE_IPADDR = r'(\d{1,3}\.){3}\d{1,3}'
 RE_ADDR   = r'(?P<ADDR>'+RE_IPADDR+'|[\w-]+)'
-RE_PORT   = r'(?P<PORT>\d{2,5})'
+RE_PORT   = r'(?P<PORT>\d{2,5}|[\w/\.]+[^/])'
 
 # these are case insensitive
 CRE_CMDLINE_ARG = re.compile('('+RE_NAME+'=)?'+RE_ADDR+':'+RE_PORT)
 CRE_PROTOCOL_SYNTAX = re.compile("\s*\w+(\s+\w+)*")
+
+# just a way to get rid of the asyncore module.
+loop = asyncore.loop
 
 
 class CmdError(Exception):
@@ -116,9 +117,10 @@ def parse_args(args):
         if m == None:
             unused.append(arg)
         else:
-            infos.append((m.group("NAME"),
-                          m.group("ADDR"),
-                          int(m.group("PORT"))))
+            port = m.group("PORT")
+            if port.isdigit():
+                port = int(port)
+            infos.append((m.group("NAME"), m.group("ADDR"), port))
     return (unused, infos)
         
 

@@ -24,18 +24,24 @@ The communication protocol is ASCII based. The protocol parser relies on the
  presence of cmd_ functions in the (inherited) class.
 """
 
-import asyncore
-import time
+import logging
 import pprint
+import time
 
-import comm 
+import comm
+
+# set logging verbosity
+# TODO: set it for the module only
+logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
 
 
 class Client(comm.BasicHandler):
     """Our connection to a target server"""
+
     def __init__(self, addr_port):
-        comm.BasicHandler.__init__(self)
         print "I'm a Client !"
+        comm.BasicHandler.__init__(self)
+
         # we're asking for our client to connect to server, but we don't know
         # when this will happen, so rely on handle_connect to be noticed.
         self.connect_to(addr_port)
@@ -49,20 +55,29 @@ class Client(comm.BasicHandler):
 
 
 class EchoClient(Client):
+    """A client inheriting from Client, and printing anything read"""
+
     def __init__(self, addr_port):
         Client.__init__(self, addr_port)
         self.stay_connected = True
 
+    # we define the process method that handles incoming data (line by line).
     def process(self, line):
         print "received:",line
         return len(line)
 
 
 class ClientFoo(Client):
-    """Our connection to a target server, pong-aware"""
+    """Our connection to a target server, pong-aware and
+     shutting down the server """
+
     def __init__(self, addr_port):
-        comm.BasicHandler.__init__(self)
         print "I'm a ClientFoo, strongly connecting and aware of your pongZ !"
+
+        comm.BasicHandler.__init__(self)
+        # another way of defining the process method
+        self.process = comm.process
+
         self.received_pong = False
         # we want a synchronous connect without waiting more than 500ms,
         # timeout allows us to retry to connect in case of connection failure.
@@ -77,8 +92,9 @@ class ClientFoo(Client):
             self.close()
         self.send_msg("clients")
 
-    def process(self, command):
-        return comm.process(self, command)
+    def handle_close(self):
+        self.send_msg("shutdown")
+        comm.BasicHandler.handle_close(self)
 
     def cmd_pong(self, args):
         """On pong reception, we could update a counter.."""
@@ -94,6 +110,7 @@ class Server(comm.BasicServer):
     """The server itself, listening for incoming connections and spawning new
      instances of ClientR (argument to comm.BasicServer's constructor).
     """
+
     # Here we have to match comm.BasicServer constructor
     def __init__(self, addr_port):
         """Look, that's where you tell the server to spawn ClientR instances"""
@@ -127,51 +144,56 @@ class ClientR(comm.RemoteClient):
 
 
 REMOTE_MODULES = { "c": Client,
-                   "ce" : EchoClient,
-                   "cfoo": ClientFoo,
-                   "idiot": ClientR    # this is stupid to do, so don't do it!
-          }
+                   "echo" : EchoClient,
+                   "pong_shut": ClientFoo,
+                   "do_not": ClientR    # this is stupid to do, so don't do it!
+                   }
 HEARTBEATS = 2
 
-print ""
-print "available remotes: "+str(REMOTE_MODULES.keys())
-import sys
-print "argv: "+str(sys.argv)
+if __name__ == '__main__':
+    print "###"
+    print "### available remotes: "+str(REMOTE_MODULES.keys())
+    import sys
+    print "### argv: "+str(sys.argv)
 
-remains, clients, server = comm.create(sys.argv, REMOTE_MODULES, Server)
-print ""
+    remains, clients, server = comm.create(sys.argv, REMOTE_MODULES, Server)
+    print ""
 
-print "remaining args: "+str(remains)
-print "clients: \t"+str(clients)
-print "server: \t"+str(server)
-print ""
+    print "### remaining args: "+str(remains)
+    print "### clients: \t"+str(clients)
+    print "### server: \t"+str(server)
+    print ""
 
-if server and clients:
-    print "unlimited loop started"
-    # the function will return when no more sockets are open
-    asyncore.loop()
+    if server and clients:
+        print "unlimited loop started"
+        # the function will return when no more sockets are open
+        comm.loop()
 
-elif server:     # (you *should* have only one)
-    while server.is_readable or server.is_writable:
-        asyncore.loop(0.5, count=1)   # wait 500ms or new data before returning
+    elif server:     # (you *should* have only one)
+        import pdb
+        pdb.set_trace()
+        while server.is_readable:           # a server is not writable
+            comm.loop(5, count=1)       # block for 500ms or new data event
 
-elif clients:
-    print "sending heartbeats"
-    for client in clients:
-        if not hasattr(client, "received_pong"):
-            print "not a heartbeat aware client ;)"
-            continue
-        # generate a bit of traffic
-        hb = HEARTBEATS
-        while client.connected and not client.received_pong and hb:
-            print client.__repr__(), "heartbeat test #", HEARTBEATS
-            asyncore.loop(1, count=1)
-            client.send_msg("ping")
-            hb -= 1
-            time.sleep(1)
+    elif clients:
+        for client in clients:
+            if not hasattr(client, "received_pong"):
+                continue
+            # generate a bit of traffic
+            hb = HEARTBEATS
+            print "sending %i heartbeats" % hb
+            while client.connected and not client.received_pong and hb:
+                print client.__repr__(), "heartbeat test #", hb
+                comm.loop(1, count=1)
+                client.send_msg("ping")
+                hb -= 1
+                time.sleep(1)
 
-if [ c for c in clients if isinstance(c, EchoClient) ]:
-    print "running loop for persistent clients"
-    asyncore.loop()
+    if [ c for c in clients if isinstance(c, EchoClient) ]:
+        print "running loop for persistent clients"
+        comm.loop()
 
-print "ok, we're done"
+    for c in clients:
+        c.close()
+
+    print "ok, we're done"
