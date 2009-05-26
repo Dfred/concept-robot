@@ -140,7 +140,8 @@ class ClientR(comm.RemoteClient):
 
     def cmd_ping(self, args):
         """On ping reception, just reply politely"""
-        self.send_msg("pong")
+        print "SERVER> ping received", args
+        self.send_msg("pong %i" % time.time())
 
 
 REMOTE_MODULES = { "c": Client,
@@ -148,7 +149,7 @@ REMOTE_MODULES = { "c": Client,
                    "pong_shut": ClientFoo,
                    "do_not": ClientR    # this is stupid to do, so don't do it!
                    }
-HEARTBEATS = 2
+HEARTBEATS = 3
 
 if __name__ == '__main__':
     print "###"
@@ -183,9 +184,10 @@ if __name__ == '__main__':
             hb = HEARTBEATS
             print "sending %i heartbeats" % hb
             while client.connected and not client.received_pong and hb:
-                print client.__repr__(), "heartbeat test #", hb
+                t = time.time()
+                print client.__repr__(), "heartbeat test #", hb, t
+                client.send_msg("ping %i" % t)
                 comm.loop(1, count=1)
-                client.send_msg("ping")
                 hb -= 1
                 time.sleep(1)
 
