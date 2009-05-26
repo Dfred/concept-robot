@@ -201,14 +201,22 @@ class BasicServer(asyncore.dispatcher):
     """This class creates a TCPserver opening a single port."""
 
     MAX_QUEUED_CONNECTIONS = 5
+    SERVER_ID = "server"
 
     def __init__(self, handlerClass=BasicHandler):
         """Create server and specify class to be spawn on accepted connection.
          handlerClass: called to spawn a dedicated client instance.
         """
         self.handlerClass       = handlerClass
-        self.id                 = "server"
+        self.id                 = self.SERVER_ID
+        self.is_readable        = False
         asyncore.dispatcher.__init__(self)
+
+    def readable(self):
+        return self.is_readable
+
+    def writable(self):
+        return False
 
     def listen_to(self, addr_port):
         """Open the port for incoming connections.
@@ -242,7 +250,6 @@ class BasicServer(asyncore.dispatcher):
             if hasattr(client, "send_msg"):
                 client.send_msg(msg)
             client.is_readable = False
-            client.is_writable = False
             client.close()
 
         if type(self.addr) == type(""):
@@ -276,4 +283,5 @@ class BasicServer(asyncore.dispatcher):
 
     def get_clients(self):
         """Return connected clients"""
-        return (cl for cl in asyncore.socket_map.values() if cl.connected)
+        return (cl for cl in asyncore.socket_map.values() if 
+                cl.id != self.SERVER_ID)
