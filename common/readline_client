@@ -1,0 +1,91 @@
+#!/usr/bin/python
+
+import threading
+import readline
+import logging
+import atexit
+import sys
+import cmd
+import os
+
+import comm
+
+# set logging verbosity
+# TODO: set it for the module only
+logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
+
+# readline history
+HISTFILE=os.path.join(os.environ["HOME"], ".comm-cons-clent.history")
+try:
+    readline.read_history_file(HISTFILE)
+except IOError:
+    pass
+import atexit
+atexit.register(readline.write_history_file, HISTFILE)
+del os, HISTFILE
+
+#
+#
+#
+
+class myUI(cmd.Cmd):
+    def precmd(self, line):
+        self.prompt = (self.server.connected and self.server.addr + "> " or
+                       "disconnected" )
+        return line
+
+    def default(self, line):
+        if line:
+            self.server.send_msg(line)
+
+    def restore_prompt(self):
+        self.stdout.write(self.prompt)
+        self.stdout.flush()
+
+
+class commConsClient(comm.BasicHandler):
+    """Our connection to a target server"""
+
+    def __init__(self, addr_port):
+        comm.BasicHandler.__init__(self)
+        # we're asking for our client to connect to server, but we don't know
+        # when this will happen, so rely on handle_connect to be noticed.
+        self.connect_to(addr_port)
+        ui = myUI()
+        ui.server = self
+        ui.precmd("")
+        ui.use_rawinput = True
+        self.ui = ui
+   
+    def handle_connect(self):
+        """Called when the client has just connected successfully"""
+        if comm.BasicHandler.handle_connect(self):
+            print self.__repr__(), "now connected to", self.addr
+        else:
+            print self.__repr__(), "failed to connect to", self.addr
+
+    def process(self, line):
+        """method that handles incoming data (line by line)."""
+        print "\nreceived from server:", line
+        self.ui.restore_prompt()
+        return len(line)
+
+
+TIMER=None
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print "[addr] and [port] not given!"
+        exit(-1)
+
+    def pump():
+        comm.loop(0.1, count=1)
+        TIMER = threading.Timer(0.2, pump)
+        TIMER.start()
+        
+    pump()
+    cnx = commConsClient((sys.argv[1], sys.argv[2]))
+    try:
+        cnx.ui.cmdloop()
+    except:
+        print "\n--done--"
+        exit(-1)
