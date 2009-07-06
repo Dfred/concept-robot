@@ -52,7 +52,7 @@ own = cont.owner
 # eyelid correction
 tmp = float(GameLogic.eYorient) + .505
 own['frame'] = 41 - tmp*50
-#print tmp, own['frame']
-for act in (cont.actuators["eyelidTop-LD"], cont.actuators["eyelidTop-RD"]):
-	act.frame = own['frame']
-	cont.activate(act)
+#print tmp, own['frame'], cont.actuators
+act = cont.actuators["eyelids-gaze-follow"]
+act.frame = own['frame']
+cont.activate(act)
