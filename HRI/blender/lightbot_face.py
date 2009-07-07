@@ -34,7 +34,6 @@ if not hasattr(GameLogic, "emo_client"):
 	objs = GameLogic.getCurrentScene().objects
 	GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
 	GameLogic.empty_e = objs[PREFIX+"Empty-eyes"]
-	GameLogic.eYorient = 0.0
 
 	cont = GameLogic.getCurrentController()
 	cont.activate(cont.actuators["- wakeUp -"])
@@ -50,7 +49,7 @@ cont= GameLogic.getCurrentController()
 own = cont.owner
 
 # eyelid correction
-tmp = float(GameLogic.eYorient) + .505
+tmp = float(GameLogic.eyes[0].orientation[2][1]) + .505
 own['frame'] = 41 - tmp*50
 #print tmp, own['frame'], cont.actuators
 act = cont.actuators["eyelids-gaze-follow"]

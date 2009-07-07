@@ -23,5 +23,3 @@ y = own.position[1]
 # Set our eyes driver location but mapping scene origin to mouse origin
 own.localPosition = ([ (x-.5)*MF[0], y, (-z+.5)*MF[1] ])
 
-# update eyes orientation for eyelids correction
-GameLogic.eYorient = GameLogic.eyes[0].orientation[2][1]
