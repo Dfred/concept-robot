@@ -5,10 +5,11 @@ import sys
 import asyncore
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 import comm
 
+#TODO: use global configuration
 VIS_ADDR = ("localhost","/tmp/vision")
 
 class VisionClient(comm.RemoteClient):
@@ -21,6 +22,10 @@ class VisionClient(comm.RemoteClient):
             self.server.choose_focus(args)
         else:
             self.send_msg(str(self.server.pos))
+
+    def cmd_shutdown(self, args):
+        """args: unused."""
+        self.server.shutdown()
 
 
 class Vision(comm.BasicServer):
@@ -36,7 +41,7 @@ class Vision(comm.BasicServer):
         try:
             self.listen_to(addr_port)
         except UserWarning, err:
-            print err
+            print "FATAL ERROR:", sys.argv[0], err
             exit(-1)
         self.pos = (.0, -1.0, .0)       # default to reasonably close
 
@@ -47,7 +52,6 @@ class Vision(comm.BasicServer):
         self.send_values()
     
     def send_values(self):
-        print self.pos
         for cl in self.get_clients():
             cl.send_msg("focus %f,%f,%f"% (self.pos[0], self.pos[1], self.pos[2]))
 
