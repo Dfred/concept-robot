@@ -12,7 +12,7 @@ import comm
 
 # set logging verbosity
 # TODO: set it for the module only
-logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
+logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
 # readline history
 HISTFILE=os.path.join(os.environ["HOME"], ".comm-cons-clent.history")
@@ -30,8 +30,11 @@ del os, HISTFILE
 
 class myUI(cmd.Cmd):
     def precmd(self, line):
-        self.prompt = (self.server.connected and self.server.addr + "> " or
-                       "disconnected" )
+        if not hasattr(self, "server"):
+            self.prompt = "<connecting>"
+        else:
+            self.prompt = (self.server.connected and self.server.addr + "> " or
+                           "<disconnected> " )
         return line
 
     def default(self, line):
@@ -46,46 +49,71 @@ class myUI(cmd.Cmd):
 class commConsClient(comm.BasicHandler):
     """Our connection to a target server"""
 
-    def __init__(self, addr_port):
+    def __init__(self, addr_port, pipe_mode):
+        self.ui = not pipe_mode and self.create_ui() or None
         comm.BasicHandler.__init__(self)
         # we're asking for our client to connect to server, but we don't know
         # when this will happen, so rely on handle_connect to be noticed.
-        self.connect_to(addr_port)
+        try:
+            self.connect_to(addr_port)
+        except UserWarning, err:
+            print sys.argv[0], "FATAL ERROR", err
+            exit(-1)
+
+    def create_ui(self):
         ui = myUI()
-        ui.server = self
         ui.precmd("")
         ui.use_rawinput = True
-        self.ui = ui
+        ui.server = self
+        return ui
    
     def handle_connect(self):
         """Called when the client has just connected successfully"""
+        if self.ui == None:
+            return
         if comm.BasicHandler.handle_connect(self):
-            print self.__repr__(), "now connected to", self.addr
+            print sys.argv[0], "now connected to", self.addr
         else:
-            print self.__repr__(), "failed to connect to", self.addr
+            print sys.argv[0], "failed to connect to", self.addr
+        self.ui.precmd("")
 
     def process(self, line):
         """method that handles incoming data (line by line)."""
         print "\nreceived from server:", line
-        self.ui.restore_prompt()
+        if self.ui:
+            self.ui.restore_prompt()
         return len(line)
 
 
 TIMER=None
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         print "[addr] and [port] not given!"
         exit(-1)
 
-    def pump():
-        comm.loop(0.1, count=1)
-        TIMER = threading.Timer(0.2, pump)
-        TIMER.start()
-        
-    pump()
-    cnx = commConsClient((sys.argv[1], sys.argv[2]))
-    try:
-        cnx.ui.cmdloop()
-    except:
-        print "\n--done--"
-        exit(-1)
+    pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
+    cnx = commConsClient((sys.argv[1], sys.argv[2]), pipe_mode)
+
+    if pipe_mode:
+        line = sys.stdin.readline()
+        while line:
+            print sys.argv[0],"sending>", line
+            cnx.send_msg(line)
+            line = sys.stdin.readline()
+            comm.loop(count=1)
+            if not cnx.connected:
+                print "disconnected from remote"
+                exit(-1)
+    else:
+        def pump():
+            """We need that because readline loop is blocking"""
+            comm.loop(0.1, count=1)
+            TIMER = threading.Timer(0.2, pump)
+            TIMER.start()
+
+        pump()
+        try:
+            cnx.ui.cmdloop()
+        except:
+            print "\n--done--"
+            exit(-1)
