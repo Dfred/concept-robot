@@ -3,4 +3,4 @@ Objective: analyse gaze-guidance performance using various type of displays.
 
 Paper/poster reference: to be published
 
-Sorry, utter-number.sh is not Windows friendly (and won't be)
+Sorry but the main script 'launch-display.sh' is not Windows friendly (and is unlikely to be)
