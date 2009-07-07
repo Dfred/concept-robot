@@ -145,7 +145,6 @@ class BasicHandler(asyncore.dispatcher):
         """Handle client disconnection"""
         LOG.info("%s> closing client connection", self.id)
         self.close()                # asyncore.socket_map is updated there.
-        print self, "handle_close, connected:", self.connected 
 
     def handle_connect(self):
         """self.connected is always True here (also for disconnected socket)."""
