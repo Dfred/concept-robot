@@ -17,6 +17,8 @@ VIS_SOCK="/tmp/vision"
 VISION="$TWD/../../HRI/vision/vision.py"
 LIGHTBOT="./face.sh"
 COMM_CLIENT="$TWD/../../common/readline_client"
+AZIMUTH="-4 + 18"
+ALTITUDE="-4 + 18"
 
 # check arguments number
 if ! test "$#" -eq 1; then
@@ -38,8 +40,8 @@ case "$1" in
         $VISION &
     fi
     cd $TWD/../../ && $LIGHTBOT & cd $TWD
-    sleep 5 # let vision and lightbot start
-    ;;
+    DELAY=4
+    read ;;
 
     *)
         echo "Sorry this argument is not recognized (PEBKAC)."
@@ -51,7 +53,10 @@ esac
 gazeAt()
 {
     echo "##!@#!@#!@#!@#!@#!@!-----------" $1
-    echo "focus 0 0 0" | $COMM_CLIENT --pipe $HOST $VIS_SOCK
+    x=`echo "$1%10 * $AZIMUTH" | bc`
+    y=`echo "$1/10 * $ALTITUDE" | bc`
+    echo "focus $x -40 $y" | $COMM_CLIENT --pipe $HOST $VIS_SOCK
+    aplay ding.wav &
 }
 
 RESFILE=sequence-$1-`date +%j-%H%M%S`.txt
@@ -72,6 +77,6 @@ do i=$(($i+1))
 done
 
 # cleanup
-if [ $1 == ${ARGS[1]} | $1 == ${ARGS[2]} ]; then
+if [ "$1" == ${ARGS[1]} ] || [ "$1" == ${ARGS[2]} ]; then
     echo "shutdown" | $COMM_CLIENT --pipe $HOST $VIS_SOCK
 fi
