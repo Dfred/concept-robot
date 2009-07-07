@@ -21,9 +21,10 @@ class VisionClient(comm.BasicHandler):
 	
 	def __init__(self, addr_port):
 		comm.BasicHandler.__init__(self)
-		self.connect_to(addr_port, 3)	# force blocking using timeout
 		self.focus_pos = (0., -5., 0.)
-		print "initial coords:", self.focus_pos
+		self.connect_to(addr_port, 3)	# force blocking using timeout
+                if not self.connected:
+                        print "vision_client could not connect!"
 
 	def cmd_focus(self, args):
 		"""receives focus 3D coordinates"""
