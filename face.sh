@@ -9,14 +9,15 @@ if ! test -x ./$FACE_BIN; then
     echo
 else
 
-BGE_SCRIPT_PATH=:common:HRI/blender
+    BGE_SCRIPT_PATH=:common:HRI/blender
 
 # The following depends on internal BGE python version
 
-BGE_PYTHON_VERS=2.5
-BGE_PYTHON_PATH=/usr/lib/python$BGE_PYTHON_VERS/:/usr/lib/python$BGE_PYTHON_VERS/lib-dynload
+    BGE_PYTHON_VERS=2.5
+    BGE_PYTHON_PATH=/usr/lib/python$BGE_PYTHON_VERS/:/usr/lib/python$BGE_PYTHON_VERS/lib-dynload
 
 # Now launch
-
-PYTHONPATH=$PYTHONPATH:$BGE_PYTHON_PATH:$BGE_SCRIPT_PATH ./$FACE_BIN
+    echo -n "launching face "
+    if [ $# > 1 ]; then echo "using options: $@"; else echo ""; fi
+    PYTHONPATH=$PYTHONPATH:$BGE_PYTHON_PATH:$BGE_SCRIPT_PATH ./$FACE_BIN $@
 fi
