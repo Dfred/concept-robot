@@ -3,7 +3,9 @@
 import sys
 
 def cmp(real, test):
-    return abs(real%10 - test%10) + abs(real/10 - test/10)
+    x = abs(real%10 - test%10)
+    y = abs(real/10 - test/10)
+    return x == y and 1.5 *x or x+y
 
 
 real = [int(n) for n in file(sys.argv[1])]
