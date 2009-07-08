@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ARGS=("human" "lightbot" "bubble")   #that's an array
+ARGS=("human" "mask" "dome")   #that's an array
 
 # COMMON PARAMETERS
 DELAY=5
