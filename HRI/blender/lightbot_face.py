@@ -40,7 +40,7 @@ if not hasattr(GameLogic, "emo_client"):
 
 else:
 	import comm
-	comm.loop(0.01, count=1)
+	comm.loop(count=1) # TODO: check that ?!
 	# setting focus point for the eyes
 	if GameLogic.vision_client and GameLogic.vision_client.connected:
 		GameLogic.empty_e.worldPosition = GameLogic.vision_client.focus_pos
