@@ -18,6 +18,6 @@ else
 
 # Now launch
     echo -n "launching face "
-    if [ $# > 1 ]; then echo "using options: $@"; else echo ""; fi
+    if [ $# -lt 1 ]; then echo "using options: $@"; else echo ""; fi
     PYTHONPATH=$PYTHONPATH:$BGE_PYTHON_PATH:$BGE_SCRIPT_PATH ./$FACE_BIN $@
 fi
