@@ -51,7 +51,7 @@ if sys.platform.startswith('linux'):
     conf_files.append(os.path.join('/etc', FILE))
 
     try:
-        conf_files.append(os.path.join(os.environ['LIGHTBOT_CONF'], FILE))
+        conf_files.append(os.environ['LIGHTBOT_CONF'])
     except (OSError,KeyError):
         pass
 
@@ -70,8 +70,9 @@ for conf_file in conf_files:
         break
 
 if not found:
-    print FILE,"not found in any of these pathes:",conf_files,". Aborting!"
-    exit(-1)
+    str = conf_files, " none found. Aborting!\
+  You can define LIGHTBOT_CONF system variable for path definition."
+    raise Exception(str)
 
 is_complete, missing = check_missing()
     
