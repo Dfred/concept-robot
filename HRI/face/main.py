@@ -3,34 +3,19 @@
 #  * defining classes in toplevel scripts (like here) leads to scope problems (imports...)
 #
 
-ADDR_EMO=("141.163.186.16",1110)
-ADDR_VIS=("localhost", '/tmp/vision')
 PREFIX="OB"
-#AU_MAP= {"O" : { "": , },
-#       	"C" : { "": , },
-#         "E" : { "": , },
-#         "A" : { "": , },
-#         "N" : { "": , }
-#        }
-#
-
-
-
-if not hasattr(GameLogic, "emo_client"):
+	
+def	initialize():
 	# for init, imports are done on demand since the standalone BGE has issues.
 	import sys
 	print "LIGHTBOT face synthesis, using python version:", sys.version
 
-	import comm
-
 	import logging
 	logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
-	import emo_client
-	import vision_client
-	GameLogic.emo_client = emo_client.EmoClient(ADDR_EMO)
-	GameLogic.vision_client = vision_client.VisionClient(ADDR_VIS)
-
+	import client_gaze
+	GameLogic.gaze_client = client_gaze.GazeClient()
+	
 	objs = GameLogic.getCurrentScene().objects
 	GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
 	GameLogic.empty_e = objs[PREFIX+"Empty-eyes"]
@@ -38,15 +23,24 @@ if not hasattr(GameLogic, "emo_client"):
 	cont = GameLogic.getCurrentController()
 	cont.activate(cont.actuators["- wakeUp -"])
 
-else:
-	import comm
-	comm.loop(count=1) # TODO: check that ?!
-	# setting focus point for the eyes
-	if GameLogic.vision_client and GameLogic.vision_client.connected:
-		GameLogic.empty_e.worldPosition = GameLogic.vision_client.focus_pos
-	
+
+import comm
+
 cont= GameLogic.getCurrentController()
 own = cont.owner
+
+if not hasattr(GameLogic, "gaze_client"):
+	try:
+		initialize()
+	except Exception, e:
+		print e
+		cont.activate(cont.actuators["QUITTER"])
+	
+comm.loop(count=1) # TODO: check that ?!
+# setting focus point for the eyes
+if GameLogic.gaze_client and GameLogic.gaze_client.connected:
+		GameLogic.empty_e.worldPosition = GameLogic.gaze_client.focus_pos
+	
 
 # eyelid correction
 tmp = float(GameLogic.eyes[0].orientation[2][1]) + .505

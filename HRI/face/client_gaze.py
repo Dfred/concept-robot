@@ -4,10 +4,11 @@
 #
 
 #
-# Communication client to emotional module.
+# Communication client to gazing module.
 #
 
 import comm
+import conf
 
 X_FACTOR=1
 X_OFFSET=0
@@ -16,15 +17,18 @@ Y_OFFSET=0
 Z_FACTOR=1
 Z_OFFSET=0
 
-class VisionClient(comm.BasicHandler):
+class GazeClient(comm.BasicHandler):
 	"""Our connection to a target server"""
 	
-	def __init__(self, addr_port):
+	def __init__(self):
 		comm.BasicHandler.__init__(self)
 		self.focus_pos = (0., -5., 0.)
-		self.connect_to(addr_port, 3)	# force blocking using timeout
+		self.diameter = 1	# normalized
+
+		# force blocking using timeout
+		self.connect_to(conf.gaze_addr, 3)
                 if not self.connected:
-                        print "vision_client could not connect!"
+                        comm.LOG.warning("gaze_client could not connect!")
 
 	def cmd_focus(self, args):
 		"""receives focus 3D coordinates"""
@@ -34,4 +38,10 @@ class VisionClient(comm.BasicHandler):
 				  Y_FACTOR*coords[1]+Y_OFFSET,
 				  Z_FACTOR*coords[2]+Z_OFFSET)
 		print "focus coords:", self.focus_pos
-VisionClient.process = comm.process
+
+	def cmd_iris(self, args):
+		"""receives [normalized] iris diameter"""
+		diameter = float(args[0])
+		print "iris diameter:", diameter
+
+GazeClient.process = comm.process
