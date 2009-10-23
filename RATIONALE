@@ -1,0 +1,7 @@
+This document describes file organisation of the Human-Robot Interaction part of the CONCEPT project.
+
+./		high-level information, startup script
+common/		common python modules and utilities
+HRI/		main python modules and utilities
+HRI/blender/	client interfaces for the display engine (Blender).
+experiments/	default directory for specific code and results
