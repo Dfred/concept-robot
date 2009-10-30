@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #
 # You should have received a copy of the GNU General Public License
 # along with comm module.  If not, see <http://www.gnu.org/licenses/>.
@@ -7,6 +8,7 @@
 # Communication client to gazing module.
 #
 
+import sys
 import comm
 import conf
 
@@ -55,18 +57,22 @@ class Player():
 	""" sends contents to appropriate endpoints."""
 
 	def __init__(self):
-		gaze, head = GazeConnection(), HeadConnection()
+		self.gaze, self.head = GazeConnection(), HeadConnection()
 		
 
 	def read_and_play(self, file):
 		f = open(file)
 		for line in f.readlines():
 			info = line.split()
-			
-			self.send_gaze()
+			self.head.send_neck()
+			self.gaze.send_gaze()
 
 
 
 if __name__ == "__main__":
 	p = Player()
-	p.read_and_play(sys.argv[1])
+	try:
+		p.read_and_play(sys.argv[1])
+	except IndexError:
+		print "pld data file ?"
+
