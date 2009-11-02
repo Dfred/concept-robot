@@ -91,7 +91,7 @@ def main():
 
     for time in sorted(human_data.keys()):
         data= human_data[time]
-        line = "%i : %s\n" % (time*100, data)
+        line = "%i:%s\n" % (time*100, data)
         out_file.write(line)
     if out_fname :
         out_file.close()
