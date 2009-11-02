@@ -36,17 +36,14 @@ class Gaze(comm.BasicServer):
     """Main vision module - server"""
     """
     Designed to receive on-demand queries from external systems.
+    This class holds all information, so you can also import this module.
     Origin is between the eyes.
     Metric System is used.
     """
 
     def __init__(self, addr_port):
         comm.BasicServer.__init__(self, GazeClient)
-        try:
-            self.listen_to(addr_port)
-        except UserWarning, err:
-            comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
-            exit(-1)
+        self.listen_to(addr_port)
         self.pos = (.0, -1.0, .0)       # default to reasonably close
 
     def set_focus(self, pos):
@@ -59,7 +56,11 @@ class Gaze(comm.BasicServer):
             cl.send_msg("focus %f,%f,%f"% (self.pos[0], self.pos[1], self.pos[2]))
 
 if __name__ == '__main__':
-    server = Gaze(conf.gaze_addr)
+    try:
+        server = Gaze(conf.gaze_addr)
+    except UserWarning, err:
+        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
+        exit(-1)
     while server.is_readable:
         comm.loop(5, count=1)
     print "Gaze done"
