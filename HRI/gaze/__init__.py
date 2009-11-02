@@ -2,7 +2,7 @@
 
 #
 # This module handle the gazing of the face as well as eyes' iris diameter.
-#
+# Coordinates are one 3float vector, Orientations are three 3float vector.
 
 import sys
 
@@ -10,6 +10,7 @@ import asyncore
 import logging
 
 logging.basicConfig(level=logging.WARNING)
+LOG = logging.getLogger("gaze-srv")
 
 import comm
 import conf
@@ -18,13 +19,17 @@ import conf
 class GazeClient(comm.RemoteClient):
     """Remote connection handler"""
 
-    def cmd_focus(self, args):
+    def cmd_focus(self, argline):
         """args: if empty, returns current focus coords. Otherwise, set them."""
-        if len(args):
-            args = [float(arg) for arg in args.split()]
-            self.server.choose_focus(args)
+        if len(argline):
+            try:
+                args = [ float(arg) for arg in argline.split() ]
+                self.server.set_focus(tuple(args[:3]))
+            except Exception, e:
+                LOG.warning("[focus] bad argument line: '%s', caused: %s" %
+                            (argline,e) )
         else:
-            self.send_msg(str(self.server.pos))
+            self.send_msg(str(self.server.focus))
 
     def cmd_shutdown(self, args):
         """args: unused."""
@@ -44,16 +49,27 @@ class Gaze(comm.BasicServer):
     def __init__(self, addr_port):
         comm.BasicServer.__init__(self, GazeClient)
         self.listen_to(addr_port)
-        self.pos = (.0, -1.0, .0)       # default to reasonably close
+        self.focus = (.0, -1.0, .0)       # default to reasonably close
+        self.angles = (0, 0, 0)
 
     def set_focus(self, pos):
-        """Decide where to look at considering all inputs"""
-        self.pos = pos
-        self.send_values()
-    
-    def send_values(self):
+        """Set focus (1 vector3)."""
+        self.focus = pos
+        self.send_focus()
+        
+    def set_orientation(self, matrix):
+        """Just set eyes orientation (3 vector3)."""
+        self.angles = angles
+        self.send_orientation()
+
+    def send_focus(self):
         for cl in self.get_clients():
-            cl.send_msg("focus %f,%f,%f"% (self.pos[0], self.pos[1], self.pos[2]))
+            cl.send_msg("focus %f %f %f" % self.focus )
+
+    def send_orientation(self):
+        #TODO: complete this !
+        pass
+
 
 if __name__ == '__main__':
     try:
