@@ -13,16 +13,18 @@ def	initialize():
 	import logging
 	logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
-	import client_gaze
-	GameLogic.client_gaze = client_gaze.GazeClient()
-	
-	import client_face
-	GameLogic.client = client_face.FaceClient()
-	
 	objs = GameLogic.getCurrentScene().objects
 	GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
 	GameLogic.empty_e = objs[PREFIX+"Empty-eyes"]
 
+	import conf
+	import gaze
+	GameLogic.srv_gaze = gaze.Gaze(conf.gaze_addr)
+	
+#	import client_face
+#	GameLogic.client = client_face.FaceClient()
+
+	GameLogic.initialized = True	
 	cont = GameLogic.getCurrentController()
 	cont.activate(cont.actuators["- wakeUp -"])
 	
@@ -35,18 +37,18 @@ import comm
 cont= GameLogic.getCurrentController()
 own = cont.owner
 
-if not hasattr(GameLogic, "client_gaze"):
-#	try:
-	initialize()
-#	except Exception, e:
-#		print "exception received:",e
-#		cont.activate(cont.actuators["QUITTER"])
+if not hasattr(GameLogic, "initialized"):
+	try:
+		initialize()
+	except Exception, e:
+		print "exception received:",e
+		cont.activate(cont.actuators["QUITTER"])
 	
-comm.loop(count=1) # TODO: check that ?!
+comm.loop(.01, count=1) # block for max 10ms and 1 packet
 # setting focus point for the eyes
-if GameLogic.client_gaze and GameLogic.client_gaze.connected:
+if hasattr(GameLogic, "srv_gaze") and GameLogic.srv_gaze.connected:
 		GameLogic.empty_e.worldPosition = GameLogic.client_gaze.focus_pos
-	
+
 
 # eyelid correction
 tmp = float(GameLogic.eyes[0].orientation[2][1]) + .505
