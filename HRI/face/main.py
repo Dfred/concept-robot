@@ -33,6 +33,7 @@ def set_AUs(args):
 	pass
 
 import comm
+#import Mathutils
 
 cont= GameLogic.getCurrentController()
 own = cont.owner
@@ -47,7 +48,14 @@ if not hasattr(GameLogic, "initialized"):
 comm.loop(.01, count=1) # block for max 10ms and 1 packet
 # setting focus point for the eyes
 if hasattr(GameLogic, "srv_gaze") and GameLogic.srv_gaze.connected:
-		GameLogic.empty_e.worldPosition = GameLogic.client_gaze.focus_pos
+	if GameLogic.srv_gaze.changed == 'f':
+		GameLogic.empty_e.worldPosition = GameLogic.srv_gaze.focus
+	elif GameLogic.srv_gaze.changed == 'o':
+		# maybe Mathutils.Matrix() constructor is needed here
+		GameLogic.eyes[0].setOrientation(GameLogic.srv_gaze.orientation)
+		GameLogic.eyes[1].setOrientation(GameLogic.srv_gaze.orientation)
+		print "eyes orientation set to ", GameLogic.eyes[0].getOrientation()
+	GameLogic.srv_gaze.changed = False
 
 
 # eyelid correction
