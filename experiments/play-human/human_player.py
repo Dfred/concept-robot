@@ -5,35 +5,33 @@
 #
 
 #
-# Communication client to gazing module.
+# Playing custom datafiles (.lpd) to remote submodules.
+# The .lpd entries shall be sorted according to their 1st field (time).
 #
 
 import sys
+import time
 import comm
 import conf
 
-
+import logging
+logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
 
 
 class GazeConnection(comm.BasicHandler):
   """Connection to gaze server"""
   process = comm.process
-	
+  
   def __init__(self):
     comm.BasicHandler.__init__(self)
     self.focus_pos = (0., -5., 0.)
     self.diameter = .5	# normalized
-    
     # force blocking using timeout
     self.connect_to(conf.gaze_addr, 3)
     if not self.connected:
-	comm.LOG.warning("gaze player could not connect!")
-
-  def send_gaze(self, direction, distance, speed):
-      """Set relative eye movements: orientation for both eyes."""
-      self.send()
-
-
+      comm.LOG.warning("gaze player could not connect!")
+      
+      
 class HeadConnection(comm.BasicHandler):
   """Connection to head server"""
   def __init__(self):
@@ -42,37 +40,65 @@ class HeadConnection(comm.BasicHandler):
     if not self.connected:
       comm.LOG.warning("head player could not connect!")
 
-  def send_head(self):
-    """Set relative head movement."""
-    pass
-
 
 class Player():
   """Reads a data file got from xml2ldp.py and"""
   """ sends contents to appropriate endpoints."""
+
   def __init__(self):
     self.gaze, self.head = GazeConnection(), HeadConnection()
-		
-  def read_and_play(self, file):
-    f = open(file)
-    for line in f.readlines():
-      time, cmd = line.split(':')
-      args = cmd.split()
-      print args
+    if not self.gaze.connected and not self.head.connected:
+      raise Exception("No remote module could be reached.")
+    
+  def read_and_play(self, file, jump_first):
+    """Small bufferized player"""
+
+    def read_and_parse(self, f):
+      line, bIndex = "", f.tell()
+      while not line.strip():
+        line = f.readline()
+      if bIndex == f.tell():
+        return None
+      frame_time, cmdline = line.split(':')
+      cmd, argline = cmdline.split(None, 1)
       try:
-        fct = getattr(self, "parse_"+args[0])
+        fct = getattr(self, "send_"+cmd)
       except AttributeError:
-        print "command not available:", args[0]
+        print "command not available:", cmd
+      return (float(frame_time), fct, argline)
 
-      fct(args[1:])
+    self.playing = True
+    f = open(file)
+    ftime, fct, args = read_and_parse(self,f)
+    if jump_first:
+      print "jumping to", ftime, "s."
+      last_ftime = ftime
 
-  def parse_eyes(
+#       play_time = time.time()- start_time
+#       if play_time > frame_time:
+#         print "congestion detected **!!!**"
+#         continue
+
+    while self.playing:
+      print "sleep for", ftime - last_ftime, "s."
+      time.sleep(ftime - last_ftime)
+      fct(args)
+      comm.loop(0.1, count=1)
+      ftime, fct, args = read_and_parse(self,f)
+    f.close()
+
+  def send_eyes(self, argline):
+    print "orientation",argline
+    self.gaze.send_msg("orientation "+argline)
+      
 
 
 if __name__ == "__main__":
   p = Player()
+  jump_first = len(sys.argv) > 1 and sys.argv[1] == '--jump'
   try:
-    p.read_and_play(sys.argv[1])
+    ifilename = sys.argv[jump_first +1]
   except IndexError:
     print "pld data file ?"
+  p.read_and_play(ifilename, jump_first)
 
