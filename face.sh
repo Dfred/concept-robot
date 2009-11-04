@@ -9,7 +9,7 @@ if ! test -x ./$FACE_BIN; then
     echo
 else
 
-    BGE_SCRIPT_PATH=:common:HRI/face
+    BGE_SCRIPT_PATH=:common/:HRI
 
 # The following depends on internal BGE python version
 
