@@ -5,11 +5,15 @@
 # uses expat (no validation).
 
 import xml.parsers.expat
+import math
 import sys
 
 
 fps = None
-human_data = {}       # key: time(in ms), value specific to head/eye/face/..: ()
+human_data = {}         # key: time(in s), value specific head/eye/face/..
+current_eyes = [0,0,1,0,1,0,1,0,0]
+
+
 
 def set_dialogue(attrs):
     global fps
@@ -25,7 +29,10 @@ def set_phgs(attrs):
 
 def set_pems(attrs):
     """Eye Orientation."""
-    value = 'eyes %i %.2f' % (int(attrs['angle']), float(attrs['distance']))
+    a, d = int(attrs['angle']), float(attrs['distance'])
+    current_eyes[1] += math.cos(a)*d
+    current_eyes[7] += math.sin(a)*d
+    value = 'eyes '+ ' '.join(['%.3f' % v for v in current_eyes])
     human_data[float(attrs['startTime'])/fps] = value
 
 
@@ -81,6 +88,9 @@ def main():
         parser.ParseFile(xml_file)
     except Exception, e:
         print "Something's wrong with l."+str(parser.CurrentLineNumber), ":", e
+        if verbose and xml_file:
+            xml_file.seek(parser.ErrorByteIndex+2)      #XXX: this +2 may change
+            print '`-->',xml_file.readline()
         exit(-1)
         
     try:
@@ -90,8 +100,8 @@ def main():
         out_file = sys.stdout
 
     for time in sorted(human_data.keys()):
-        data= human_data[time]
-        line = "%i:%s\n" % (time*100, data)
+        data = human_data[time]
+        line = "%.3f:%s\n" % (time, data)
         out_file.write(line)
     if out_fname :
         out_file.close()
