@@ -80,13 +80,13 @@ class Gaze(comm.BasicServer):
 
     def send_focus(self):
         """Echo focus command to clients"""
-        for cl in self.get_clients():
-            cl.send_msg("focus %f %f %f" % self.focus )
+#        for cl in self.get_clients():
+#            cl.send_msg("focus %f %f %f" % self.focus )
 
     def send_orientation(self):
         """Echo command to clients"""
-        for cl in self.get_clients():
-            cl.send_msg("orient "+ str(self.orientation) )
+#        for cl in self.get_clients():
+#            cl.send_msg("orientation "+ str(self.orientation) )
         
 
 
