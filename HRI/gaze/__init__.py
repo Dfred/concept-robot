@@ -17,7 +17,7 @@ import conf
 
 
 class GazeClient(comm.RemoteClient):
-    """Remote connection handler"""
+    """Remote connection handler: protocol parser."""
 
     def cmd_focus(self, argline):
         """args: if empty, returns current focus coords. Otherwise, set them."""
@@ -36,13 +36,12 @@ class GazeClient(comm.RemoteClient):
         if len(argline):
             try:
                 args = [ float(arg) for arg in argline.split() ]
-                self.server.set_orientation(
-                    tuple([args[0:3],args[3:6],args[6:9]]) )
+                self.server.set_orientation(args[:3], args[3], args[4])
             except Exception, e:
                 LOG.warning("[orientation] bad argument line:'%s', caused: %s" %
                             (argline,e) )
         else:
-            self.send_msg("orientation",str(self.server.angles))
+            self.send_msg("orientation ",str(self.server.orientation))
 
     def cmd_shutdown(self, args):
         """args: unused."""
@@ -63,8 +62,9 @@ class Gaze(comm.BasicServer):
         comm.BasicServer.__init__(self, GazeClient)
         self.listen_to(addr_port)
         self.focus = (.0, -1.0, .0)
-        self.orientation = ([0,0,0], [0,-1,0], [0,0,0])
-        self.changed = False            # update flag ('f', 'o')
+        self.orientation = [0.0, (.0,.0,.0)]       # angle, vector
+        self.time = 0
+        self.changed = 'f'
 
     def set_focus(self, pos):
         """Set focus (1 vector3)."""
@@ -72,9 +72,10 @@ class Gaze(comm.BasicServer):
         self.changed = 'f'
         self.send_focus()
         
-    def set_orientation(self, matrix):
-        """Just set eyes orientation (3 vector3)."""
-        self.orientation = matrix
+    def set_orientation(self, vector3, angle, time):
+        """Just set eyes orientation ()."""
+        self.orientation = (angle, vector3)
+        self.time = time
         self.changed = 'o'
         self.send_orientation()
 
@@ -86,8 +87,8 @@ class Gaze(comm.BasicServer):
     def send_orientation(self):
         """Echo command to clients"""
 #        for cl in self.get_clients():
-#            cl.send_msg("orientation "+ str(self.orientation) )
-        
+#            cl.send_msg("orientation "+str(self.orientation)+" "+str(self.time))
+
 
 
 if __name__ == '__main__':
