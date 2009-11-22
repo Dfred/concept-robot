@@ -4,6 +4,8 @@
 #
 
 PREFIX="OB"
+EYES_MAX_ANGLE=30
+
 	
 def	initialize():
 	# for init, imports are done on demand since the standalone BGE has issues.
@@ -48,12 +50,19 @@ if not hasattr(GameLogic, "initialized"):
 comm.loop(.01, count=1) # block for max 10ms and 1 packet
 # setting focus point for the eyes
 if hasattr(GameLogic, "srv_gaze") and GameLogic.srv_gaze.connected:
-	if GameLogic.srv_gaze.changed == 'f':
+	if GameLogic.srv_gaze.changed == 'f':   # focus
 		GameLogic.empty_e.worldPosition = GameLogic.srv_gaze.focus
-	elif GameLogic.srv_gaze.changed == 'o':
-		# maybe Mathutils.Matrix() constructor is needed here
-		GameLogic.eyes[0].setOrientation(GameLogic.srv_gaze.orientation)
-		GameLogic.eyes[1].setOrientation(GameLogic.srv_gaze.orientation)
+	elif GameLogic.srv_gaze.changed == 'o': # orientation
+		import Mathutils
+		o_angle, o_vect = GameLogic.srv_gaze.orientation
+		o_time = GameLogic.srv_gaze.time
+		print o_vect, o_angle, o_time
+		# angle is normalized, we need it in degrees here, + see TODO: eye texture orientation.
+		if o_angle == .0:
+			o_vect = (.0,.0,.0001)
+		oMatrix = Mathutils.RotationMatrix(EYES_MAX_ANGLE*o_angle-180, 3, "r", Mathutils.Vector(*o_vect))
+		GameLogic.eyes[0].setOrientation(oMatrix)
+		GameLogic.eyes[1].setOrientation(oMatrix)
 		print "eyes orientation set to ", GameLogic.eyes[0].getOrientation()
 	GameLogic.srv_gaze.changed = False
 
