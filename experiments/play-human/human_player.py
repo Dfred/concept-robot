@@ -62,13 +62,14 @@ class Player():
       frame_time, cmdline = line.split(':')
       cmd, argline = cmdline.split(None, 1)
       try:
-        fct = getattr(self, "send_"+cmd)
+        fct = getattr(self, "set_"+cmd)
       except AttributeError:
         print "command not available:", cmd
       return (float(frame_time), fct, argline)
 
     self.playing = True
     f = open(file)
+    last_ftime = 0
     ftime, fct, args = read_and_parse(self,f)
     if jump_first:
       print "jumping to", ftime, "s."
@@ -79,18 +80,23 @@ class Player():
 #         print "congestion detected **!!!**"
 #         continue
 
-    while self.playing:
+    while self.playing and self.gaze.connected:
       print "sleep for", ftime - last_ftime, "s."
       time.sleep(ftime - last_ftime)
       fct(args)
       comm.loop(0.1, count=1)
+      last_ftime = ftime
       ftime, fct, args = read_and_parse(self,f)
     f.close()
 
-  def send_eyes(self, argline):
+  def set_eyes(self, argline):
+    """set gaze: vector3 normalized_angle time_in_s"""
     print "orientation",argline
     self.gaze.send_msg("orientation "+argline)
       
+  def set_fexpr(self, argline):
+    """set facial expression"""
+    pass
 
 
 if __name__ == "__main__":
