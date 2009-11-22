@@ -13,7 +13,6 @@ fps = None
 human_data = {}         # key: time(in s), value specific head/eye/face/..
 eyes_rot_vect = [0.0,0,0.0]
 
-X, Y = 0,0
 
 def set_dialogue(attrs):
     global fps
@@ -47,8 +46,8 @@ def set_pems(attrs):
         eyes_rot_vect[2] = 0
     else:
         eyes_rot_vect[2] += y
-    value = "eyes % .3f 0 % .3f %.2f %.3f" % (eyes_rot_vect[0],eyes_rot_vect[2],
-                                               d, float(et-st)/fps)
+    value = "eyes % .3f .0 % .3f %.2f %.3f" %(eyes_rot_vect[0],eyes_rot_vect[2],
+                                              d, float(et-st)/fps)
     human_data[float(st)/fps] = value
 
 
