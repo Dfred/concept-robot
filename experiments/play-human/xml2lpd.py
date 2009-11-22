@@ -11,9 +11,9 @@ import sys
 
 fps = None
 human_data = {}         # key: time(in s), value specific head/eye/face/..
-current_eyes = [0,0,1,0,1,0,1,0,0]
+eyes_rot_vect = [0.0,0,0.0]
 
-
+X, Y = 0,0
 
 def set_dialogue(attrs):
     global fps
@@ -27,13 +27,29 @@ def set_phgs(attrs):
     value = 'head %i' % (int(attrs['direction']), None)
     human_data[float(attrs['startTime'])/fps] = value
 
+def set_pbl(attrs):
+    """Get blinks."""
+    st, et = int(attrs['startTime']), int(attrs['endTime'])
+    human_data[float(attrs['startTime'])]
+
 def set_pems(attrs):
     """Eye Orientation."""
+    st, et = int(attrs['startTime']), int(attrs['endTime'])
     a, d = int(attrs['angle']), float(attrs['distance'])
-    current_eyes[1] += math.cos(a)*d
-    current_eyes[7] += math.sin(a)*d
-    value = 'eyes '+ ' '.join(['%.3f' % v for v in current_eyes])
-    human_data[float(attrs['startTime'])/fps] = value
+    x = math.cos(math.radians(360-(a-90)) )*d
+    y = math.sin(math.radians(360-(a-90)) )*d
+    print x,y
+    if not x:
+        eyes_rot_vect[0] = 0
+    else:
+        eyes_rot_vect[0] += x
+    if not y:
+        eyes_rot_vect[2] = 0
+    else:
+        eyes_rot_vect[2] += y
+    value = "eyes % .3f 0 % .3f %.2f %.3f" % (eyes_rot_vect[0],eyes_rot_vect[2],
+                                               d, float(et-st)/fps)
+    human_data[float(st)/fps] = value
 
 
 
@@ -105,7 +121,8 @@ def main():
         out_file.write(line)
     if out_fname :
         out_file.close()
-    print "done"
+    if verbose:
+        print "done"
 
         
 __name__ == '__main__' and main()
