@@ -58,7 +58,7 @@ class Player():
       while not line.strip():
         line = f.readline()
       if bIndex == f.tell():
-        return None
+        return (0,None,None)
       frame_time, cmdline = line.split(':')
       cmd, argline = cmdline.split(None, 1)
       try:
@@ -80,7 +80,7 @@ class Player():
 #         print "congestion detected **!!!**"
 #         continue
 
-    while self.playing and self.gaze.connected:
+    while self.gaze.connected and fct:
       print "sleep for", ftime - last_ftime, "s."
       time.sleep(ftime - last_ftime)
       fct(args)
