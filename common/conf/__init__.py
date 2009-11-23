@@ -33,11 +33,24 @@ This software package shall come with a default configuration file.
 
 import os, sys
 
+
+MODULE=sys.modules[__name__]
+
 FILE='lightbot.conf'
-REQUIRED=['vision_addr']
+REQUIRED=['gaze_addr']
+
+def get_unix_sockets(print_flag = False):
+    """Try to get unix sockets from the loaded configuration"""
+    entries = [ MODULE.__getattribute__(conf) for conf in dir(MODULE) if conf.endswith('_addr') ]
+    sockets = [ port for host, port in entries if type(port) == type("") ]
+    if print_flag:
+        print " ".join(sockets)
+    return sockets
+
 
 def check_missing():
-    present = [ i for i in REQUIRED if i in globals() ] 
+    """check for missing mandatory configuration entries"""
+    present = [ i for i in REQUIRED if i in dir(MODULE) ] 
     return (present == REQUIRED, [ i for i in REQUIRED if i not in present ] )
 
 conf_files = []
