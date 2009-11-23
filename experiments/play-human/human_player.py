@@ -105,6 +105,7 @@ if __name__ == "__main__":
   try:
     ifilename = sys.argv[jump_first +1]
   except IndexError:
-    print "pld data file ?"
+    print "what is your .pld data file ?"
+    exit(-1)
   p.read_and_play(ifilename, jump_first)
 
