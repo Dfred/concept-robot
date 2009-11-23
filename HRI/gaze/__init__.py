@@ -2,7 +2,14 @@
 
 #
 # This module handle the gazing of the face as well as eyes' iris diameter.
-# Coordinates are one 3float vector, Orientations are three 3float vector.
+# Gazing can be set by specifying:
+#       a focus point (vector3)
+#       an rotation axis (vector3) and an angle (radians)
+# INPUT: - planner
+#        - emotion (iris diameter + saccades)
+#
+# OUTPUT: * face module (to update eyelids)
+#
 
 import sys
 
@@ -50,21 +57,19 @@ class GazeClient(comm.RemoteClient):
 
 
 class Gaze(comm.BasicServer):
-    """Main vision module - server"""
+    """Main gaze module - server"""
     """
     Designed to receive on-demand queries from external systems.
     This class holds all information, so you can also import this module.
-    Origin is between the eyes.
-    Metric System is used.
     """
 
     def __init__(self, addr_port):
         comm.BasicServer.__init__(self, GazeClient)
         self.listen_to(addr_port)
-        self.focus = (.0, -1.0, .0)
-        self.orientation = [0.0, (.0,.0,.0)]       # angle, vector
-        self.time = 0
-        self.changed = 'f'
+        self.focus = (.0, -5.0, 0.0)
+        self.orientation = [0.0, (.0,.0,.0)]            # angle, vector
+        self.duration = 0                               # eye movement duration
+        self.changed = None
 
     def set_focus(self, pos):
         """Set focus (1 vector3)."""
@@ -72,10 +77,10 @@ class Gaze(comm.BasicServer):
         self.changed = 'f'
         self.send_focus()
         
-    def set_orientation(self, vector3, angle, time):
+    def set_orientation(self, vector3, angle, duration):
         """Just set eyes orientation ()."""
         self.orientation = (angle, vector3)
-        self.time = time
+        self.duration = duration
         self.changed = 'o'
         self.send_orientation()
 
@@ -87,7 +92,7 @@ class Gaze(comm.BasicServer):
     def send_orientation(self):
         """Echo command to clients"""
 #        for cl in self.get_clients():
-#            cl.send_msg("orientation "+str(self.orientation)+" "+str(self.time))
+#            cl.send_msg("orientation "+str(self.orientation)+" "+str(self.duration))
 
 
 
