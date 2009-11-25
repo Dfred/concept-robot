@@ -67,11 +67,15 @@ class Gaze(comm.BasicServer):
         comm.BasicServer.__init__(self, GazeClient)
         self.listen_to(addr_port)
         self.focus = (.0, -5.0, 0.0)
-        self.orientation = [0.0, (.0,.0,.0)]            # angle, vector
+        self.orientation = [0, 0.0, (.0,.0,.0)]         # target, angle, vector
         self.duration = 0                               # eye movement duration
+        self.elapsed = 0
         self.changed = None
 
     def update(self, time_step):
+#        factor = not self.duration and 1 or self.elapsed/self.duration
+#        self.orientation[1] += (self.orientation[0]-self.orientation[1])*factor
+#        self.elapsed += time_step
         pass
 
     def set_focus(self, pos):
@@ -82,7 +86,8 @@ class Gaze(comm.BasicServer):
         
     def set_orientation(self, vector3, angle, duration):
         """Just set eyes orientation ()."""
-        self.orientation = (angle, vector3)
+        self.orientation = [angle, angle, vector3]
+#TODO:        self.orientation = [angle, 0, vector3]
         self.duration = duration
         self.changed = 'o'
         self.send_orientation()
@@ -91,11 +96,13 @@ class Gaze(comm.BasicServer):
         """Echo focus command to clients"""
 #        for cl in self.get_clients():
 #            cl.send_msg("focus %f %f %f" % self.focus )
+        pass
 
     def send_orientation(self):
         """Echo command to clients"""
 #        for cl in self.get_clients():
 #            cl.send_msg("orientation "+str(self.orientation)+" "+str(self.duration))
+        pass
 
 
 
