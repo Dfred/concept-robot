@@ -71,6 +71,9 @@ class Gaze(comm.BasicServer):
         self.duration = 0                               # eye movement duration
         self.changed = None
 
+    def update(self, time_step):
+        pass
+
     def set_focus(self, pos):
         """Set focus (1 vector3)."""
         self.focus = pos
