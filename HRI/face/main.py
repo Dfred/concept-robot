@@ -60,17 +60,14 @@ def check_actuators(cont, acts):
 def update_eyes(srv_gaze):
     """To get a smooth movement (just linear), we start the eye movement,
         next iteration shall continue."""
+
+    # handle empty_e when moved
     if GameLogic.empty_e.updated:
         srv_gaze.set_focus(GameLogic.empty_e.localPosition)
-        factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
-        GameLogic.srv_face.set_AU('43R', 0.9-factor, TIME_STEP)
-        GameLogic.srv_face.set_AU('43L', 0.9-factor, TIME_STEP)
-        GameLogic.srv_face.set_AU('07R', factor, TIME_STEP)
-        GameLogic.srv_face.set_AU('07L', factor, TIME_STEP)
         GameLogic.empty_e.updated = False
-        return
+    else: # or when commands were sent to server
+        srv_gaze.update(TIME_STEP)
 
-    srv_gaze.update(TIME_STEP)
     if srv_gaze.changed == 'f':   # focus
         GameLogic.empty_e.worldPosition = srv_gaze.focus
     elif srv_gaze.changed == 'o': # orientation
@@ -80,18 +77,25 @@ def update_eyes(srv_gaze):
         #  see TODO: eye texture orientation.
         if o_angle == .0:
             o_vect = (.0,.0,.0001)
-        oMatrix = Mathutils.RotationMatrix(factor*EYES_MAX_ANGLE*o_angle-180,
-                                           3, "r", Mathutils.Vector(*o_vect))
+        oMatrix = Mathutils.RotationMatrix(EYES_MAX_ANGLE*o_angle-180, 3, "r",
+                                           Mathutils.Vector(*o_vect))
         GameLogic.eyes[0].setOrientation(oMatrix)
         GameLogic.eyes[1].setOrientation(oMatrix)
         print "eyes orientation set to ", GameLogic.eyes[0].getOrientation()
+
+    #TODO: move this to gaze module (which should update the face module)
+    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
+    GameLogic.srv_face.set_AU('43R', 0.9-factor, TIME_STEP)
+    GameLogic.srv_face.set_AU('43L', 0.9-factor, TIME_STEP)
+    GameLogic.srv_face.set_AU('07R', factor, TIME_STEP)
+    GameLogic.srv_face.set_AU('07L', factor, TIME_STEP)
 
 
 def update_face(srv_face, cont):
     srv_face.update(TIME_STEP)
     for au, infos in srv_face.AUs.iteritems():
         target_val, duration, elapsed, value = infos
-        print "setting property", au, "to value", value
+        print "setting property p"+au+" to value", value
         cont.owner['p'+au] = value * 50
         cont.activate(cont.actuators[au])
 #TODO: check why 43R is a valid key, and what is the value ?
