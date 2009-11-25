@@ -41,6 +41,7 @@ def initialize():
     # ok, startup
     GameLogic.initialized = True	
     cont.activate(cont.actuators["- wakeUp -"])
+    set_eyelids(GameLogic.srv_face, 0)
 
 	
 def check_actuators(cont, acts):
@@ -57,22 +58,33 @@ def check_actuators(cont, acts):
             print "missing property: p"+act.name
 
 
+def set_eyelids(srv_face, time_step):
+    #TODO: move this to gaze module (which should update the face module)
+    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
+    srv_face.set_AU('43R', 0.9-factor, time_step)
+    srv_face.set_AU('43L', 0.9-factor, time_step)
+    srv_face.set_AU('07R', factor, time_step)
+    srv_face.set_AU('07L', factor, time_step)
+    GameLogic.srv_gaze.changed = False
+
+
 def update_eyes(srv_gaze):
     """To get a smooth movement (just linear), we start the eye movement,
         next iteration shall continue."""
 
-    # handle empty_e when moved
-    if GameLogic.empty_e.updated:
-        srv_gaze.set_focus(GameLogic.empty_e.localPosition)
+    if GameLogic.empty_e.updated:       # handle empty_e when moved
         GameLogic.empty_e.updated = False
-    else: # or when commands were sent to server
+        srv_gaze.set_focus(GameLogic.empty_e.localPosition)
+    else:                               # or when commands were sent to server
         srv_gaze.update(TIME_STEP)
 
-    if srv_gaze.changed == 'f':   # focus
+    if not srv_gaze.changed:
+        return
+    elif srv_gaze.changed == 'f':   # focus
         GameLogic.empty_e.worldPosition = srv_gaze.focus
     elif srv_gaze.changed == 'o': # orientation
         import Mathutils
-        o_angle, o_vect = srv_gaze.orientation
+        o_angle, o_vect = srv_gaze.orientation[1:]
         # angle is normalized, we need it in degrees here, +
         #  see TODO: eye texture orientation.
         if o_angle == .0:
@@ -82,20 +94,14 @@ def update_eyes(srv_gaze):
         GameLogic.eyes[0].setOrientation(oMatrix)
         GameLogic.eyes[1].setOrientation(oMatrix)
         print "eyes orientation set to ", GameLogic.eyes[0].getOrientation()
-
-    #TODO: move this to gaze module (which should update the face module)
-    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
-    GameLogic.srv_face.set_AU('43R', 0.9-factor, TIME_STEP)
-    GameLogic.srv_face.set_AU('43L', 0.9-factor, TIME_STEP)
-    GameLogic.srv_face.set_AU('07R', factor, TIME_STEP)
-    GameLogic.srv_face.set_AU('07L', factor, TIME_STEP)
+    set_eyelids(GameLogic.srv_face, 0)
 
 
 def update_face(srv_face, cont):
     srv_face.update(TIME_STEP)
     for au, infos in srv_face.AUs.iteritems():
         target_val, duration, elapsed, value = infos
-        print "setting property p"+au+" to value", value
+#        print "setting property p"+au+" to value", value
         cont.owner['p'+au] = value * 50
         cont.activate(cont.actuators[au])
 #TODO: check why 43R is a valid key, and what is the value ?
