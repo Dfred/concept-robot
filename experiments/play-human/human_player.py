@@ -104,7 +104,7 @@ class Player():
     """set blink: duration in seconds"""
     self.face.send_msg("blink "+argline)
       
-  def set_fexpr(self, argline):
+  def set_f_expr(self, argline):
     """set facial expression"""
     self.face.send_msg("f_expr "+argline)
 
