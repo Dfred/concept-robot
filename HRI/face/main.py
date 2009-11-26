@@ -65,7 +65,6 @@ def set_eyelids(srv_face, time_step):
     srv_face.set_AU('43L', 0.9-factor, time_step)
     srv_face.set_AU('07R', factor, time_step)
     srv_face.set_AU('07L', factor, time_step)
-    GameLogic.srv_gaze.changed = False
 
 
 def update_eyes(srv_gaze):

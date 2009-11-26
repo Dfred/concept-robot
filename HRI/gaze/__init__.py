@@ -73,9 +73,12 @@ class Gaze(comm.BasicServer):
         self.changed = None
 
     def update(self, time_step):
-#        factor = not self.duration and 1 or self.elapsed/self.duration
-#        self.orientation[1] += (self.orientation[0]-self.orientation[1])*factor
-#        self.elapsed += time_step
+        if self.elapsed > self.duration:
+            self.changed = False
+            return
+        factor = 1 #not self.duration and 1 or self.elapsed/self.duration
+        self.orientation[1] += (self.orientation[0]-self.orientation[1])*factor
+        self.elapsed += time_step
         pass
 
     def set_focus(self, pos):
@@ -86,9 +89,9 @@ class Gaze(comm.BasicServer):
         
     def set_orientation(self, vector3, angle, duration):
         """Just set eyes orientation ()."""
-        self.orientation = [angle, angle, vector3]
-#TODO:        self.orientation = [angle, 0, vector3]
+        self.orientation = [angle, 0, vector3]
         self.duration = duration
+        self.elapsed = 0
         self.changed = 'o'
         self.send_orientation()
 
