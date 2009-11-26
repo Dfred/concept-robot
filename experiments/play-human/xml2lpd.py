@@ -26,10 +26,14 @@ def set_phgs(attrs):
     value = 'head %i' % (int(attrs['direction']), None)
     human_data[float(attrs['startTime'])/fps] = value
 
+def set_pfe(attrs):
+    """Get facial expression"""
+    pass
+
 def set_pbl(attrs):
     """Get blinks."""
     st, et = int(attrs['startTime']), int(attrs['endTime'])
-    human_data[float(attrs['startTime'])]
+    human_data[float(st)/fps] = "blink %.3f" % (float(et-st)/fps)
 
 def set_pems(attrs):
     """Eye Orientation."""
@@ -37,7 +41,6 @@ def set_pems(attrs):
     a, d = int(attrs['angle']), float(attrs['distance'])
     x = math.cos(math.radians(360-(a-90)) )*d
     y = math.sin(math.radians(360-(a-90)) )*d
-    print x,y
     if not x:
         eyes_rot_vect[0] = 0
     else:
@@ -56,6 +59,8 @@ verbose = False
 functions = {
     #        "cState": set_cstate,
     #        "phgs": set_phgs,
+        "pfe" : set_pfe,
+        "pbl" : set_pbl,
         "pems": set_pems,
         "dialogue": set_dialogue
         }
