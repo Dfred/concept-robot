@@ -5,7 +5,7 @@
 # uses expat (no validation).
 
 import xml.parsers.expat
-import math
+import math, random
 import sys
 
 
@@ -22,21 +22,34 @@ def set_cstate(attrs):
     pass
 
 def set_phgs(attrs):
-    """Get orientation axis and angle."""
+    """Translate head movements."""
+    """protocol: """
+    st, et = int(attrs['startTime']), int(attrs['endTime'])
     value = 'head %i' % (int(attrs['direction']), None)
     human_data[float(attrs['startTime'])/fps] = value
 
 def set_pfe(attrs):
-    """Get facial expression"""
-    pass
+    """Translate facial expressions:"""
+    """protocol: f_expr id intensity duration"""
+    st, et = int(attrs['startTime']), int(attrs['endTime'])
+    intensity = random.uniform(.3, .6)
+    duration = (float(et-st)/fps)
+    human_data[float(st)/fps] = "f_expr %s %.3f %.3f" % (attrs['expression'],
+                                                         intensity,
+                                                         duration)
+    human_data[(float(st)/fps)+duration] = "f_expr %s %.3f %.3f" % ('neutral',
+                                                                    0,
+                                                                    duration)
 
 def set_pbl(attrs):
-    """Get blinks."""
+    """Translate blinks."""
+    """protocol: blink intensity"""
     st, et = int(attrs['startTime']), int(attrs['endTime'])
     human_data[float(st)/fps] = "blink %.3f" % (float(et-st)/fps)
 
 def set_pems(attrs):
-    """Eye Orientation."""
+    """Translate eye movements."""
+    """protocol: eyes rot_axis_X rot_axis_Y rot_axis_Z angle_radians duration"""
     st, et = int(attrs['startTime']), int(attrs['endTime'])
     a, d = int(attrs['angle']), float(attrs['distance'])
     x = math.cos(math.radians(360-(a-90)) )*d
