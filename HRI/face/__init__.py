@@ -19,7 +19,7 @@ import comm
 import conf
 
 
-BLINK_PROBABILITY=0.02
+BLINK_PROBABILITY=0.0
 BLINK_DURATION=1
 
 class FaceClient(comm.RemoteClient):
@@ -35,6 +35,18 @@ class FaceClient(comm.RemoteClient):
                             (argline,e) )
         else:
             self.send_msg("AU ",str(self.server.focus))
+
+    def cmd_f_expr(self, argline):
+        """argline: facial expression id + intensity + duration."""
+        pass
+
+    def cmd_blink(self, argline):
+        """argline: duration of the blink in seconds."""
+        try:
+            self.server.do_blink(float(argline))
+        except Exception, e:
+                LOG.warning("[blink] bad argument line:'%s', caused: %s" %
+                            (argline,e) )
 
     def cmd_shutdown(self, args):
         """args: unused."""
@@ -61,7 +73,7 @@ class Face(comm.BasicServer):
         self.AUs = {}
         for act in AUs:
             self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
-        print "created AUs", AUs
+#        print "created AUs", AUs
         self.do_blink(0)
 
     def set_AU(self, name, target_value, duration):
@@ -74,6 +86,7 @@ class Face(comm.BasicServer):
 
     def do_blink(self, duration):
         """set AUs to create a blink of any duration"""
+        print "blink:", duration
         self.AUs["43R"][1:] =  duration, 0, .8
         self.AUs["07R"][1:] =  duration, 0, .2
         self.AUs["43L"][1:] =  duration, 0, .8
@@ -86,7 +99,7 @@ class Face(comm.BasicServer):
         #TODO: use motion dynamics
         for id,info in self.AUs.iteritems():
             target, duration, elapsed, val = info
-            if val == target: #or elapsed > duration:
+            if val == target or elapsed > duration:
                 continue        # let self.AUs[id] be reset on next command
 
             factor = not duration and 1 or elapsed/duration
