@@ -47,15 +47,15 @@ def initialize():
 def check_actuators(cont, acts):
     """Check required actuators are ok."""
     for act in acts:
-        act.mode = GameLogic.KX_ACTIONACT_PROPERTY
-        act.framePropName = act.name[:3]
-        if not cont.owner.has_key('p'+act.name):
+        if not cont.owner.has_key('p'+act.name) or \
+                act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
 #    property_act = cont.actuators['- property setter']
 #            print ": Setting property 'p"+act.name+"'"
 #            property_act.prop_name = 'p'+act.name
 #            property_act.value = "0"
 #            cont.activate(property_act)
             print "missing property: p"+act.name
+            sys.exit(-1)
 
 
 def set_eyelids(srv_face, time_step):
