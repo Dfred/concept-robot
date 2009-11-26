@@ -91,10 +91,10 @@ class Face(comm.BasicServer):
         #TODO: this is indeed way too simple...
         sets={ "raised_brows": ('01R', '02R', '01L', '02L'),
                "furrowed_brows": ('04R', '04L'),
-               "squint": (''),
+               "squint": ('04R', '04L', '10R', '10R'),
                "smile": ('07R', '10R', '12R', '07L', '10L', '12L', '25'),
-               "agreement_chin": (),
-               "begrudging_acceptance" : (),
+               "agreement_chin": ('17'),
+               "begrudging_acceptance" : ('02R', '17'),
                "neutral": ('01R', '01L', '02R', '02L', '04R', '04L',
                            '10R', '10L', '12R', '12L', '25') # leave eyelids
                }
