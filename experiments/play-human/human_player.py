@@ -28,17 +28,20 @@ class GazeConnection(comm.BasicHandler):
     self.diameter = .5	# normalized
     # force blocking using timeout
     self.connect_to(conf.gaze_addr, 3)
-    if not self.connected:
-      comm.LOG.warning("gaze player could not connect!")
-      
+
+
+class FaceConnection(comm.BasicHandler):
+  """Connection to face server"""
+  def __init__(self):
+    comm.BasicHandler.__init__(self)
+    self.connect_to(conf.face_addr, 3)
+
       
 class HeadConnection(comm.BasicHandler):
   """Connection to head server"""
   def __init__(self):
     comm.BasicHandler.__init__(self)
     self.connect_to(conf.head_addr, 3)
-    if not self.connected:
-      comm.LOG.warning("head player could not connect!")
 
 
 class Player():
@@ -46,8 +49,12 @@ class Player():
   """ sends contents to appropriate endpoints."""
 
   def __init__(self):
-    self.gaze, self.head = GazeConnection(), HeadConnection()
-    if not self.gaze.connected and not self.head.connected:
+    self.gaze = GazeConnection()
+    self.face = FaceConnection()
+    self.head = HeadConnection()
+    if not self.gaze.connected and \
+          not self.head.connected and \
+          not self.face.connected:
       raise Exception("No remote module could be reached.")
     
   def read_and_play(self, file, jump_first):
@@ -91,12 +98,15 @@ class Player():
 
   def set_eyes(self, argline):
     """set gaze: vector3 normalized_angle time_in_s"""
-    print "orientation",argline
     self.gaze.send_msg("orientation "+argline)
+
+  def set_blink(self, argline):
+    """set blink: duration in seconds"""
+    self.face.send_msg("blink "+argline)
       
   def set_fexpr(self, argline):
     """set facial expression"""
-    pass
+    self.face.send_msg("f_expr "+argline)
 
 
 if __name__ == "__main__":
