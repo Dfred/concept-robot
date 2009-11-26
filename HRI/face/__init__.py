@@ -26,7 +26,8 @@ class FaceClient(comm.RemoteClient):
     """Remote connection handler: protocol parser."""
 
     def cmd_AU(self, argline):
-        """args: if empty, returns current values. Otherwise, set them."""
+        """if empty, returns current values. Otherwise, set them."""
+        """argline: AU name + target value + duration"""
         if len(argline):
             try:
                 self.server.set_AU(argline.split()[:3])
@@ -38,7 +39,11 @@ class FaceClient(comm.RemoteClient):
 
     def cmd_f_expr(self, argline):
         """argline: facial expression id + intensity + duration."""
-        pass
+        try:
+            self.server.set_f_expr(*argline.split())
+        except Exception, e:
+            LOG.warning("[f_expr] bad argument line:'%s', caused: %s" %
+                        (argline,e) )
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
@@ -80,6 +85,21 @@ class Face(comm.BasicServer):
         """Set a target value for a specific AU"""
         self.AUs[name][:3] = target_value, duration, 0
         print "set AU["+name+"]:", self.AUs[name]
+
+    def set_f_expr(self, id, target, duration):
+        """Set a facial expression."""
+        #TODO: this is indeed way too simple...
+        sets={ "raised_brows": ('01R', '02R', '01L', '02L'),
+               "furrowed_brows": ('04R', '04L'),
+               "squint": (''),
+               "smile": ('07R', '10R', '12R', '07L', '10L', '12L', '25'),
+               "agreement_chin": (),
+               "begrudging_acceptance" : (),
+               "neutral": ('01R', '01L', '02R', '02L', '04R', '04L',
+                           '10R', '10L', '12R', '12L', '25') # leave eyelids
+               }
+        for au in sets[id]:
+            self.set_AU(au, float(target), float(duration))
 
     def set_blink_probability(self, p):
         self.blink_p = p
