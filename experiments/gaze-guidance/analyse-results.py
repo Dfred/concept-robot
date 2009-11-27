@@ -1,30 +1,46 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import sys
+import sys, os.path, math
 from optparse import OptionParser
 
+HELP="For unknown answer from the participant,"
+"please use the character 'x'. See also option --fill-gaps"
+UNKNOWN='x'
+
 def get_dist(ref, data):
+    """compute euclydian distance"""
     x = abs(ref%10 - data%10)
     y = abs(ref/10 - data/10)
-    return (x == y and 1.5 *x or x+y, x, y)
+    return math.sqrt(x**2 + y**2), x, y
 
 def force_load(fo_data):
-    data = []
+    """returns a list of integers read from an open file (Universal mode only),
+    appending only 'UNKNOWN' entries, otherwise a ValueError is raised"""
+    data, line = [], 1
     for n in fo_data:
         try:
             data.append(int(n))
         except ValueError:
+            if n.strip() != UNKNOWN:
+                raise ValueError, "%s: the %ith line is invalid." % \
+                    (fo_data.name, line)
             data.append(n)
+        line +=1
     return data
 
 def grid_error(ref, data):
+    """compute location-wise error:
+    the euclydian distance for each participant answer."""
     grid = [0] * 100
     for i in xrange(len(ref)):
-        grid[ref[i]] += type(data[i]) != type('x') and get_dist(ref[i], data[i])[0] or 0
+        grid[ref[i]] += type(data[i]) != type(UNKNOWN) and \
+            get_dist(ref[i], data[i])[0] or 0
     return grid
         
 
-parser = OptionParser("%prog [options] reference data")
+# set commandline options
+
+parser = OptionParser("%prog [options] reference data."+HELP)
 parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
                   default=False, help="print extended info")
 parser.add_option("-l", "--no-label", action="store_false", dest="label",
@@ -41,46 +57,59 @@ parser.add_option("-f", "--only-front", action="store_true", dest="front",
                   default=False, help="display only frontview results.")
 parser.add_option("-g", "--grid", action="store_true", dest="grid",
                   default=False, help="draw error for each cell of the grid.")
-parser.add_option("-F", "--fix-file", action="store_true", dest="fix_file",
+parser.add_option("-m", "--mean", action="store_true", dest="mean",
+                  default=False, help="get the mean score for each participant")
+parser.add_option("-F", "--fill-gaps", action="store_true", dest="fix_file",
                   default=False, help="compute mean error to fill gaps.")
+#parser.add_option("-S", "--spss-format", action="store_true", dest="spps_out",
+#                  default=False, help="format output for spss.")
+
+# check options and arguments
 
 (options, args) = parser.parse_args()
+if len(args) < 2:
+    parser.print_usage()
+    exit(-1)
+
 if options.show_all:
     options.horizontal = options.vertical = options.grid = True
+
+# read reference file and data file
 
 ref = [int(n) for n in file(args[0])]
 
 try:
-    data = [int(n) for n in file(args[1])]
+    data = [int(n) for n in file(args[1], 'rU')]
 except ValueError:
     if options.fix_file:
-        data = force_load(file(args[1]))
+        data = force_load(file(args[1], 'rU'))
     else:
         print args[1], ": error parsing file"
         exit(-1)
 
-lengths = (len(ref), len(data))
-if lengths[0] != lengths[1]:
+# safety checks
+
+length_ref, length_data = len(ref), len(data)
+if length_ref != length_data:
     print args[1], "length mismatch (%i against %i lines)" % lengths
     exit(-1)
 
-unknown = [ entry for entry in data if type(entry) == type('x') ]
+unknown = [ entry for entry in data if type(entry) == type(UNKNOWN) ]
 
 error = 0
 x_error, y_error = ([], [])
-for i in xrange(lengths[0]):
+for i in xrange(length_ref):
     if type(data[i]) != type(ref[i]):
         continue
     diff, x, y = get_dist(ref[i], data[i])
-    error += diff
+    error += options.mean and diff/length_data or diff 
     x_error.append(x)
     y_error.append(y)
 
-error += error/(lengths[0]) * len(unknown)
+error += error/(length_ref) * len(unknown)
 
 # DISPLAY # LABEL # ORIENTATION # rubbish
-rindex = args[1].rfind('/') 
-info=args[1][rindex >= 0 and rindex or 0:].replace('/','').replace('.','-',1).split('-')
+info=os.path.basename(args[1]).replace('.','-',1).split('-')
 
 if options.side and info[2] != '45':
     print ""
