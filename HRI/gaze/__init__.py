@@ -36,7 +36,7 @@ class GazeClient(comm.RemoteClient):
                 LOG.warning("[focus] bad argument line:'%s', caused: %s" %
                             (argline,e) )
         else:
-            self.send_msg("focus",str(self.server.focus))
+            self.send_msg("focus"+str(self.server.focus))
 
     def cmd_orientation(self, argline):
         """args: if empty, returns current orientation. Otherwise, set it."""
@@ -48,7 +48,7 @@ class GazeClient(comm.RemoteClient):
                 LOG.warning("[orientation] bad argument line:'%s', caused: %s" %
                             (argline,e) )
         else:
-            self.send_msg("orientation ",str(self.server.orientation))
+            self.send_msg("orientation "+str(self.server.orientation))
 
     def cmd_shutdown(self, args):
         """args: unused."""
