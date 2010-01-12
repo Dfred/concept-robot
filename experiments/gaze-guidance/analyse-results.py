@@ -3,8 +3,8 @@
 import sys, os.path, math
 from optparse import OptionParser
 
-HELP="For unknown answer from the participant,"
-"please use the character 'x'. See also option --fill-gaps"
+HELP="For unknown answer from the participant,\n\
+please use the character 'x'. See also option --fill-gaps"
 UNKNOWN='x'
 
 def get_dist(ref, data):
@@ -40,7 +40,7 @@ def grid_error(ref, data):
 
 # set commandline options
 
-parser = OptionParser("%prog [options] reference data."+HELP)
+parser = OptionParser("%prog [options] reference data.\n"+HELP)
 parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
                   default=False, help="print extended info")
 parser.add_option("-l", "--no-label", action="store_false", dest="label",
@@ -133,7 +133,7 @@ if options.grid:
     g_error = grid_error(ref, data)
     if options.verbose:
         for i in xrange(0,9):
-            print g_error[i*10:i*10+9]
+            print [ "%.2f" % e for e in g_error[i*10:i*10+10] ]
     else:
         print g_error
 if options.verbose:
