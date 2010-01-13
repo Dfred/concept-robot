@@ -15,7 +15,7 @@
 #  GNU General Public License for more details.
 #
 """
-conf package for python.
+conf package for the CONCEPT project.
 versions >= 2.5
 Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
 """
@@ -36,56 +36,72 @@ import os, sys
 
 MODULE=sys.modules[__name__]
 
+ENV='LIGHTBOT_CONF'
 FILE='lightbot.conf'
-REQUIRED=['gaze_addr']
+REQUIRED=['cnx_gaze']
+
+ERR_UNAVAILABLE="No configuration file was found. Aborting!\
+ You can define LIGHTBOT_CONF system variable for complete filepath definition."
+
+is_loaded = False
 
 def get_unix_sockets(print_flag = False):
-    """Try to get unix sockets from the loaded configuration"""
-    entries = [ MODULE.__getattribute__(conf) for conf in dir(MODULE) if conf.endswith('_addr') ]
-    sockets = [ port for host, port in entries if type(port) == type("") ]
+    """Try to get unix sockets from the loaded configuration.
+    Returns: [ available_unix_sockets ]
+    """
+
+    entries = [(MODULE,conf) for conf in dir(MODULE) if conf.startswith('cnx_')]
+    sockets = [port for host, port in entries if type(port) == type("")]
     if print_flag:
         print " ".join(sockets)
     return sockets
 
 
 def check_missing():
-    """check for missing mandatory configuration entries"""
+    """check for missing mandatory configuration entries.
+    Returns: (is_load_complete, missing_definitions)
+    """
     present = [ i for i in REQUIRED if i in dir(MODULE) ] 
     return (present == REQUIRED, [ i for i in REQUIRED if i not in present ] )
 
-conf_files = []
 
-if sys.platform.startswith('linux'):
-    try:
-        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
-    except OSError, err:
-        print err
-        exit()
-    conf_files.append(os.path.join('/etc', FILE))
+def load(reload=False):
+    """Try to load 1st available configuration file, ignoring Subsequent calls
+    unless reload is set to True.
 
-    try:
-        conf_files.append(os.environ['LIGHTBOT_CONF'])
-    except (OSError,KeyError):
-        pass
+    Returns: see check_missing()
+    """
+    global is_loaded
+    if reload:
+        raise Exception("reload of conf not coded yet")
+    elif is_loaded:
+        return
 
-else:
-    print "Platform not supported yet"
-    exit(-1)
-
-found = False
-for conf_file in conf_files:
-    if os.path.isfile(conf_file):
+    conf_files = []
+    if sys.platform.startswith('linux'):
         try:
-            execfile(conf_file)
-        except SyntaxError, err:
-            print "error line", err.lineno
-        found = True
-        break
+            conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
+        except OSError, err:
+            print err
+            exit()
+        conf_files.append(os.path.join('/etc', FILE))
 
-if not found:
-    str = conf_files, " none found. Aborting!\
-  You can define LIGHTBOT_CONF system variable for path definition."
-    raise Exception(str)
+        try:
+            conf_files.append(os.environ[ENV])
+        except (OSError,KeyError):
+            pass
+    else:
+        print "Platform not supported yet"
+        exit(-1)
 
-is_complete, missing = check_missing()
-    
+    for conf_file in conf_files:
+        if os.path.isfile(conf_file):
+            try:
+                execfile(conf_file, globals())
+                is_loaded = True
+            except SyntaxError, err:
+                print "error line", err.lineno
+            break
+    if is_loaded == False:
+        raise Exception(conf_file, ERR_UNAVAILABLE)
+    return check_missing()
