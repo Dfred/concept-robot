@@ -27,14 +27,18 @@ def initialize():
     cont = GameLogic.getCurrentController()
     
     import conf
+    missing = conf.load()
+    if missing:
+        raise Exception("WARNING: missing definitions in config file:%s"%missing)
+        
     import gaze
-    GameLogic.srv_gaze = gaze.Gaze(conf.gaze_addr)
+    GameLogic.srv_gaze = gaze.Gaze(conf.conn_gaze)
     
     import face
     # make sure we have the same activables
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    GameLogic.srv_face = face.Face(conf.face_addr, acts)
+    GameLogic.srv_face = face.Face(conf.conn_face, acts)
     # override actuators mode
     check_actuators(cont, acts)
 

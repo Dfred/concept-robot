@@ -21,7 +21,7 @@ Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
 """
 """
 Global configuration system reading module. Reads file 'lightbot.conf'.
-This module reads the global configuration file and checks missing definitions before setting them in this module.
+This module reads the global configuration file and checks missing definitions.
 Configuration file search path order:
  1) current user's home directory (posix systems: $HOME)
  2) globlal system configuration file (posix: /etc/)
@@ -38,20 +38,24 @@ MODULE=sys.modules[__name__]
 
 ENV='LIGHTBOT_CONF'
 FILE='lightbot.conf'
-REQUIRED=['cnx_gaze']
+REQUIRED=['conn_gaze', 'conn_face']
 
 ERR_UNAVAILABLE="No configuration file was found. Aborting!\
  You can define LIGHTBOT_CONF system variable for complete filepath definition."
 
-is_loaded = False
+is_loaded=False
 
-def get_unix_sockets(print_flag = False):
+class ConfLoadException(Exception):
+    pass
+
+def get_unix_sockets(print_flag=False):
     """Try to get unix sockets from the loaded configuration.
-    Returns: [ available_unix_sockets ]
+    Returns: [ declared_unix_sockets ]
     """
-
-    entries = [(MODULE,conf) for conf in dir(MODULE) if conf.startswith('cnx_')]
-    sockets = [port for host, port in entries if type(port) == type("")]
+    if not is_loaded:
+        load()
+    entries=[getattr(MODULE,c) for c in dir(MODULE) if c.startswith('conn_')]
+    sockets=[port for host, port in entries if type(port) == type("")]
     if print_flag:
         print " ".join(sockets)
     return sockets
@@ -59,10 +63,9 @@ def get_unix_sockets(print_flag = False):
 
 def check_missing():
     """check for missing mandatory configuration entries.
-    Returns: (is_load_complete, missing_definitions)
+    Returns: [missing_definitions]
     """
-    present = [ i for i in REQUIRED if i in dir(MODULE) ] 
-    return (present == REQUIRED, [ i for i in REQUIRED if i not in present ] )
+    return [ i for i in REQUIRED if i not in dir(MODULE) ]
 
 
 def load(reload=False):
@@ -73,11 +76,11 @@ def load(reload=False):
     """
     global is_loaded
     if reload:
-        raise Exception("reload of conf not coded yet")
+        raise ConfLoadException("reload of conf not coded yet")
     elif is_loaded:
-        return
+        return check_missing()
 
-    conf_files = []
+    conf_files=[]
     if sys.platform.startswith('linux'):
         try:
             conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
@@ -103,5 +106,5 @@ def load(reload=False):
                 print "error line", err.lineno
             break
     if is_loaded == False:
-        raise Exception(conf_file, ERR_UNAVAILABLE)
+        raise ConfLoadException(conf_file, ERR_UNAVAILABLE)
     return check_missing()

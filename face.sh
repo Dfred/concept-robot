@@ -23,10 +23,14 @@ else
 
 # remove old unix sockets if present
     SOCKETS=`PYTHONPATH=$BGE_SCRIPT_PATH python -c 'import conf; conf.get_unix_sockets(1)'`
+    if test $? -ne 0; then
+	echo "ERROR: Failure to get socket list !"
+	exit -1
+    fi
     if test -n "$SOCKETS" ; then
-        echo "deleting old sockets"
+        echo "deleting old sockets: "
         for s in $SOCKETS; do
-            if test -S "$s"; then rm -v "$s"; fi
+            if test -S "$s"; then echo "  "`rm -v "$s"` ; fi
         done
     fi
 

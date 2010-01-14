@@ -128,7 +128,7 @@ class Face(comm.BasicServer):
 
 if __name__ == '__main__':
     try:
-        server = Face(conf.face_addr)
+        server = Face(conf.conn_face)
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)

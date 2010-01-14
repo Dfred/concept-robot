@@ -27,21 +27,21 @@ class GazeConnection(comm.BasicHandler):
     self.focus_pos = (0., -5., 0.)
     self.diameter = .5	# normalized
     # force blocking using timeout
-    self.connect_to(conf.gaze_addr, 3)
+    self.connect_to(conf.conn_gaze, 3)
 
 
 class FaceConnection(comm.BasicHandler):
   """Connection to face server"""
   def __init__(self):
     comm.BasicHandler.__init__(self)
-    self.connect_to(conf.face_addr, 3)
+    self.connect_to(conf.conn_face, 3)
 
       
 class HeadConnection(comm.BasicHandler):
   """Connection to head server"""
   def __init__(self):
     comm.BasicHandler.__init__(self)
-    self.connect_to(conf.head_addr, 3)
+    self.connect_to(conf.conn_head, 3)
 
 
 class Player():
@@ -81,13 +81,13 @@ class Player():
     if jump_first:
       print "jumping to", ftime, "s."
       last_ftime = ftime
-
-#       play_time = time.time()- start_time
-#       if play_time > frame_time:
-#         print "congestion detected **!!!**"
-#         continue
+    start_time = time.time()
+    start_time -= last_ftime
 
     while self.gaze.connected and fct:
+      if (time.time() - start_time) > ftime:
+        print "**!!!** congestion detected at frame time", ftime
+
       print "sleep for", ftime - last_ftime, "s."
       time.sleep(ftime - last_ftime)
       fct(args)

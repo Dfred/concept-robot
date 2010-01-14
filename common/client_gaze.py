@@ -26,7 +26,7 @@ class GazeClient(comm.BasicHandler):
 		self.diameter = 1	# normalized
 
 		# force blocking using timeout
-		self.connect_to(conf.gaze_addr, 3)
+		self.connect_to(conf.conn_gaze, 3)
                 if not self.connected:
                         comm.LOG.warning("gaze_client could not connect!")
 
