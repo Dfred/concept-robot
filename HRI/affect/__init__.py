@@ -17,7 +17,7 @@
 import sys
 import logging
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger("gaze-srv")
 
 import comm
@@ -25,7 +25,7 @@ import conf
 
 AFFECT_DIMS=["joy", "sad", "dis", "sur", "fea", "ang"]
 
-class AffectClient(comm.BasicHandler):
+class AffectClient(comm.RemoteClient):
     """Remote connection handler: protocol parser"""
 
     def cmd_affect(self, argline):
@@ -34,6 +34,7 @@ class AffectClient(comm.BasicHandler):
         2 args: set arg[0] with value from arg[1]
         6 args: set values in order defined by AFFECT_DIMS
         """
+        print argline
         args = argline.split()
         if len(args) == 2:
             if args[0] not in AFFECT_DIMS:
@@ -60,7 +61,7 @@ class Affect(comm.BasicServer):
     job of the face module. These AU values are pushed/sent on an update basis.
     """
 
-    def __init__(self, addr_port):
+    def __init__(self, addr_port, face_autoconnect=False):
         self.mood = []
         self.pers = []
         self.sinks = {AFFECT_DIMS[0]: .5, #joy
@@ -82,7 +83,17 @@ class Affect(comm.BasicServer):
                        
         comm.BasicServer.__init__(self, AffectClient)
         self.listen_to(addr_port)
-        print "Affect started"
+
+        self.face_conn = False
+        if face_autoconnect:
+            self.face_conn = comm.BasicHandler()
+            try:
+                self.face_conn.connect_to(conf.conn_face)
+            except UserWarning, e:
+                print sys.argv[0], "FATAL ERROR", err
+                exit(-1)
+
+        LOG.info("Affect started")
 
     def update(self, time_step):
         """Send updates to face if values not stabilized."""
@@ -97,20 +108,17 @@ class Affect(comm.BasicServer):
         else:
             for i in xrange(len(AFFECT_DIMS)):
                 self.sinks[AFFECT_DIMS[i]] = value[i]
-        self.send_values()
+        LOG.debug("set %s"%value)
+        if self.face_conn:
+            self.send_values()
 
     def send_values(self, target=None):
         """Send values to face module"""
         data = ""
-        for au, value in self.au_map:
-            data += " "+au+":"+value.__str__()[:4]
-
-        if target:
-            target.send_msg("affect"+data)
-            return
-
-        for client in asyncore.socket_map.values():
-            client is not self and client.send_msg("emo"+data)
+        for au_values in self.AU_map.itervalues():
+            for au, val in au_values.iteritems():
+                data += " "+str(au)+" "+val.__str__()[:4]+" 1"
+        self.face_conn.send_msg("AU "+data)
 
     def affect_to_au(self):
         """Manage mapping from affective space to AU space"""
@@ -124,10 +132,10 @@ if __name__ == "__main__":
     if missing:
         print "WARNING: missing configuration entries:",missing
     try:
-        server = Affect(conf.conn_affect)
+        server = Affect(conf.conn_affect, True)
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
     while server.is_readable:
-        comm.loop(0.01, count=1)   # wait 10ms or new data before returning
-    print "Affect done"
+        comm.loop(0.5, count=1)   # wait 10ms or new data before returning
+    LOG.info("Affect done")
