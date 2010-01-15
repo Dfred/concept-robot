@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 #
+# AFFECT MODULE
+#
 # This module handles the affective behaviour of the robot.
 # The Affect class holds 2 layers of influence: personality and mood.
 # In contrast, Emotion is a realtime-updated vector.
@@ -18,7 +20,7 @@ import sys
 import logging
 
 logging.basicConfig(level=logging.INFO)
-LOG = logging.getLogger("gaze-srv")
+LOG = logging.getLogger("affect-srv")
 
 import comm
 import conf
@@ -34,7 +36,6 @@ class AffectClient(comm.RemoteClient):
         2 args: set arg[0] with value from arg[1]
         6 args: set values in order defined by AFFECT_DIMS
         """
-        print argline
         args = argline.split()
         if len(args) == 2:
             if args[0] not in AFFECT_DIMS:
@@ -117,8 +118,8 @@ class Affect(comm.BasicServer):
         data = ""
         for au_values in self.AU_map.itervalues():
             for au, val in au_values.iteritems():
-                data += " "+str(au)+" "+val.__str__()[:4]+" 1"
-        self.face_conn.send_msg("AU "+data)
+                data += "AU %i %.3s %f\n" % (au, val, 1)
+        self.face_conn.send_msg(""+data)
 
     def affect_to_au(self):
         """Manage mapping from affective space to AU space"""
@@ -130,7 +131,7 @@ class Affect(comm.BasicServer):
 if __name__ == "__main__":
     missing = conf.load()
     if missing:
-        print "WARNING: missing configuration entries:",missing
+        print "WARNING: missing configuration entries:", missing
     try:
         server = Affect(conf.conn_affect, True)
     except UserWarning, err:
