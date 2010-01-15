@@ -1,0 +1,68 @@
+#!/usr/bin/python
+
+import sys
+import asyncore
+
+import comm
+import conf
+from fgui_gtk import FeederGui
+
+TITLE="Affect Sinks Editor"
+
+class AffectClient(comm.BasicHandler):
+    """Affect modifier.
+    Creates connection to the affect module for realtime value setting.
+    """
+
+    def __init__(self, addr_port):
+        self.sinks = {"joy": .5,
+                      "sadness": .5 ,
+                      "disgust": .5,
+                      "surprise": .5,
+                      "fear": .5,
+                      "anger": .5}
+                       
+                      
+        self.interface = FeederGui(self, TITLE+" -connecting-")
+        comm.BasicHandler.__init__(self)
+        try:
+            self.connect_to(addr_port)
+        except UserWarning, err:
+            print sys.argv[0], "FATAL ERROR", err
+            exit(-1)
+
+    def handle_connect(self):
+        self.interface.set_title(TITLE+" -connected-")
+
+    def cleanup(self):
+        self.interface.quit()
+
+    def run(self):
+        self.interface.run()
+
+    def update(self, key, value):
+        self.sinks[key] = value
+        self.send_values()
+
+    def send_values(self):
+        data = ""
+        for value in self.sinks.itervalues():
+            data += " "+value.__str__()[:4]
+        self.send_msg("affect"+data)
+
+    def ocean_to_au(self):
+        """Manage mapping from emotional space to AU space"""
+        for s in self.sinks.iteritems():
+		pass
+
+if __name__ == "__main__":
+    conf.load()
+    if not hasattr(conf, 'conn_affect'):
+        print "ERROR: affect definition missing in file", conf.file_loaded
+        exit(-1)
+
+    connection = AffectClient(conf.conn_affect)
+    while not connection.interface.quit and connection.is_readable:
+        comm.loop(0.01, count=1)   # wait 10ms or new data before returning
+        connection.interface.iterate()
+    print "\n--done--"

@@ -7,6 +7,7 @@ HRI/face/	display engine (Blender) and client interfaces
 HRI/gaze/	gazing dynamics, postures (eg: thinking -> gazing up) and iris
 HRI/vision/	set of image processing modules (color/edge/face/expression detection)
 HRI/neck/	head movements (dynamics, postures, IK)
+HRI/affect/	affective module (emotion, mood, personality)
 HRI/dynamics/	motion dynamics (movement functions for other modules)
 interface/	interface modules for the concept learning part (other repository)
 experiments/	default directory for specific code and results

@@ -4,7 +4,7 @@ import gtk
 
 
 class FeederGui:
-    """Emotional module, dummy interface"""
+    """GTK interface presenting sliders"""
 
     def quit():
         self.quit = True
@@ -19,14 +19,16 @@ class FeederGui:
         sink = self.sinks[get]
         esink.update(sink[0], sink[1].value)
 
-    def __init__(self, esink):
+    def set_title(self, title):
+        self.window.set_title = title
+
+    def __init__(self, esink, title):
         self.sinks = {}
         self.quit = False
         self.main_loop = None
-        print "gtk init check returned:", gtk.init_check().__repr__()
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL,)
-        self.window.set_title("Emotional Sinks Editor")
+        self.window.set_title(title)
         self.window.connect("delete_event", self.delete_event)
         self.window.set_size_request(640,480)
         
