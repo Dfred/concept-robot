@@ -131,7 +131,6 @@ def parse_args(args):
 
 def process(self, command):
     """Main function: command dispatcher for incoming commands.
-    ASCII commands are set to lowercase.
     If available, calls the cmd_ function defined in self according to command.
     Simultaneous commands (same step) can be linked with '&&'.
 
@@ -150,7 +149,7 @@ def process(self, command):
             return length
         
     cmd_tokens = cmdline.split(None,1) # keep 1
-    cmd, args = ("cmd_"+cmd_tokens[0].lower(),
+    cmd, args = ("cmd_"+cmd_tokens[0],
                  len(cmd_tokens)>1 and cmd_tokens[1] or "")
     try:
         ret = None
