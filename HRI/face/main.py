@@ -29,7 +29,8 @@ def initialize():
     import conf
     missing = conf.load()
     if missing:
-        raise Exception("WARNING: missing definitions in config file:%s"%missing)
+        raise Exception("WARNING: missing definitions %s in config file:" %\
+                            (missing, conf.file_loaded))
         
     import gaze
     GameLogic.srv_gaze = gaze.Gaze(conf.conn_gaze)
@@ -41,6 +42,10 @@ def initialize():
     GameLogic.srv_face = face.Face(conf.conn_face, acts)
     # override actuators mode
     check_actuators(cont, acts)
+
+    import affect
+    #XXX: faster way: disallow autoconnect and update face directly.
+    GameLogic.srv_affect = affect.Affect(conf.conn_affect, True)
 
     # ok, startup
     GameLogic.initialized = True	
@@ -134,6 +139,6 @@ def main():
 
     #if srv_gaze.connected:
     update_eyes(srv_gaze)
-    
+
     #if srv_face.connected:
     update_face(srv_face,cont)
