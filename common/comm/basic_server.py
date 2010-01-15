@@ -192,6 +192,8 @@ class BasicHandler(asyncore.dispatcher):
         """Child classes *shall* override this function.
          line: whole line command received from remote end.
         """
+        LOG.debug("process() needs to be overrinden. "
+                  "Consider using class comm.RemoteClient")
         return len(line)
 
 
