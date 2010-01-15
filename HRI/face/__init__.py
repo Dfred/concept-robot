@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 #
+# FACE MODULE
+#
 # This module handle motion of the facial features.
 # 
 # MODULES IO:
@@ -15,7 +17,7 @@ import sys, random
 import asyncore
 import logging
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger("face-srv")
 
 import comm
@@ -33,7 +35,8 @@ class FaceClient(comm.RemoteClient):
         """argline: AU_name  target_value  duration"""
         if len(argline):
             try:
-                self.server.set_AU(argline.split()[:3])
+                au_name, value, duration = argline.split()[:3]
+                self.server.set_AU(au_name, float(value), float(duration))
             except Exception, e:
                 LOG.warning("[AU] bad argument line:'%s', caused: %s" %
                             (argline,e) )
@@ -77,12 +80,12 @@ class Face(comm.BasicServer):
 
     EYELIDS = ['43R', '43L', '07R', '07L']
 
-    def __init__(self, addr_port, AUs):
+    def __init__(self, addr_port, available_AUs):
         comm.BasicServer.__init__(self, FaceClient)
         self.listen_to(addr_port)
         self.blink_p = BLINK_PROBABILITY
         self.AUs = {}
-        for act in AUs:
+        for act in available_AUs:
             self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
         self.do_blink(0)
         LOG.info("Face started")
