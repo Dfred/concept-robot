@@ -47,6 +47,11 @@ from basic_server import BasicHandler, BasicServer
 LOG = logging.getLogger("comm")
 FORMAT = "%(filename)s[%(lineno)d] -%(levelname)s- %(message)s"
 
+# Set basic config of logger for client modules not dealing with logging.
+logging.basicConfig(level=logging.WARNING, format=FORMAT)
+
+
+
 class NullHandler(logging.Handler):
     """A dummy Handler.
     Set package's logger handler with this class before importing this package,
