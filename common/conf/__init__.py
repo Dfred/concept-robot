@@ -43,7 +43,7 @@ REQUIRED=['conn_gaze', 'conn_face']
 ERR_UNAVAILABLE="No configuration file was found. Aborting!\
  You can define LIGHTBOT_CONF system variable for complete filepath definition."
 
-is_loaded=False
+file_loaded=False
 
 class ConfLoadException(Exception):
     pass
@@ -52,7 +52,7 @@ def get_unix_sockets(print_flag=False):
     """Try to get unix sockets from the loaded configuration.
     Returns: [ declared_unix_sockets ]
     """
-    if not is_loaded:
+    if not file_loaded:
         load()
     entries=[getattr(MODULE,c) for c in dir(MODULE) if c.startswith('conn_')]
     sockets=[port for host, port in entries if type(port) == type("")]
@@ -74,10 +74,10 @@ def load(reload=False):
 
     Returns: see check_missing()
     """
-    global is_loaded
+    global file_loaded
     if reload:
         raise ConfLoadException("reload of conf not coded yet")
-    elif is_loaded:
+    elif file_loaded:
         return check_missing()
 
     conf_files=[]
@@ -101,10 +101,10 @@ def load(reload=False):
         if os.path.isfile(conf_file):
             try:
                 execfile(conf_file, globals())
-                is_loaded = True
+                file_loaded = conf_file
             except SyntaxError, err:
                 print "error line", err.lineno
             break
-    if is_loaded == False:
+    if file_loaded == False:
         raise ConfLoadException(conf_file, ERR_UNAVAILABLE)
     return check_missing()

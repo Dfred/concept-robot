@@ -4,8 +4,7 @@ FACE_BIN="lightbot_face"
 
 if ! test -x ./$FACE_BIN; then
     echo
-    echo "This script expects to find in this directory the executable file '$FACE_BIN'."
-    echo "Open the appropriate .blend file with blender (version >= 2.49) and use its menu (File->Save Game as Runtime...) to generate the file for your system."
+    echo "Could not find executable file '$FACE_BIN' in this directory."
     echo
 else
 
