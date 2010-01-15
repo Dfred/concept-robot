@@ -92,16 +92,16 @@ if __name__ == "__main__":
         exit(-1)
 
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
-    comm = commConsClient((sys.argv[1], sys.argv[2]), pipe_mode)
+    conn = commConsClient((sys.argv[1], sys.argv[2]), pipe_mode)
 
     if pipe_mode:
         line = sys.stdin.readline()
         while line:
             print sys.argv[0],"sending>", line
-            comm.send_msg(line)
+            conn.send_msg(line)
             line = sys.stdin.readline()
             comm.loop(count=1)
-            if not comm.connected:
+            if not conn.connected:
                 print "disconnected from remote"
                 exit(-1)
     else:
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
         pump()
         try:
-            comm.ui.cmdloop()
+            conn.ui.cmdloop()
         except:
             print "\n--done--"
             exit(-1)
