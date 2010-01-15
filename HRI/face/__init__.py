@@ -2,9 +2,12 @@
 
 #
 # This module handle motion of the facial features.
-# INPUT: - eye orientation to compute eyelid position
-#        - emotion (facial expression)
-#        - planner (eventually)
+# 
+# MODULES IO:
+#===========
+# INPUT: - vision (eye orientation for eyelid position) [event]
+#        - affect (facial expressions) [event]
+#        - planner (..eventually)
 #
 
 import sys, random
@@ -20,14 +23,14 @@ import conf
 
 
 BLINK_PROBABILITY=0.0
-BLINK_DURATION=1
+BLINK_DURATION=1        # in seconds
 
 class FaceClient(comm.RemoteClient):
     """Remote connection handler: protocol parser."""
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them."""
-        """argline: AU name + target value + duration"""
+        """argline: AU_name  target_value  duration"""
         if len(argline):
             try:
                 self.server.set_AU(argline.split()[:3])
@@ -38,7 +41,10 @@ class FaceClient(comm.RemoteClient):
             self.send_msg("AU ",str(self.server.focus))
 
     def cmd_f_expr(self, argline):
-        """argline: facial expression id + intensity + duration."""
+        # TODO: rewrite player to get rid of this function
+        """argline: facial expression id + intensity + duration.
+        Function mainly for the humanPlayer.
+        """
         try:
             self.server.set_f_expr(*argline.split())
         except Exception, e:
@@ -78,13 +84,13 @@ class Face(comm.BasicServer):
         self.AUs = {}
         for act in AUs:
             self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
-#        print "created AUs", AUs
         self.do_blink(0)
+        LOG.info("Face started")
 
     def set_AU(self, name, target_value, duration):
         """Set a target value for a specific AU"""
         self.AUs[name][:3] = target_value, duration, 0
-        print "set AU["+name+"]:", self.AUs[name]
+        LOG.debug("set AU["+name+"]: %s" % self.AUs[name])
 
     def set_f_expr(self, id, target, duration):
         """Set a facial expression."""
@@ -106,7 +112,7 @@ class Face(comm.BasicServer):
 
     def do_blink(self, duration):
         """set AUs to create a blink of any duration"""
-        print "blink:", duration
+        LOG.debug("blink: %ss." % duration)
         self.AUs["43R"][1:] =  duration, 0, .8
         self.AUs["07R"][1:] =  duration, 0, .2
         self.AUs["43L"][1:] =  duration, 0, .8
@@ -134,4 +140,4 @@ if __name__ == '__main__':
         exit(-1)
     while server.is_readable:
         comm.loop(5, count=1)
-    print "Face done"
+    LOG.info("Face done")
