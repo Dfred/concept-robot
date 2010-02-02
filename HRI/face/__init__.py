@@ -46,13 +46,13 @@ class FaceClient(comm.RemoteClient):
     def cmd_f_expr(self, argline):
         # TODO: rewrite player to get rid of this function
         """argline: facial expression id + intensity + duration.
-        Function mainly for the humanPlayer.
+        That function is for the humanPlayer (ie. would eventually disappear)
         """
         try:
             self.server.set_f_expr(*argline.split())
-        except Exception, e:
-            LOG.warning("[f_expr] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
+        except Exception:
+            LOG.warning("[f_expr] bad argument line:'%s', caused:" % argline)
+            raise
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
@@ -87,25 +87,38 @@ class Face(comm.BasicServer):
         self.AUs = {}
         for act in available_AUs:
             self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
+        LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
         self.do_blink(0)
         LOG.info("Face started")
 
     def set_AU(self, name, target_value, duration):
         """Set a target value for a specific AU"""
-        self.AUs[name][:3] = target_value, duration, 0
-        LOG.debug("set AU["+name+"]: %s" % self.AUs[name])
+        try:
+            self.AUs[name][:3] = target_value, duration, 0
+        except KeyError:
+            if len(name) != 2:
+                raise Exception('AU %s is not defined' % name)
+            self.AUs[name+'R'][:3] = target_value, duration, 0
+            self.AUs[name+'L'][:3] = target_value, duration, 0
+            LOG.debug("set AU[%sR/L]: %s" % (name, self.AUs[name+'R']))
+        else:
+            LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
 
     def set_f_expr(self, id, target, duration):
         """Set a facial expression."""
         #TODO: this is indeed way too simple...
-        sets={ "raised_brows": ('01R', '02R', '01L', '02L'),
-               "furrowed_brows": ('04R', '04L'),
-               "squint": ('04R', '04L', '10R', '10R'),
-               "smile": ('07R', '10R', '12R', '07L', '10L', '12L', '25'),
+        sets={ "raised_brows": ('01', '02'),
+               "furrowed_brows": ('04'),
+               "squint": ('04', '10'),
+               "smile": ('07', '10', '12', '25'),
                "agreement_chin": ('17'),
                "begrudging_acceptance" : ('02R', '17'),
-               "neutral": ('01R', '01L', '02R', '02L', '04R', '04L',
-                           '10R', '10L', '12R', '12L', '25') # leave eyelids
+               "neutral": ('01','02','04',      # leave eyelids
+                           '09','10','12','15','16','17','20', '25'), 
+               "thought" : ('02', '15', '17'),
+               "understanding" : ('07', '09', '12', '16'),
+               "misunderstanding" : ('02', '04', '07', '09', '15', '16', '18'),
+               "unsure_understanding" : ('02', '09', '20')
                }
         for au in sets[id]:
             self.set_AU(au, float(target), float(duration))
