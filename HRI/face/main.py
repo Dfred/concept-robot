@@ -3,6 +3,7 @@
 #  * defining classes in toplevel scripts (like here) leads to scope problems (imports...)
 #
 
+import sys
 import GameLogic
 import comm
 
@@ -11,9 +12,31 @@ PREFIX="OB"
 EYES_MAX_ANGLE=30
 TIME_STEP=1/GameLogic.getLogicTicRate()
 	
+def check_actuators(cont, acts):
+    """Check required actuators are ok."""
+    for act in acts:
+        if not cont.owner.has_key('p'+act.name) or \
+                act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
+#    property_act = cont.actuators['- property setter']
+#            print ": Setting property 'p"+act.name+"'"
+#            property_act.prop_name = 'p'+act.name
+#            property_act.value = "0"
+#            cont.activate(property_act)
+            print "missing property: p"+act.name, "or bad Action Playback type"
+            sys.exit(-1)
+
+
+def set_eyelids(srv_face, time_step):
+    #TODO: move this to gaze module (which should update the face module)
+    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
+    srv_face.set_AU('43R', 0.9-factor, time_step)
+    srv_face.set_AU('43L', 0.9-factor, time_step)
+    srv_face.set_AU('07R', factor, time_step)
+    srv_face.set_AU('07L', factor, time_step)
+
+
 def initialize():
     # for init, imports are done on demand since the standalone BGE has issues.
-    import sys
     print "LIGHTBOT face synthesis, using python version:", sys.version
 
     import logging
@@ -36,7 +59,7 @@ def initialize():
     GameLogic.srv_gaze = gaze.Gaze(conf.conn_gaze)
     
     import face
-    # make sure we have the same activables
+    # make sure we have the same Action Units (Blender Shape Actions)
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
     GameLogic.srv_face = face.Face(conf.conn_face, acts)
@@ -53,28 +76,6 @@ def initialize():
     set_eyelids(GameLogic.srv_face, 0)
 
 	
-def check_actuators(cont, acts):
-    """Check required actuators are ok."""
-    for act in acts:
-        if not cont.owner.has_key('p'+act.name) or \
-                act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
-#    property_act = cont.actuators['- property setter']
-#            print ": Setting property 'p"+act.name+"'"
-#            property_act.prop_name = 'p'+act.name
-#            property_act.value = "0"
-#            cont.activate(property_act)
-            print "missing property: p"+act.name
-            sys.exit(-1)
-
-
-def set_eyelids(srv_face, time_step):
-    #TODO: move this to gaze module (which should update the face module)
-    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
-    srv_face.set_AU('43R', 0.9-factor, time_step)
-    srv_face.set_AU('43L', 0.9-factor, time_step)
-    srv_face.set_AU('07R', factor, time_step)
-    srv_face.set_AU('07L', factor, time_step)
-
 
 def update_eyes(srv_gaze):
     """To get a smooth movement (just linear), we start the eye movement,
@@ -101,7 +102,7 @@ def update_eyes(srv_gaze):
                                            Mathutils.Vector(*o_vect))
         GameLogic.eyes[0].setOrientation(oMatrix)
         GameLogic.eyes[1].setOrientation(oMatrix)
-        print "eyes orientation set to ", GameLogic.eyes[0].getOrientation()
+        #DBG: print "L eye orientation now:", GameLogic.eyes[0].getOrientation()
     set_eyelids(GameLogic.srv_face, 0)
 
 
