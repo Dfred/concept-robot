@@ -18,15 +18,26 @@ def set_dialogue(attrs):
     global fps
     fps = int(attrs['fps'])
 
-def set_cstate(attrs):
-    pass
-
 def set_phgs(attrs):
     """Translate head movements."""
     """protocol: """
     st, et = int(attrs['startTime']), int(attrs['endTime'])
     value = 'head %i' % (int(attrs['direction']), None)
     human_data[float(attrs['startTime'])/fps] = value
+
+def set_cstate(attrs):
+    """Set complex facial expressions"""
+    """protocol: f_expr id intensity duration"""
+    st, et = int(attrs['startTime']), int(attrs['endTime'])
+    intensity = random.uniform(.3, .6)
+    duration = (float(et-st)/fps)
+    f_expr = attrs['state'].strip().replace(' ', '_')
+    human_data[float(st)/fps] = "f_expr %s %.3f %.3f" % (f_expr,
+                                                         intensity,
+                                                         duration)
+    human_data[(float(st)/fps)+duration] = "f_expr %s %.3f %.3f" % ('neutral',
+                                                                    0,
+                                                                    duration)
 
 def set_pfe(attrs):
     """Translate facial expressions:"""
@@ -70,13 +81,13 @@ def set_pems(attrs):
 
 verbose = False
 functions = {
-    #        "cState": set_cstate,
+    "cState": set_cstate,
     #        "phgs": set_phgs,
-        "pfe" : set_pfe,
-        "pbl" : set_pbl,
-        "pems": set_pems,
-        "dialogue": set_dialogue
-        }
+    "pfe" : set_pfe,
+    "pbl" : set_pbl,
+    "pems": set_pems,
+    "dialogue": set_dialogue
+    }
 
 # main handler functions
 def start_element(name, attrs):
