@@ -17,6 +17,7 @@ import conf
 import logging
 logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
 
+conf.load()
 
 class GazeConnection(comm.BasicHandler):
   """Connection to gaze server"""
@@ -118,4 +119,4 @@ if __name__ == "__main__":
     print "what is your .pld data file ?"
     exit(-1)
   p.read_and_play(ifilename, jump_first)
-
+  print "done"
