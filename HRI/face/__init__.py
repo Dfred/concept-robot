@@ -114,7 +114,7 @@ class Face(comm.BasicServer):
                "agreement_chin": ('17'),
                "begrudging_acceptance" : ('02R', '17'),
                "neutral": ('01','02','04',      # leave eyelids
-                           '09','10','12','15','16','17','20', '25'), 
+                           '09','10','12','15','16','17','18','20','25'), 
                "thought" : ('02', '15', '17'),
                "understanding" : ('07', '09', '12', '16'),
                "misunderstanding" : ('02', '04', '07', '09', '15', '16', '18'),
