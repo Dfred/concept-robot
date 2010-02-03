@@ -22,4 +22,4 @@ y = own.position[1]
 
 # Set our eyes driver location but mapping scene origin to mouse origin
 own.localPosition = ([ (x-.5)*MF[0], y, (-z+.5)*MF[1] ])
-
+own['updated'] = True

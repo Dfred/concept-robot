@@ -1,3 +1,13 @@
+#!/usr/bin/python
+
+#
+# FACE MODULE: blender backend
+#
+# This module handles the Blender Game Engine.
+# 
+# MODULES IO:
+#===========
+# INPUT: - face
 #
 # A few things to remember:
 #  * defining classes in toplevel scripts (like here) leads to scope problems (imports...)
@@ -45,7 +55,7 @@ def initialize():
     objs = GameLogic.getCurrentScene().objects
     GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
     GameLogic.empty_e = objs[PREFIX+"Empty-eyes"]
-    GameLogic.empty_e.updated = False
+    GameLogic.empty_e['updated'] = False
     
     cont = GameLogic.getCurrentController()
     
@@ -81,8 +91,8 @@ def update_eyes(srv_gaze):
     """To get a smooth movement (just linear), we start the eye movement,
         next iteration shall continue."""
 
-    if GameLogic.empty_e.updated:       # handle empty_e when moved
-        GameLogic.empty_e.updated = False
+    if GameLogic.empty_e['updated']:       # handle empty_e when moved
+        GameLogic.empty_e['updated'] = False
         srv_gaze.set_focus(GameLogic.empty_e.localPosition)
     else:                               # or when commands were sent to server
         srv_gaze.update(TIME_STEP)
