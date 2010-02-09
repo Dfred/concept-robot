@@ -3,6 +3,7 @@
 BASE_DIR="$HOME/concept/concept-robot-remote"
 
 TARGET_BIN="$HOME/Blender/blender"
+ARG="$BASE_DIR/HRI/face/blender/lighthead.blend"
 
 BGE_SCRIPT_PATH="$BASE_DIR/common/:$BASE_DIR/HRI/:$BASE_DIR/HRI/face"
 
@@ -16,6 +17,8 @@ BGE_SCRIPT_PATH="$BASE_DIR/common/:$BASE_DIR/HRI/:$BASE_DIR/HRI/face"
         export LIGHTBOT_CONF=$BASE_DIR/common/lightbot.conf
     fi
 
+function remove_sockets
+{
 # remove old unix sockets if present
     SOCKETS=`PYTHONPATH=$BGE_SCRIPT_PATH python -c 'import conf; conf.get_unix_sockets(1)'`
     if test $? -ne 0; then
@@ -28,9 +31,14 @@ BGE_SCRIPT_PATH="$BASE_DIR/common/:$BASE_DIR/HRI/:$BASE_DIR/HRI/face"
             if test -S "$s"; then echo "  "`rm -v "$s"` ; fi
         done
     fi
+}
 
-    if [ $1 != "clean" ]; then
-	# Now launch
-	echo "launching" `basename $TARGET_BIN`
-	PYTHONPATH="$PYTHONPATH:$BGE_SCRIPT_PATH" $TARGET_BIN $@
+    remove_sockets
+    if [ $# -ge 1 ] && [ $1 == "clean" ]; then
+	echo "done"
+    else
+# Now launch
+    echo "launching" `basename $TARGET_BIN`
+    PYTHONPATH="$PYTHONPATH:$BGE_SCRIPT_PATH" $TARGET_BIN $ARG
+
     fi
