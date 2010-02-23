@@ -139,8 +139,8 @@ def main():
         try:
             initialize()
         except Exception, e:
-            print "exception received:",e
             cont.activate(cont.actuators["- QUITTER"])
+            raise
 	
     comm.loop(.01, count=1) # block for max 10ms and 1 packet
 
