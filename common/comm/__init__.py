@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 #
 # Copyright 2008 Frederic Delaunay, f dot d at chx-labs dot org
 #
