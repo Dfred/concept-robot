@@ -36,7 +36,7 @@ Other specifications:
 import logging
 import asyncore
 import socket
-import os
+import os, sys
 
 LOG = logging.getLogger(__name__)
 
@@ -45,6 +45,10 @@ NAMED_PIPE_ADDRS = ["127.0.0.1", "localhost"]
 
 
 def get_socket_family(addr_port):
+    """Switch to Unix sockets if available (then issuing a new addr_port).
+     addr_port: tuple (address of inet interface to use, port number).
+    Returns: (socket_family , addr_port).
+    """
     sock_family = (socket.AF_INET, "INET")
     if hasattr(socket, "AF_UNIX") and addr_port[0] in NAMED_PIPE_ADDRS:
         sock_family = (socket.AF_UNIX, "UNIX")
@@ -154,6 +158,7 @@ class BasicHandler(asyncore.dispatcher):
 
     def connect_to(self, addr_port, timeout=0.0):
         """Try to connect to remote server.
+         addr_port: tuple (address of inet interface to use, port number)
          timeout: see socket.settimeout. If set, call is blocking.
         """
         if self.socket and self.connected:
@@ -228,8 +233,11 @@ class BasicServer(asyncore.dispatcher):
         self.set_reuse_addr()
         
         LOG.debug("binding: AF=%s %s", socket_family[1], addr_port)
-        if type(addr_port) is type("") and os.path.exists(addr_port):
-            LOG.warning("UNIX socket '%s' already present!", addr_port)
+        if type(addr_port[1]) is type(""):
+            if os.path.exists(addr_port[1]):
+                LOG.warning("UNIX socket '%s' already present!", addr_port[1])
+            if sys.platform.startswith('win32'):
+                LOG.error("your OS (%s) has no support for UNIX socket. Check conf!"%sys.platform)
         try:
             self.bind(addr_port)        # sets self.addr
         except socket.error, err: # TODO: handle more errors

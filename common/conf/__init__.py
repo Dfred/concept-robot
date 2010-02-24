@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 #
 # Copyright 2008 Frederic Delaunay, f dot d at chx-labs dot org
 #
@@ -81,21 +83,17 @@ def load(reload=False):
         return check_missing()
 
     conf_files=[]
-    if sys.platform.startswith('linux'):
-        try:
-            conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
-        except OSError, err:
-            print err
-            exit()
-        conf_files.append(os.path.join('/etc', FILE))
+    try:
+        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
+    except OSError, err:
+        print err
+        exit()
+    conf_files.append(os.path.join('/etc', FILE))
 
-        try:
-            conf_files.append(os.environ[ENV])
-        except (OSError,KeyError):
-            pass
-    else:
-        print "Platform not supported yet"
-        exit(-1)
+    try:
+        conf_files.append(os.environ[ENV])
+    except (OSError,KeyError):
+        pass
 
     for conf_file in conf_files:
         if os.path.isfile(conf_file):

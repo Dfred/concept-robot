@@ -1,10 +1,9 @@
-# import Rasterizer
-import Rasterizer as R
+#!/usr/bin/python
 
+import Rasterizer as R
 
 LOCAL_COORDINATES = 1
 MF = (10, 5)		# set (x,y) mouse mouse_factor
-
 
 # get controller
 controller = GameLogic.getCurrentController()
