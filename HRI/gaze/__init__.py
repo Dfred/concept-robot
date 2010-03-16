@@ -71,6 +71,7 @@ class Gaze(comm.BasicServer):
         self.duration = 0                               # eye movement duration
         self.elapsed = 0
         self.changed = None
+        LOG.info("gaze starting")
 
     def update(self, time_step):
         if self.elapsed > self.duration:
@@ -110,6 +111,7 @@ class Gaze(comm.BasicServer):
 
 
 if __name__ == '__main__':
+    conf.load()
     try:
         server = Gaze(conf.conn_gaze)
     except UserWarning, err:
