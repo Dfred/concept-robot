@@ -51,7 +51,7 @@ LOG = logging.getLogger("comm")
 FORMAT = "%(filename)s[%(lineno)d] -%(levelname)s-\t%(message)s"
 
 # Set basic config of logger for client modules not dealing with logging.
-logging.basicConfig(format=FORMAT, level=logging.DEBUG)
+logging.basicConfig(format=FORMAT, level=logging.WARNING)
 
 
 class NullHandler(logging.Handler):
@@ -217,8 +217,9 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
         self.rfile and self.wfile are streams and use standard file interface.
         read is buffered, write is not.
         """
-        LOG.info("connection accepted from %s" % self.client_address[0])
         self.cnx = self.request # for process()
+        LOG.info("%i> connection accepted from %s on "+str(self.client_address[1]),
+                                        self.cnx.fileno(), self.client_address[0])
         self.running = True
         command = ""
         while self.running:
@@ -232,7 +233,8 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
             if command.endswith('\\'):
                 command = command[:-1]
             command = command[self.process(command):]
-        print "au revoir"
+        LOG.info("%i> connection terminated : %s on "+str(self.client_address[1]),
+                                         self.cnx.fileno(), self.client_address[0])
 
     def cmd_shutdown(self, args):
         """Disconnects all clients and terminate the server process"""
@@ -262,11 +264,12 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
     def cmd_verb(self, args):
         """Changes LOG verbosity level."""
         if not args:
-            self.send_msg("CRITICAL 	50\nERROR 	40\nWARNING 30\n"
-                          "INFO 	20\nDEBUG 	10\nNOTSET  0")
+            self.send_msg("CRITICAL 50\nERROR	 40\nWARNING  30\n"
+                          "INFO     20\nDEBUG	 10\nNOTSET    0")
         else:
-            LOG.info("changing log level to %s", args[0])
+            LOG.warning("changing log level to %s", args[0])
             LOG.setLevel(args[0])
+        self.send_msg("verb is %s now" % LOG.getEffectiveLevel())
 
 
 class BaseClient(BaseComm):
