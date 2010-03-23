@@ -1,5 +1,10 @@
 #!/usr/bin/python
 
+#
+# Windows users: you need pyreadline from PyPI (http://pypi.python.org/pypi).
+#
+
+
 import threading
 import readline
 import logging
@@ -24,96 +29,89 @@ import atexit
 atexit.register(readline.write_history_file, HISTFILE)
 del os, HISTFILE
 
-#
-#
-#
 
 class myUI(cmd.Cmd):
-    def precmd(self, line):
-        if not hasattr(self, "server"):
-            self.prompt = "<connecting>"
-        else:
-            self.prompt = (self.server.connected and self.server.addr + "> " or
-                           "<disconnected> " )
-        return line
+    def __init__(self):
+        self.use_rawinput = False
+        self.prompt = "<connecting ...>"
+        cmd.Cmd.__init__(self)
+        threading.Thread(target=self.cmdloop).start()
 
     def default(self, line):
-        if line:
+        if line and self.server:
             self.server.send_msg(line)
 
-    def restore_prompt(self):
+    def emptyline(self):
+        """forget the command when no command is given"""
+        pass
+
+    def disconnected(self):
+        self.server = None
+        self.prompt = "<disconnected> "
+        self.redraw_prompt()
+
+    def redraw_prompt(self):
         self.stdout.write(self.prompt)
         self.stdout.flush()
 
 
-class commConsClient(comm.BasicHandler):
+class commConsClient(comm.BaseClient):
     """Our connection to a target server"""
 
-    def __init__(self, addr_port, pipe_mode):
-        self.ui = not pipe_mode and self.create_ui() or None
-        comm.BasicHandler.__init__(self)
-        # we're asking for our client to connect to server, but we don't know
-        # when this will happen, so rely on handle_connect to be noticed.
+    def __init__(self, addr_port, ui=None):
+        self.ui = ui
+        if self.ui :
+            self.ui.server = self
         try:
-            self.connect_to(addr_port)
-        except UserWarning, err:
-            print sys.argv[0], "FATAL ERROR", err
-            exit(-1)
-
-    def create_ui(self):
-        ui = myUI()
-        ui.precmd("")
-        ui.use_rawinput = True
-        ui.server = self
-        return ui
+            comm.BaseClient.__init__(self, addr_port)
+            self.connect_and_run()
+        except comm.error, e:
+            print "\n"+str(e)
+            self.handle_error()
    
     def handle_connect(self):
         """Called when the client has just connected successfully"""
-        if self.ui == None:
-            return
-        if comm.BasicHandler.handle_connect(self):
-            print sys.argv[0], "now connected to", self.addr
-        else:
-            print sys.argv[0], "failed to connect to", self.addr
-        self.ui.precmd("")
+        if self.ui:
+            print "\nnow connected to %s:%s" % self.target_addr
+            self.ui.prompt = self.target_addr[0] + "> "
+            self.ui.redraw_prompt()
+
+    def handle_disconnect(self):
+        if self.ui:
+            self.ui.disconnected()
+
+    def handle_error(self, e):
+        print "\nCommunication error", e
+        if self.ui:
+            self.ui.disconnected()
+
+    def handle_timeout(self):
+        """Called when timeout waiting for data has expired."""
+        print "timeout"
+        if pipe_mode:
+            line = sys.stdin.readline()
+            while line:
+                print sys.argv[0],"sending>", line
+                self.send(line)
+                line = sys.stdin.readline()
+                if not self.connected:
+                    print "disconnected from remote"
+                    exit(-1)
 
     def process(self, line):
         """method that handles incoming data (line by line)."""
-        print "\nreceived from server:", line
+        print "\n", line
         if self.ui:
-            self.ui.restore_prompt()
+            self.ui.redraw_prompt()
         return len(line)
 
 
-TIMER=None
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print "(--pipe) address and port not given!"
         exit(-1)
 
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
-    conn = commConsClient((sys.argv[1], sys.argv[2]), pipe_mode)
+    port = sys.argv[2].isdigit() and int(sys.argv[2]) or sys.argv[2]
 
-    if pipe_mode:
-        line = sys.stdin.readline()
-        while line:
-            print sys.argv[0],"sending>", line
-            conn.send_msg(line)
-            line = sys.stdin.readline()
-            comm.loop(count=1)
-            if not conn.connected:
-                print "disconnected from remote"
-                exit(-1)
-    else:
-        def pump():
-            """We need that because readline loop is blocking"""
-            comm.loop(0.1, count=1)
-            TIMER = threading.Timer(0.2, pump)
-            TIMER.start()
-
-        pump()
-        try:
-            conn.ui.cmdloop()
-        except:
-            print "\n--done--"
-            exit(-1)
+    commConsClient((sys.argv[1], port), not pipe_mode and myUI())
