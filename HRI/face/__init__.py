@@ -84,7 +84,7 @@ class Face(object):
         self.blink_p = BLINK_PROBABILITY
         self.AUs = {}
 
-    def set_available_AUs(available_AUs):
+    def set_available_AUs(self, available_AUs):
         for act in available_AUs:
             self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
