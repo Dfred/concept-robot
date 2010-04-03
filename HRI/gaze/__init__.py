@@ -112,7 +112,6 @@ if __name__ == '__main__':
     conf.load()
     try:
         server = comm.createServer(Gaze, GazeClient, conf.conn_gaze)
-        print server, server.RequestHandlerClass
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
