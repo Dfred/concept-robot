@@ -108,10 +108,6 @@ class Gaze(object):
         pass
 
 
-import SocketServer
-class GazeTCP(Gaze, SocketServer.ThreadingTCPServer):
-    pass
-
 if __name__ == '__main__':
     conf.load()
     try:
