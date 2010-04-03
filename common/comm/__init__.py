@@ -81,9 +81,8 @@ CRE_PROTOCOL_SYNTAX = re.compile("\s*\w+(\s+\w+)*")
 
 
 
-def createBaseServer(addr_port, cnx_handler):
-    """Creates the appropriate server (from SocketServer) according to addr_port"""
-
+def getBaseServerClass(addr_port):
+    """Returns the appropriate base class for server according to addr_port"""
     addr, port = addr_port
     if type(port) == type(42):
         server_class = SocketServer.ThreadingTCPServer
@@ -94,18 +93,38 @@ def createBaseServer(addr_port, cnx_handler):
             raise Exception("TODO: named pipes for windows")
     else:
         raise Exception("Could not get server type from addr_port info")
-    return server_class(addr_port, cnx_handler)
+    return server_class
+
+
+def createServer(ext_class, handler_class, addr_port):
+    """Creates a new (compound) type of server according to addr_port
+
+        addr_port: (address, port). port type is relevant, see conf module.
+        ext_class: extension class you provide as a base for the new type.
+        handler_class: class to be instancied on accepted connection.
+    """
+    base_class = getBaseServerClass(addr_port)
+
+    def server_init(self, addr_port, handler_class):
+        """Call all subtypes initializers"""
+        base_class.__init__(self, addr_port, handler_class)
+        ext_class.__init__(self)
+
+    return type(ext_class.__name__+base_class.__name__,
+                (base_class, ext_class),
+                {"__init__":server_init})(addr_port, handler_class)
 
 
 #XXX: so far, creation from commandline is used only by comm_example
-def create(cmdline, remoteClient_class, server_class, cnx_handler):
+def create(cmdline, remoteClient_classes, server_class, cnx_handler):
     """Parses cmdline and instanciates given classes.
     Note that any matching argument will be swallowed whether a successful
      instanciation has been made or not.
 
-     cmdline: user command line checked for arguments
-     remoteClient_class: { "module_name" : client_class, ... }
-     server_class: last instance returned only (see _parse_args())
+     cmdline: user command line checked for arguments (module_name=ip:port)
+     remoteClient_class: cmdline name-to-class { "module_name" : client_class, ... }
+     server_class: class to be instancied (see parse_args())
+     cnx_handler: handler class for server incoming connections
     Returns (unused arguments, [client_class objects], server_class object)
     """
 
@@ -135,7 +154,7 @@ def create(cmdline, remoteClient_class, server_class, cnx_handler):
     unused, infos = parse_args(cmdline)
     for name, address, port in infos:
         if name == None:
-            server = server_class((address, port), cnx_handler)
+            server = createServer(server_class, cnx_handler, (address, port))
         else:
             try:
                 clients.append(remoteClient_class[name]((address, port)))
@@ -143,19 +162,20 @@ def create(cmdline, remoteClient_class, server_class, cnx_handler):
                 print "warning: found unmatched name '"+name+"' in cmdline"
     return (unused, clients, server)
 
-        
+
 
 class BaseComm:
     """Basic protocol handling and command-to-function resolver.
        Not to be instancied"""
-    
+
     def handle_notfound(self, cmd):
         """When a method (a command) is not found in self. See process()."""
         pass
 
     def process(self, command):
-        """Command dispatcher function common to client and handler."""
-        """Tokenize command and calls 'cmd_ + 1st_token' function defined in self.
+        """Command dispatcher function common to client and handler.
+
+        Tokenize command and calls 'cmd_ + 1st_token' function defined in self.
          Remaining tokens are given as argument in an array. self.handle_notfound is
          called if the built function name doesn't exist in self. Simultaneous
          commands (called within the same step) can be issued linking them with '&&'.
@@ -197,23 +217,25 @@ class BaseComm:
     cmd_EOF = cmd_bye
         
 
-class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
-    """Instancied on successful connection to the server: a remote client."""
-    """Adds support for general syntax checking, and default functions :
+class RequestHandler(BaseComm, SocketServer.StreamRequestHandler):
+    """Instancied on successful connection to the server: a remote client.
+
+    Adds support for general syntax checking, and default functions :
      cmd_shutdown, cmd_clients and cmd_verb.
     """
     def setup(self):
-        super(RequestHandler,self).setup()
+        SocketServer.StreamRequestHandler.setup(self)
         if not hasattr(self.server, "clients"):
             self.server.clients = []
         self.server.clients.append(self)
 
     def finish(self):
-        super(RequestHandler,self).setup()
+        SocketServer.StreamRequestHandler.setup(self)
         self.server.clients.remove(self)
 
     def handle(self):
         """entry point for processing client commands.
+
         self.rfile and self.wfile are streams and use standard file interface.
         read is buffered, write is not.
         """
@@ -237,7 +259,7 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
                                          self.cnx.fileno(), self.client_address[0])
 
     def cmd_shutdown(self, args):
-        """Disconnects all clients and terminate the server process"""
+        """Disconnects all clients and terminate the server process."""
         if self.server == None:
             raise CmdError("cannot shutdown server")
         LOG.info("%s> stopping server", self.cnx.fileno())
@@ -245,9 +267,7 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
         self.running = False
 
     def cmd_clients(self, args):
-        """Lists clients currently connected.
-        We want other clients to be able to inquiry so server holds the info.
-        """
+        """Lists clients currently connected."""
         LOG.info("%s> listing %i clients.", self.cnx.fileno(), len(self.server.clients))
         clients_infos = []
         for cl in self.server.clients:
@@ -274,6 +294,7 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler, object):
 
 class BaseClient(BaseComm):
     """Client creating a connection to a (remote) server.
+
        Remember it's impossible to use the file interface of the socket while
         setting a socket timeout.
     """
@@ -329,14 +350,22 @@ class BaseClient(BaseComm):
             line = line[self.process(line):]
 
     def handle_connect(self):
+        """Callback for client successful connection to (remote) server.
+        """
         pass
 
     def handle_error(self, e):
+        """Callback for connection error.
+        """
         raise e
         pass
 
     def handle_disconnect(self):
+        """Callback after client disconnection to (remote) server.
+        """
         pass
 
     def handle_notfound(self, cmd):
+        """Callback for client unfound protocol command handler from (remote) server.
+        """
         pass
