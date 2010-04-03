@@ -113,7 +113,7 @@ if __name__ == '__main__':
     try:
         server = comm.createServer(Gaze, GazeClient, conf.conn_gaze)
     except UserWarning, err:
-        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
+        LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
     server.serve_forever()
-    comm.LOG.debug("Gaze done")
+    LOG.debug("Gaze done")
