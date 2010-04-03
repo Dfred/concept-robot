@@ -116,4 +116,4 @@ if __name__ == '__main__':
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
     server.serve_forever()
-    print "Gaze done"
+    comm.LOG.debug("Gaze done")
