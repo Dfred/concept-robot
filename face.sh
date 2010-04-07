@@ -1,6 +1,9 @@
 #!/bin/sh
+#
+# Starter script for LightHead.
+#
 
-BGE_PYTHON_VERS=2.5
+BGE_PYTHON_VERS=2.6
 FACE_BIN="lightbot_face"
 
 check()
@@ -28,7 +31,6 @@ case `uname -s` in
         PYTHONPATH="$PYTHONPATH:$BGE_PYTHON_PATH:$MODULES_PATH"
 ;;
 esac
-echo $PYTHONPATH
 export PYTHONPATH
 
 # set standard conf if not set yet
@@ -37,6 +39,7 @@ if test -z "$LIGHTBOT_CONF" ; then
 fi
 
 # remove old unix sockets if present
+python -c 'import conf; conf.load(); print "using file", conf.file_loaded'
 SOCKETS=`python -c 'import conf; conf.get_unix_sockets(1)'`
 if test $? -ne 0; then
 	echo "ERROR: Failure to get socket list !"
