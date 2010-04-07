@@ -64,21 +64,27 @@ def initialize():
     if missing:
         raise Exception("WARNING: missing definitions %s in config file:" %\
                             (missing, conf.file_loaded))
-        
+    
     import gaze
-    GameLogic.srv_gaze = gaze.Gaze(conf.conn_gaze)
+    GameLogic.srv_gaze = comm.createServer(gaze.Gaze, gaze.GazeClient, conf.conn_gaze)
     
     import face
     # make sure we have the same Action Units (Blender Shape Actions)
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    GameLogic.srv_face = face.Face(conf.conn_face, acts)
+    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
+    GameLogic.srv_face.set_available_AUs(acts)
     # override actuators mode
     check_actuators(cont, acts)
 
     import affect
-    #XXX: faster way: disallow autoconnect and update face directly.
-    GameLogic.srv_affect = affect.Affect(conf.conn_affect, True)
+    #XXX: faster way: update face directly.
+    GameLogic.srv_affect = comm.createServer(affect.Affect, affect.AffectClient, conf.conn_affect)
+
+    import threading
+    threading.Thread(name='gaze', target=GameLogic.srv_gaze.serve_forever).start()
+    threading.Thread(name='face', target=GameLogic.srv_face.serve_forever).start()
+    threading.Thread(name='affect', target=GameLogic.srv_affect.serve_forever).start()
 
     # ok, startup
     GameLogic.initialized = True	
@@ -141,15 +147,6 @@ def main():
         except Exception, e:
             cont.activate(cont.actuators["- QUITTER"])
             raise
-	
-    comm.loop(.01, count=1) # block for max 10ms and 1 packet
 
-    own = cont.owner
-    srv_gaze = GameLogic.srv_gaze
-    srv_face = GameLogic.srv_face
-
-    #if srv_gaze.connected:
-    update_eyes(srv_gaze)
-
-    #if srv_face.connected:
-    update_face(srv_face,cont)
+    update_eyes(GameLogic.srv_gaze)
+    update_face(GameLogic.srv_face, cont)
