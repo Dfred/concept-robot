@@ -26,15 +26,15 @@ import conf
 class GazeClient(comm.RequestHandler):
     """Remote connection handler: protocol parser."""
 
-    def cmd_focus(self, argline):
+    def cmd_focus(self, args):
         """args: if empty, returns current focus coords. Otherwise, set them."""
-        if len(argline):
+        if len(args):
             try:
-                args = [ float(arg) for arg in argline.split() ]
+                args = [ float(arg) for arg in args]
                 self.server.set_focus(tuple(args[:3]))
             except Exception, e:
                 LOG.warning("[focus] bad argument line:'%s', caused: %s" %
-                            (argline,e) )
+                            (args,e) )
         else:
             self.send_msg("focus"+str(self.server.focus))
 
