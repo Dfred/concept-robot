@@ -34,16 +34,23 @@ class myUI(cmd.Cmd):
     def __init__(self):
         self.use_rawinput = False
         self.prompt = "<connecting ...>"
+        print "press ^D to quit"
         cmd.Cmd.__init__(self)
+        self.running = True
         threading.Thread(target=self.cmdloop).start()
 
     def default(self, line):
         if line and self.server:
             self.server.send_msg(line)
+        elif line in [ 'EOF', 'bye' ]:
+            sys.exit(-1)
 
     def emptyline(self):
         """forget the command when no command is given"""
         pass
+
+    def postcmd(self, stop, line):
+        return not self.running
 
     def disconnected(self):
         self.server = None
@@ -68,7 +75,11 @@ class commConsClient(comm.BaseClient):
         except comm.error, e:
             print "\n"+str(e)
             self.handle_error()
-   
+        except:
+            if self.ui:
+                print "\nI'm dying please press Enter !!!"
+                self.ui.running = False
+
     def handle_connect(self):
         """Called when the client has just connected successfully"""
         if self.ui:
@@ -108,7 +119,7 @@ class commConsClient(comm.BaseClient):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print "(--pipe) address and port not given!"
+        print "[--pipe] address and port not given!"
         exit(-1)
 
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
