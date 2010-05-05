@@ -177,9 +177,10 @@ class BaseComm:
         """Command dispatcher function common to client and handler.
 
         Tokenize command and calls 'cmd_ + 1st_token' function defined in self.
-         Remaining tokens are given as argument in an array. self.handle_notfound is
-         called if the built function name doesn't exist in self. Simultaneous
-         commands (called within the same step) can be issued linking them with '&&'.
+         That function's argument is the remaining tokens in a string. 
+         self.handle_notfound is called if the built function name doesn't exist in self.
+         Simultaneous commands (called within the same step) can be issued linking
+          them with '&&'.
 
         command: string of text to be matched with CRE_PROTOCOL_SYNTAX
         Returns the number of bytes read.
@@ -195,7 +196,7 @@ class BaseComm:
                 return length
             
         cmd_tokens = cmdline.split(None,1) # keep 1
-        cmd, args = "cmd_"+cmd_tokens[0], cmd_tokens[1:]
+        cmd, args = "cmd_"+cmd_tokens.pop(0), cmd_tokens and cmd_tokens[0] or ""
         try:
             ret = None
             if cmd in dir(self):
