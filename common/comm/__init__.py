@@ -89,11 +89,12 @@ def getBaseServerClass(addr_port):
     elif type(port) == type("") and addr in ["127.0.0.1", "localhost"]:
         if hasattr(SocketServer, "ThreadingUnixStreamServer"):
             server_class = SocketServer.ThreadingUnixStreamServer
+            addr_port = addr_port[1]
         else:
             raise Exception("TODO: named pipes for windows")
     else:
         raise Exception("Could not get server type from addr_port info")
-    return server_class
+    return addr_port, server_class
 
 
 def createServer(ext_class, handler_class, addr_port):
@@ -103,7 +104,7 @@ def createServer(ext_class, handler_class, addr_port):
         ext_class: extension class you provide as a base for the new type.
         handler_class: class to be instancied on accepted connection.
     """
-    base_class = getBaseServerClass(addr_port)
+    addr_port, base_class = getBaseServerClass(addr_port)
 
     def server_init(self, addr_port, handler_class):
         """Call all subtypes initializers"""
