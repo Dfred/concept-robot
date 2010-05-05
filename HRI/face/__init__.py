@@ -52,15 +52,14 @@ class FaceClient(comm.RequestHandler):
             self.server.set_f_expr(*argline.split())
         except Exception:
             LOG.warning("[f_expr] bad argument line:'%s', caused:" % argline)
-            raise
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
         try:
             self.server.do_blink(float(argline))
         except Exception, e:
-                LOG.warning("[blink] bad argument line:'%s', caused: %s" %
-                            (argline,e) )
+            LOG.warning("[blink] bad argument line:'%s', caused: %s" %
+                        (argline,e) )
 
     def cmd_shutdown(self, args):
         """args: unused."""
