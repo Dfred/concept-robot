@@ -28,29 +28,27 @@ class moduleConnection(comm.BaseClient, threading.Thread):
     threading.Thread.__init__(self)
     self._addr_port = addr_port
     self._name = name
-    self._connected = threading.Event()
+    self._finished = threading.Event()
     self.start()
-    self._connected.wait()
-
+    self._finished.wait(5)
+    
   def run (self):
     comm.BaseClient.__init__(self, self._addr_port)
     self.connect_and_run()
+    self._finished.set()
     
   def handle_connect(self):
-    print "Module [" + self._name + "] Connected to %s:%s" % self.target_addr 
-    self._connected.set()
-
+    self._finished.set()
+    print "Module [" + self._name + "] Connected to %s:%s" % self.target_addr
+    
   def handle_disconnect(self):
     print "Disconnect"
-    exit(0)
-
+    
   def handle_error(self, e):
     print "Communication error", e
-    exit(0)
     
   def handle_timeout(self):
     print "timeout"
-    exit(-1)
       
 class interpretLDPFile():
 
@@ -58,6 +56,7 @@ class interpretLDPFile():
   """ sends contents to appropriate endpoints."""
   def __init__(self, file, jump_first):
     """Small bufferized player"""
+    print "\nSending instructions..."
     self.read_and_play(file, jump_first)
 
   def read_and_play(self, file, jump_first):
@@ -117,9 +116,12 @@ if __name__ == "__main__":
   signal.signal(signal.SIGINT, signal_handler)
   
   gaze = moduleConnection((sys.argv[1], 4243), "Gaze")
-  face = moduleConnection((sys.argv[1], 4244), "Face")
-
-  interpretLDPFile(sys.argv[2], False)
-
+  if gaze.connected == True:
+    face = moduleConnection((sys.argv[1], 4244), "Face")
+    if face.connected == True:
+        interpretLDPFile(sys.argv[2], True)
+  
+  sys.exit(0)
+ 
 
 
