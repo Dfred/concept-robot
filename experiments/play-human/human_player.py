@@ -60,6 +60,7 @@ class interpretLDPFile():
     self.read_and_play(file, jump_first)
 
   def read_and_play(self, file, jump_first):
+    """Small bufferized player"""
 
     def read_and_parse(self, f):
       line, bIndex = "", f.tell()
@@ -81,7 +82,7 @@ class interpretLDPFile():
     ftime, fct, args = read_and_parse(self,f)
     if jump_first:
       print "jumping to", ftime, "s."
-    last_ftime = ftime
+      last_ftime = ftime
     start_time = time.time()
     start_time -= last_ftime
         
@@ -115,11 +116,19 @@ if __name__ == "__main__":
 
   signal.signal(signal.SIGINT, signal_handler)
   
-  gaze = moduleConnection((sys.argv[1], 4243), "Gaze")
+  jump_first = len(sys.argv) > 1 and sys.argv[1] == '--jump'
+
+  try:
+    ifilename = sys.argv[jump_first +1]
+  except IndexError:
+    print "what is your .pld data file ?"
+    exit(-1)
+
+  gaze = moduleConnection(conf.conn_gaze, "Gaze")
   if gaze.connected == True:
-    face = moduleConnection((sys.argv[1], 4244), "Face")
+    face = moduleConnection(conf.conn_face, "Face")
     if face.connected == True:
-        interpretLDPFile(sys.argv[2], True)
+        interpretLDPFile(ifilename, jump_first)
   
   sys.exit(0)
  
