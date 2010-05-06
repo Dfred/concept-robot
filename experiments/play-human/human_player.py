@@ -13,53 +13,54 @@ import sys
 import time
 import comm
 import conf
+import threading
+import signal
 
 import logging
 logging.basicConfig(level=logging.INFO, format=comm.FORMAT)
 
 conf.load()
 
-class GazeConnection(comm.BasicHandler):
-  """Connection to gaze server"""
-  process = comm.process
-  
-  def __init__(self):
-    comm.BasicHandler.__init__(self)
-    self.focus_pos = (0., -5., 0.)
-    self.diameter = .5	# normalized
-    # force blocking using timeout
-    self.connect_to(conf.conn_gaze, 3)
+class moduleConnection(comm.BaseClient, threading.Thread):
 
+  """Connection to the server"""
+  def __init__(self, addr_port, name):
+    threading.Thread.__init__(self)
+    self._addr_port = addr_port
+    self._name = name
+    self._connected = threading.Event()
+    self.start()
+    self._connected.wait()
 
-class FaceConnection(comm.BasicHandler):
-  """Connection to face server"""
-  def __init__(self):
-    comm.BasicHandler.__init__(self)
-    self.connect_to(conf.conn_face, 3)
+  def run (self):
+    comm.BaseClient.__init__(self, self._addr_port)
+    self.connect_and_run()
+    
+  def handle_connect(self):
+    print "Module [" + self._name + "] Connected to %s:%s" % self.target_addr 
+    self._connected.set()
 
+  def handle_disconnect(self):
+    print "Disconnect"
+    exit(0)
+
+  def handle_error(self, e):
+    print "Communication error", e
+    exit(0)
+    
+  def handle_timeout(self):
+    print "timeout"
+    exit(-1)
       
-class HeadConnection(comm.BasicHandler):
-  """Connection to head server"""
-  def __init__(self):
-    comm.BasicHandler.__init__(self)
-    self.connect_to(conf.conn_head, 3)
+class interpretLDPFile():
 
-
-class Player():
   """Reads a data file got from xml2ldp.py and"""
   """ sends contents to appropriate endpoints."""
-
-  def __init__(self):
-    self.gaze = GazeConnection()
-    self.face = FaceConnection()
-    self.head = HeadConnection()
-    if not self.gaze.connected and \
-          not self.head.connected and \
-          not self.face.connected:
-      raise Exception("No remote module could be reached.")
-    
-  def read_and_play(self, file, jump_first):
+  def __init__(self, file, jump_first):
     """Small bufferized player"""
+    self.read_and_play(file, jump_first)
+
+  def read_and_play(self, file, jump_first):
 
     def read_and_parse(self, f):
       line, bIndex = "", f.tell()
@@ -74,49 +75,51 @@ class Player():
       except AttributeError:
         print "command not available:", cmd
       return (float(frame_time), fct, argline)
-
+        
     self.playing = True
     f = open(file)
     last_ftime = 0
     ftime, fct, args = read_and_parse(self,f)
     if jump_first:
       print "jumping to", ftime, "s."
-      last_ftime = ftime
+    last_ftime = ftime
     start_time = time.time()
     start_time -= last_ftime
-
-    while self.gaze.connected and fct:
+        
+    while fct:
       if (time.time() - start_time) > ftime:
         print "**!!!** congestion detected at frame time", ftime
-
+      
       print "sleep for", ftime - last_ftime, "s."
       time.sleep(ftime - last_ftime)
       fct(args)
-      comm.loop(0.1, count=1)
       last_ftime = ftime
       ftime, fct, args = read_and_parse(self,f)
     f.close()
-
+            
   def set_eyes(self, argline):
     """set gaze: vector3 normalized_angle time_in_s"""
-    self.gaze.send_msg("orientation "+argline)
+    gaze.send_msg("orientation "+argline)
 
   def set_blink(self, argline):
     """set blink: duration in seconds"""
-    self.face.send_msg("blink "+argline)
+    face.send_msg("blink "+argline)
       
   def set_f_expr(self, argline):
     """set facial expression"""
-    self.face.send_msg("f_expr "+argline)
+    face.send_msg("f_expr "+argline)
 
-
+def signal_handler(signal, frame):
+  sys.exit(0)
+        
 if __name__ == "__main__":
-  p = Player()
-  jump_first = len(sys.argv) > 1 and sys.argv[1] == '--jump'
-  try:
-    ifilename = sys.argv[jump_first +1]
-  except IndexError:
-    print "what is your .pld data file ?"
-    exit(-1)
-  p.read_and_play(ifilename, jump_first)
-  print "done"
+
+  signal.signal(signal.SIGINT, signal_handler)
+  
+  gaze = moduleConnection((sys.argv[1], 4243), "Gaze")
+  face = moduleConnection((sys.argv[1], 4244), "Face")
+
+  interpretLDPFile(sys.argv[2], False)
+
+
+
