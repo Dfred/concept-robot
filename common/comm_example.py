@@ -115,7 +115,7 @@ class ClientR(comm.RequestHandler):
         print "SERVER> ping received", args
         self.send_msg("pong %i" % time.time())
 
-class Server(object):
+class DummyServer(object):
     """A dummy server. inheritance from object is mandatory"""
     pass
 
