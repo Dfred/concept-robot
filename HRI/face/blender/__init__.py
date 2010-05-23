@@ -37,12 +37,13 @@ def check_actuators(cont, acts):
 
 
 def set_eyelids(srv_face, time_step):
-    #TODO: move this to gaze module (which should update the face module)
+    """This function is for demo purposes only and do not use a proper interface
+    """
     factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
-    srv_face.set_AU('43R', 0.9-factor, time_step)
-    srv_face.set_AU('43L', 0.9-factor, time_step)
-    srv_face.set_AU('07R', factor, time_step)
-    srv_face.set_AU('07L', factor, time_step)
+    srv_face.conflict_solver.set_AU('gaze', '43R', 0.9-factor, time_step)
+    srv_face.conflict_solver.set_AU('gaze', '43L', 0.9-factor, time_step)
+    srv_face.conflict_solver.set_AU('gaze', '07R', factor, time_step)
+    srv_face.conflict_solver.set_AU('gaze', '07L', factor, time_step)
 
 
 def initialize():
@@ -70,10 +71,10 @@ def initialize():
     
     import face
     # make sure we have the same Action Units (Blender Shape Actions)
+    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
-    GameLogic.srv_face.set_available_AUs(acts)
+    GameLogic.srv_face.set_available_AUs([act.name for act in acts])
     # override actuators mode
     check_actuators(cont, acts)
 
@@ -123,8 +124,7 @@ def update_eyes(srv_gaze):
 
 
 def update_face(srv_face, cont):
-    srv_face.update(TIME_STEP)
-    for au, infos in srv_face.AUs.iteritems():
+    for au, infos in srv_face.update(TIME_STEP):
         target_val, duration, elapsed, value = infos
 #        print "setting property p"+au+" to value", value
         cont.owner['p'+au] = value * 50

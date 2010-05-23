@@ -83,10 +83,18 @@ class Face(object):
         self.blink_p = BLINK_PROBABILITY
         self.conflict_solver = ConflictSolver()
         LOG.info("Face started")
+        
+    def set_available_AUs(self, AUs):
+        return self.conflict_solver.set_available_AUs(AUs)
 
     def get_all_AU(self):
         return ((item[0],item[1][:2],item[1][3])
                 for item in self.conflict_solver.iteritems())
+
+    def update(self, time_step):
+        if self.blink_p > random.random():
+            self.do_blink(BLINK_DURATION)
+        return self.conflict_solver.update(time_step)
 
     def set_f_expr(self, id, target, duration):
         """Set a facial expression."""

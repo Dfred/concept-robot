@@ -18,11 +18,11 @@ class ConflictSolver(object):
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
     def set_AU(self, origin, name, target_value, duration):
-        """Set targets for a specific AU, giving priority so specific inputs.
+        """Set targets for a specific AU, giving priority to specific inputs.
          origin: name of the input
          name: AU name
          target_value: normalized value
-         duration: time in 
+         duration: time in seconds
         """
         try:
             self.AUs[name][:3] = target_value, duration, 0
@@ -36,9 +36,9 @@ class ConflictSolver(object):
             LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
 
     def update(self, time_step):
-        """Update AU values."""
-        if self.blink_p > random.random():
-            self.do_blink(BLINK_DURATION)
+        """Update AU values. This function shall be called for each frame.
+         time_step: time in seconds elapsed since last call.
+        """
         #TODO: use motion dynamics
         for id,info in self.AUs.iteritems():
             target, duration, elapsed, val = info
@@ -47,5 +47,5 @@ class ConflictSolver(object):
 
             factor = not duration and 1 or elapsed/duration
             self.AUs[id][2:] = elapsed+time_step, val + (target - val)*factor
-
+        return self.AUs.iteritems()
 
