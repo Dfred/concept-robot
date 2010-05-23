@@ -22,7 +22,7 @@ LOG = logging.getLogger("face-srv")
 
 import comm
 import conf
-
+from constraint_solver import ConflictSolver
 
 BLINK_PROBABILITY=0.0
 BLINK_DURATION=1        # in seconds
@@ -41,7 +41,8 @@ class FaceClient(comm.RequestHandler):
                 LOG.warning("[AU] bad argument line:'%s', caused: %s" %
                             (argline,e) )
         else:
-            self.send_msg("AU ",str(self.server.focus))
+            for triplet in self.server.get_all_AU():
+                self.send_msg("AU %s %.3f %.3f" % triplet) # name, target, duration
 
     def cmd_f_expr(self, argline):
         # TODO: rewrite player to get rid of this function
@@ -68,40 +69,24 @@ class FaceClient(comm.RequestHandler):
 
 
 class Face(object):
-    """Main facial feature animation module - server"""
-    """
-    Also designed to maintain consistent muscle activation.
-    This class holds all AU values, so you can also import this module.
-    AU are normalized: 0 should/may be AU streched to an extreme, 1 to the other
-    Resetting an AU would override the unfinished motion, starting from whenever
-     the command has been received.
+    """Main facial feature animation module - server
+
+    Also maintains consistent muscle activation.
+    AU value is normalized: 0 -> AU not streched, 1 -> stretched to max
+    Setting an AU target value overwrites previous target.
+    On target overwrite, interpolation starts from current value.
     """
 
     EYELIDS = ['43R', '43L', '07R', '07L']
 
     def __init__(self):
         self.blink_p = BLINK_PROBABILITY
-        self.AUs = {}
-
-    def set_available_AUs(self, available_AUs):
-        for act in available_AUs:
-            self.AUs[act.name] = [0]*4  # target_val, duration, elapsed, value
-        LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
-        self.do_blink(0)
+        self.conflict_solver = ConflictSolver()
         LOG.info("Face started")
 
-    def set_AU(self, name, target_value, duration):
-        """Set a target value for a specific AU"""
-        try:
-            self.AUs[name][:3] = target_value, duration, 0
-        except KeyError:
-            if len(name) != 2:
-                raise Exception('AU %s is not defined' % name)
-            self.AUs[name+'R'][:3] = target_value, duration, 0
-            self.AUs[name+'L'][:3] = target_value, duration, 0
-            LOG.debug("set AU[%sR/L]: %s" % (name, self.AUs[name+'R']))
-        else:
-            LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
+    def get_all_AU(self):
+        return ((item[0],item[1][:2],item[1][3])
+                for item in self.conflict_solver.iteritems())
 
     def set_f_expr(self, id, target, duration):
         """Set a facial expression."""
@@ -120,7 +105,7 @@ class Face(object):
                "unsure_understanding" : ('02', '09', '20')
                }
         for au in sets[id]:
-            self.set_AU(au, float(target), float(duration))
+            self.conflict_solver.set_AU('f_expr', au, float(target), float(duration))
 
     def set_blink_probability(self, p):
         self.blink_p = p
@@ -128,24 +113,8 @@ class Face(object):
     def do_blink(self, duration):
         """set AUs to create a blink of any duration"""
         LOG.debug("blink: %ss." % duration)
-        self.AUs["43R"][1:] =  duration, 0, .8
-        self.AUs["07R"][1:] =  duration, 0, .2
-        self.AUs["43L"][1:] =  duration, 0, .8
-        self.AUs["07L"][1:] =  duration, 0, .2
-
-    def update(self, time_step):
-        """Update AU values."""
-        if self.blink_p > random.random():
-            self.do_blink(BLINK_DURATION)
-        #TODO: use motion dynamics
-        for id,info in self.AUs.iteritems():
-            target, duration, elapsed, val = info
-            if val == target or elapsed > duration:
-                continue        # let self.AUs[id] be reset on next command
-
-            factor = not duration and 1 or elapsed/duration
-            self.AUs[id][2:] = elapsed+time_step, val + (target - val)*factor
-
+        self.conflict_solver.set_AU('f_expr', "43", .8, duration)
+        self.conflict_solver.set_AU('f_expr', "07", .2, duration)
 
 
 if __name__ == '__main__':
