@@ -1,14 +1,14 @@
 Abstract:
 =========
 
-This software is the CONCEPT project from the University of Plymouth.
+This software is part of the CONCEPT project from the University of Plymouth.
 The team involves :
 
-- Dr tony Belpaeme, Supervisor
 - frederic Delaunay, human-robot interaction
 - joachim De Greeff, conceptual modeling
 
-The project is expected to end around oct. 2011.
+The project is part of frederic Delaunay's PhD, under supervision of Dr tony Belpaeme.
+This PhD is expected to end in late 2011.
 In the meantime, you are welcomed to try the software and submit bugfixes.
 
 More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
@@ -18,4 +18,29 @@ More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
 Requirements:
 =============
 
-- python 2.5
+- python 2.6
+- blender 2.49b
+- minGW for Windows
+
+Running the software:
+=====================
+
+1) Open a shell and change into the directory containing this file.
+3) now start the facial animation system with:
+ 
+$ ./face.sh
+
+
+If you want to do setup your environment for starting modules and using the readline tool, enter the following commands:
+
+$ export CONCEPT_DIR=`pwd`
+$ source env.sh
+
+That last script provides a handy command to start blender with current .blend file:
+
+$ edit_face
+
+
+
+Contact: frederic.delaunay@plymouth.ac.uk
+========
