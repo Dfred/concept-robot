@@ -32,7 +32,7 @@ del os, HISTFILE
 
 class myUI(cmd.Cmd):
     def __init__(self):
-        self.use_rawinput = False
+        self.use_rawinput = True #False
         self.prompt = "<connecting ...>"
         print "press ^D to quit"
         cmd.Cmd.__init__(self)
@@ -43,7 +43,7 @@ class myUI(cmd.Cmd):
         if line and self.server:
             self.server.send_msg(line)
         elif line in [ 'EOF', 'bye' ]:
-            sys.exit(-1)
+            sys.exit(0)
 
     def emptyline(self):
         """forget the command when no command is given"""
@@ -70,21 +70,24 @@ class commConsClient(comm.BaseClient):
         if self.ui :
             self.ui.server = self
         try:
+#            import pdb; pdb.set_trace()
             comm.BaseClient.__init__(self, addr_port)
             self.connect_and_run()
         except comm.error, e:
             print "\n"+str(e)
             self.handle_error()
-        except:
+        except Exception, e:
             if self.ui:
-                print "\nI'm dying please press Enter !!!"
+                print e, "\nI'm dying please press Enter !!!"
                 self.ui.running = False
 
     def handle_connect(self):
         """Called when the client has just connected successfully"""
         if self.ui:
-            print "\nnow connected to %s:%s" % self.target_addr
-            self.ui.prompt = self.target_addr[0] + "> "
+            print "\nnow connected to %s" % self.target_addr
+            if type(self.target_addr) == type(""):
+                info = ("localhost", self.target_addr)
+            self.ui.prompt = info[0] + "> "
             self.ui.redraw_prompt()
 
     def handle_disconnect(self):

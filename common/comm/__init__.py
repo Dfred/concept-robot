@@ -79,7 +79,12 @@ RE_PORT   = r'(?P<PORT>\d{2,5}|[\w/\.]+[^/])'
 CRE_CMDLINE_ARG = re.compile('('+RE_NAME+'=)?'+RE_ADDR+':'+RE_PORT)
 CRE_PROTOCOL_SYNTAX = re.compile("\s*\w+(\s+\w+)*")
 
-
+def get_conn_infos(addr_port):
+    if hasattr(socket, "AF_UNIX") and \
+            type(addr_port[1]) == type("") and \
+            addr_port[0] in ["127.0.0.1", "localhost"]:
+        return socket.AF_UNIX, addr_port[1]
+    return socket.AF_INET, addr_port
 
 def getBaseServerClass(addr_port):
     """Returns the appropriate base class for server according to addr_port"""
@@ -167,7 +172,8 @@ def create(cmdline, remoteClient_classes, server_class, cnx_handler):
 
 class BaseComm:
     """Basic protocol handling and command-to-function resolver.
-       Not to be instancied"""
+    Not to be instancied.
+    """
 
     def handle_notfound(self, cmd):
         """When a method (a command) is not found in self. See process()."""
@@ -216,6 +222,7 @@ class BaseComm:
     def cmd_bye(self, args):
         """Disconnects that client."""
         self.running = False
+
     cmd_EOF = cmd_bye
         
 
@@ -230,6 +237,8 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler):
         if not hasattr(self.server, "clients"):
             self.server.clients = []
         self.server.clients.append(self)
+        self.addr_port = type(self.client_address) == type("") and \
+            ("localhost", "UNIX Socket") or self.client_address
 
     def finish(self):
         SocketServer.StreamRequestHandler.setup(self)
@@ -242,8 +251,8 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler):
         read is buffered, write is not.
         """
         self.cnx = self.request # for process()
-        LOG.info("%i> connection accepted from %s on "+str(self.client_address[1]),
-                                        self.cnx.fileno(), self.client_address[0])
+        LOG.info("%i> connection accepted from %s on "+str(self.addr_port[1]),
+                 self.cnx.fileno(), self.addr_port[0])
         self.running = True
         command = ""
         while self.running:
@@ -252,13 +261,13 @@ class RequestHandler(BaseComm, SocketServer.StreamRequestHandler):
                 LOG.debug("readline().strip(): [%i] %s", len(command), command)
             except socket.error, e:
                 LOG.error(e)
-                LOG.error("comm channel broken, pruning client %s", self.client_address[0])
+                LOG.error("comm channel broken, pruning client %s", self.addr_port[0])
                 return
             if command.endswith('\\'):
                 command = command[:-1]
             command = command[self.process(command):]
-        LOG.info("%i> connection terminated : %s on "+str(self.client_address[1]),
-                                         self.cnx.fileno(), self.client_address[0])
+        LOG.info("%i> connection terminated : %s on "+str(self.addr_port[1]),
+                 self.cnx.fileno(), self.addr_port[0])
 
     def cmd_shutdown(self, args):
         """Disconnects all clients and terminate the server process."""
@@ -301,8 +310,8 @@ class BaseClient(BaseComm):
         setting a socket timeout.
     """
     def __init__(self, addr_port):
-        self.target_addr = addr_port
-        self.cnx = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        family, self.target_addr = get_conn_infos(addr_port)
+        self.cnx = socket.socket(family)
         self.connected = False
 
     def set_timeout(self, timeout):
@@ -325,7 +334,9 @@ class BaseClient(BaseComm):
         self.handle_disconnect()
 
     def read_until_done(self):
-        """Wait, read and process data, calling self.handle_timeout when self.timeout elapsed."""
+        """Wait, read and process data, calling self.handle_timeout when
+        self.timeout elapsed.
+        """
 
         def abort(self):
             LOG.debug("communication with server has been interrupted")

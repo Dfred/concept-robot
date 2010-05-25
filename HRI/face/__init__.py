@@ -32,17 +32,22 @@ class FaceClient(comm.RequestHandler):
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them."""
-        """argline: AU_name  target_value  duration"""
+        """argline: sending_module AU_name  target_value  duration"""
         if len(argline):
             try:
-                au_name, value, duration = argline.split()[:3]
-                self.server.set_AU(au_name, float(value), float(duration))
+                origin, au_name, value, duration = argline.split()[:3]
+                self.server.conflict_solver.set_AU(origin, au_name, float(value), float(duration))
             except Exception, e:
                 LOG.warning("[AU] bad argument line:'%s', caused: %s" %
                             (argline,e) )
         else:
-            for triplet in self.server.get_all_AU():
-                self.send_msg("AU %s %.3f %.3f" % triplet) # name, target, duration
+            msg = ""
+            AU_info = self.server.get_all_AU()
+            AU_info.sort()
+            # name, target, duration
+            for triplet in AU_info:
+                msg += "AU %s\t%.3f\t%.3f\n" % triplet
+            self.send_msg(str(msg))
 
     def cmd_f_expr(self, argline):
         # TODO: rewrite player to get rid of this function
@@ -88,8 +93,8 @@ class Face(object):
         return self.conflict_solver.set_available_AUs(AUs)
 
     def get_all_AU(self):
-        return ((item[0],item[1][:2],item[1][3])
-                for item in self.conflict_solver.iteritems())
+        return [(item[0],item[1][0],item[1][1])
+                for item in self.conflict_solver.AUs.iteritems()]
 
     def update(self, time_step):
         if self.blink_p > random.random():
