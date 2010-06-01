@@ -319,7 +319,7 @@ class BaseClient(BaseComm):
         self.connected = False
 
     def set_timeout(self, timeout):
-        self.cnx.settimeout(self.timeout)
+        self.cnx.settimeout(timeout)
 
     def connect_and_run(self):
         try:
@@ -339,7 +339,7 @@ class BaseClient(BaseComm):
 
     def read_until_done(self):
         """Wait, read and process data, calling self.handle_timeout when
-        self.timeout elapsed.
+         socket timeout elapsed.
         """
 
         def abort(self):
