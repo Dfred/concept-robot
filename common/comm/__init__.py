@@ -317,6 +317,7 @@ class BaseClient(BaseComm):
         family, self.target_addr = get_conn_infos(addr_port)
         self.cnx = socket.socket(family)
         self.connected = False
+        self.running = False
 
     def set_timeout(self, timeout):
         self.cnx.settimeout(timeout)
