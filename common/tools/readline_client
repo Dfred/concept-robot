@@ -44,40 +44,38 @@ try:
     readline.read_history_file(HISTFILE)
 except IOError:
     pass
-import atexit
-atexit.register(readline.write_history_file, HISTFILE)
-del os, HISTFILE
-
 
 class myUI(cmd.Cmd):
     def __init__(self):
-        self.use_rawinput = True #False
-        self.prompt = "<connecting ...>"
-        print "press ^D to quit"
+        self.use_rawinput = False
+        print "enter 'EOF' or press ^D to quit"
         cmd.Cmd.__init__(self)
-        self.running = True
-        threading.Thread(target=self.cmdloop).start()
+        self.server = None
 
     def default(self, line):
-        if line and self.server:
+        if line and self.server and self.server.status == "connected":
             self.server.send_msg(line)
-        elif line in [ 'EOF', 'bye' ]:
-            sys.exit(0)
+        if line in [ 'EOF', 'bye' ]:
+            if self.server:
+                self.server.running = False
 
     def emptyline(self):
         """forget the command when no command is given"""
         pass
 
     def postcmd(self, stop, line):
-        return not self.running
+        """return True to stop readline thread"""
+        if not self.server or not self.server.running:
+            print "exiting"
+            readline.write_history_file(HISTFILE)
+            return True
 
-    def disconnected(self):
-        self.server = None
-        self.prompt = "<disconnected> "
-        self.redraw_prompt()
+    def preloop(self):
+        self.prompt = "<%s> " % (self.server and self.server.status or '--')
 
     def redraw_prompt(self):
-        self.stdout.write(self.prompt)
+        self.preloop()
+        print self.prompt,
         self.stdout.flush()
 
 
@@ -85,11 +83,12 @@ class commConsClient(comm.BaseClient):
     """Our connection to a target server"""
 
     def __init__(self, addr_port, ui=None):
+        self.status = "connecting"
         self.ui = ui
         if self.ui :
             self.ui.server = self
+            threading.Thread(target=ui.cmdloop).start()
         try:
-#            import pdb; pdb.set_trace()
             comm.BaseClient.__init__(self, addr_port)
             self.connect_and_run()
         except comm.error, e:
@@ -97,45 +96,44 @@ class commConsClient(comm.BaseClient):
             self.handle_error()
         except Exception, e:
             if self.ui:
-                print e, "\nI'm dying please press Enter !!!"
                 self.ui.running = False
+            raise
 
     def handle_connect(self):
         """Called when the client has just connected successfully"""
+        self.status = "connected"
         if self.ui:
-            print "\nnow connected to %s" % self.target_addr
-            if type(self.target_addr) == type(""):
-                info = ("localhost", self.target_addr)
-            self.ui.prompt = info[0] + "> "
+            print "\nnow connected to", self.target_addr
             self.ui.redraw_prompt()
 
     def handle_disconnect(self):
-        if self.ui:
-            self.ui.disconnected()
+        self.status = "disconnected"
+        self.running = False
 
     def handle_error(self, e):
-        print "\nCommunication error", e
-        if self.ui:
-            self.ui.disconnected()
+        print "\nCommunication error:", e
+        self.handle_disconnect()
+        print "press enter to finish"
 
     def handle_timeout(self):
         """Called when timeout waiting for data has expired."""
-        print "timeout"
         if pipe_mode:
             line = sys.stdin.readline()
             while line:
                 print sys.argv[0],"sending>", line
                 self.send(line)
                 line = sys.stdin.readline()
-                if not self.connected:
-                    print "disconnected from remote"
-                    exit(-1)
+                if self.status == "disconnected":
+                    self.running = False
+                    return
 
     def process(self, line):
         """method that handles incoming data (line by line)."""
+        if not line:
+            return 0
         print "\n", line
-        if self.ui:
-            self.ui.redraw_prompt()
+#        if self.ui:
+#            self.ui.redraw_prompt()
         return len(line)
 
 
@@ -147,4 +145,4 @@ if __name__ == "__main__":
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
     port = sys.argv[2].isdigit() and int(sys.argv[2]) or sys.argv[2]
 
-    commConsClient((sys.argv[1], port), not pipe_mode and myUI())
+    client = commConsClient((sys.argv[1], port), not pipe_mode and myUI())
