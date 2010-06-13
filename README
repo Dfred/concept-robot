@@ -1,9 +1,9 @@
 Abstract:
 =========
 
-This software is part of the CONCEPT project from the University of Plymouth.
-The team involves :
+This software is part of the CONCEPT project from the University of Plymouth, under supervision of Dr tony Belpaeme.
 
+The team involves :
 - frederic Delaunay, human-robot interaction
 - joachim De Greeff, conceptual modeling
 
@@ -26,21 +26,21 @@ Running the software:
 =====================
 
 1) Open a shell and change into the directory containing this file.
-3) now start the facial animation system with:
- 
-$ ./face.sh
+2) you can load environment variables (supposedly for development):
 
+$ source ./env.sh
 
-If you want to do setup your environment for starting modules and using the readline tool, enter the following commands:
-
-$ export CONCEPT_DIR=`pwd`
-$ source env.sh
-
-That last script provides a handy command to start blender with current .blend file:
+3) open the blend file to generate a standalone version for your platform:
 
 $ edit_face
 
+Use blender menu: File > Save Game as Runtime, and save it as: "lightbot_face"
 
+4) now start the facial animation system with:
+ 
+$ ./face.sh
+
+Now you can connect and start setting Action Units according to the protocol definition.
 
 Contact: frederic.delaunay@plymouth.ac.uk
 ========
