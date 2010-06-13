@@ -33,7 +33,7 @@
 #        - planner (..eventually)
 #
 
-import sys, random
+import sys, random, time
 
 import asyncore
 import logging
@@ -52,12 +52,16 @@ class FaceClient(comm.RequestHandler):
     """Remote connection handler: protocol parser."""
 
     def cmd_AU(self, argline):
-        """if empty, returns current values. Otherwise, set them."""
-        """argline: sending_module AU_name  target_value  duration"""
+        """if empty, returns current values. Otherwise, set them.
+         argline: sending_module AU_name  target_value  duration.
+        """
         if len(argline):
             try:
-                origin, au_name, value, duration = argline.split()[:3]
-                self.server.conflict_solver.set_AU(origin, au_name, float(value), float(duration))
+                au_name, value, duration = argline.split()[:3]
+                self.server.conflict_solver.set_AU(self.origin,
+                                                   au_name,
+                                                   float(value),
+                                                   float(duration))
             except Exception, e:
                 LOG.warning("[AU] bad argument line:'%s', caused: %s" %
                             (argline,e) )
@@ -70,6 +74,28 @@ class FaceClient(comm.RequestHandler):
                 msg += "AU %s\t%.3f\t%.3f\n" % triplet
             self.send_msg(str(msg))
 
+    def cmd_origin(self, argline):
+        """Set the origin of that channel, and start_time of its next chuncks.
+        """
+        args = argline.split()
+        try:
+            if args[0] in ORIGINS:
+                self.origin = args[0]
+                LOG.info("")
+            else:
+                LOG.warning("[origin] unknown origin: %s" % args[0])
+            self.start_time = float(args[1])
+            if self.start_time - time.time() < 0:
+                LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
+                            (args[1], time.time()) )
+            if self.start_time - time.time() > 30:
+                LOG.warning("[origin] time received more than 30s in future %s"%
+                            args[1] )
+        except Exception, e:
+            LOG.warning("[origin] bad argument line:'%s', caused: %s" %
+                        (argline,e) )
+
+
     def cmd_f_expr(self, argline):
         # TODO: rewrite player to get rid of this function
         """argline: facial expression id + intensity + duration.
@@ -77,8 +103,9 @@ class FaceClient(comm.RequestHandler):
         """
         try:
             self.server.set_f_expr(*argline.split())
-        except Exception:
-            LOG.warning("[f_expr] bad argument line:'%s', caused:" % argline)
+        except Exception, e:
+            LOG.warning("[f_expr] bad argument line:'%s', caused: %s" %
+                        (argline,e) )
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
@@ -87,11 +114,6 @@ class FaceClient(comm.RequestHandler):
         except Exception, e:
             LOG.warning("[blink] bad argument line:'%s', caused: %s" %
                         (argline,e) )
-
-    def cmd_shutdown(self, args):
-        """args: unused."""
-        self.server.shutdown()
-
 
 
 class Face(object):
