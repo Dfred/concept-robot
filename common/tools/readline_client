@@ -44,13 +44,17 @@ try:
     readline.read_history_file(HISTFILE)
 except IOError:
     pass
+import atexit
+atexit.register(readline.write_history_file, HISTFILE)
 
 class myUI(cmd.Cmd):
     def __init__(self):
-        self.use_rawinput = False
+        self.use_rawinput = True # False # For MinGW ?
         print "enter 'EOF' or press ^D to quit"
+        self.prompt = "<connecting ...>"
         cmd.Cmd.__init__(self)
         self.server = None
+        threading.Thread(target=self.cmdloop).start()
 
     def default(self, line):
         if line and self.server and self.server.status == "connected":
@@ -71,7 +75,7 @@ class myUI(cmd.Cmd):
             return True
 
     def preloop(self):
-        self.prompt = "<%s> " % (self.server and self.server.status or '--')
+        self.prompt = "%s> " % (self.server and self.server.status or '--')
 
     def redraw_prompt(self):
         self.preloop()
@@ -132,8 +136,8 @@ class commConsClient(comm.BaseClient):
         if not line:
             return 0
         print "\n", line
-#        if self.ui:
-#            self.ui.redraw_prompt()
+        if self.ui:
+            self.ui.redraw_prompt()
         return len(line)
 
 
@@ -145,4 +149,4 @@ if __name__ == "__main__":
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
     port = sys.argv[2].isdigit() and int(sys.argv[2]) or sys.argv[2]
 
-    client = commConsClient((sys.argv[1], port), not pipe_mode and myUI())
+    commConsClient((sys.argv[1], port), not pipe_mode and myUI())
