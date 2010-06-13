@@ -47,14 +47,48 @@ from constraint_solver import ConflictSolver
 
 BLINK_PROBABILITY=0.0
 BLINK_DURATION=1        # in seconds
+ORIGINS = ['face','gaze','head']
 
 class FaceClient(comm.RequestHandler):
     """Remote connection handler: protocol parser."""
+
+   def __init__(self, *args):
+       self.origin = None
+       comm.RequestHandler.__init__(self, *args)
+
+   def cmd_origin(self, argline):
+       """Sets the channel type.
+       This stills allow for multiplexed channel or multi-channel since each
+        instance represents a channel. In multiplexed channel, the sender need
+        to ensure not mixing AUs whitout setting origin first.
+       """
+       origin = argline.strip()
+       if origin not in ORIGINS:
+           LOG.warning("[origin] unknow origin:", self.origin)
+       self.origin = origin
+        
+   def cmd_start(self, argline):
+       try:
+           start = float(argline.strip())
+       except Exception, e:
+           LOG.warning("[origin] bad argument line:'%s', caused: %s" %
+                       (argline,e) )
+
+       self.start_time = float(start)
+       if self.start_time - time.time() < 0:
+           LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
+                       (start, time.time()) )
+       if self.start_time - time.time() > 30:
+           LOG.warning("[origin] time received > 30s in future %s" % start)
+
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them.
          argline: sending_module AU_name  target_value  duration.
         """
+        if self.origin == None:
+            LOG.debug("received AU request from unkown origin", argline)
+            return
         if len(argline):
             try:
                 au_name, value, duration = argline.split()[:3]
@@ -73,27 +107,6 @@ class FaceClient(comm.RequestHandler):
             for triplet in AU_info:
                 msg += "AU %s\t%.3f\t%.3f\n" % triplet
             self.send_msg(str(msg))
-
-    def cmd_origin(self, argline):
-        """Set the origin of that channel, and start_time of its next chuncks.
-        """
-        args = argline.split()
-        try:
-            if args[0] in ORIGINS:
-                self.origin = args[0]
-                LOG.info("")
-            else:
-                LOG.warning("[origin] unknown origin: %s" % args[0])
-            self.start_time = float(args[1])
-            if self.start_time - time.time() < 0:
-                LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
-                            (args[1], time.time()) )
-            if self.start_time - time.time() > 30:
-                LOG.warning("[origin] time received more than 30s in future %s"%
-                            args[1] )
-        except Exception, e:
-            LOG.warning("[origin] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
 
 
     def cmd_f_expr(self, argline):
