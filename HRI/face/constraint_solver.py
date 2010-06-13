@@ -29,6 +29,7 @@ LOG = logging.getLogger(__name__)
 class ConflictSolver(object):
     def __init__(self):
         self.AUs = {}
+        self.face = {}
 
     def set_available_AUs(self, available_AUs):
         """Define list of AUs available for a specific face.
@@ -45,6 +46,7 @@ class ConflictSolver(object):
          target_value: normalized value
          duration: time in seconds
         """
+        print origin, name, target_value, duration
         try:
             self.AUs[name][:3] = target_value, duration, 0
         except KeyError:
@@ -55,6 +57,11 @@ class ConflictSolver(object):
             LOG.debug("set AU[%sR/L]: %s" % (name, self.AUs[name+'R']))
         else:
             LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
+
+    def solve(self):
+        """Solve target conflicts.
+        """
+        
 
     def update(self, time_step):
         """Update AU values. This function shall be called for each frame.
