@@ -54,13 +54,12 @@ case `uname -s` in
 esac
 export PYTHONPATH
 
-# set standard conf if not set yet
-if test -z "$LIGHTBOT_CONF" ; then
-	export LIGHTBOT_CONF=./common/lightbot.conf
-fi
+
+CONF_FILE=`python -c 'import conf; conf.load(); print conf.file_loaded'`
+ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
+echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
 # remove old unix sockets if present
-python -c 'import conf; conf.load(); print "using file", conf.file_loaded'
 SOCKETS=`python -c 'import conf; conf.get_unix_sockets(1)'`
 if test $? -ne 0; then
 	echo "ERROR: Failure to get socket list !"
