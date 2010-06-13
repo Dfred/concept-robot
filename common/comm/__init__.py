@@ -42,10 +42,11 @@ __date__    = "$$"
 
 import re
 import os
-import logging
-import SocketServer
 import socket
 import select
+import logging
+
+import SocketServer
 
 # save users from importing socket
 error = socket.error
@@ -56,6 +57,9 @@ FORMAT = "%(filename)s[%(lineno)d] -%(levelname)s-\t%(message)s"
 
 # Set basic config of logger for client modules not dealing with logging.
 logging.basicConfig(format=FORMAT, level=logging.WARNING)
+
+# removes port availability delay
+SocketServer.TCPServer.allow_reuse_address = True
 
 
 class NullHandler(logging.Handler):
@@ -208,9 +212,8 @@ class BaseComm:
         cmd_tokens = cmdline.split(None,1) # keep 1
         cmd, args = "cmd_"+cmd_tokens.pop(0), cmd_tokens and cmd_tokens[0] or ""
         try:
-            ret = None
             if cmd in dir(self):
-                exec("ret = self."+cmd+"(args)")
+                exec("self."+cmd+"(args)")
             else:
                 LOG.info("%s> command not found '%s'", self.cnx.fileno(), command)
                 self.handle_notfound(cmd)
@@ -317,10 +320,9 @@ class BaseClient(BaseComm):
         family, self.target_addr = get_conn_infos(addr_port)
         self.cnx = socket.socket(family)
         self.connected = False
-        self.running = False
 
     def set_timeout(self, timeout):
-        self.cnx.settimeout(timeout)
+        self.cnx.settimeout(self.timeout)
 
     def connect_and_run(self):
         try:
@@ -340,7 +342,7 @@ class BaseClient(BaseComm):
 
     def read_until_done(self):
         """Wait, read and process data, calling self.handle_timeout when
-         socket timeout elapsed.
+        self.timeout elapsed.
         """
 
         def abort(self):
