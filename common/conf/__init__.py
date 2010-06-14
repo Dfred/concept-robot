@@ -26,12 +26,12 @@ versions >= 2.5
 Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
 """
 """
-Global configuration system reading module. Reads file 'lightbot.conf'.
+Global configuration system reading module. Reads file 'lightHead.conf'.
 This module reads the global configuration file and checks missing definitions.
 Configuration file search path order:
  1) current user's home directory (posix systems: $HOME)
  2) globlal system configuration file (posix: /etc/)
- 3) any path defined by the system variable $(LIGHTBOT_CONF)
+ 3) any path defined by the system variable $(LIGHTHEAD_CONF)
 
 Syntax is the python syntax.
 This software package shall come with a default configuration file.
@@ -42,12 +42,12 @@ import os, sys
 
 MODULE=sys.modules[__name__]
 
-ENV='LIGHTBOT_CONF'
-FILE='lightbot.conf'
+ENV='LIGHTHEAD_CONF'
+FILE='lightHead.conf'
 REQUIRED=['conn_gaze', 'conn_face']
 
 ERR_UNAVAILABLE="No configuration file was found. Aborting!\
- You can define LIGHTBOT_CONF system variable for complete filepath definition."
+ You can define LIGHTHEAD_CONF system variable for complete filepath definition."
 
 file_loaded=False
 

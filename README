@@ -34,7 +34,7 @@ $ source ./env.sh
 
 $ edit_face
 
-Use blender menu: File > Save Game as Runtime, and save it as: "lightbot_face"
+Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
 
 4) now start the facial animation system with:
  

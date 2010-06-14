@@ -25,7 +25,7 @@
 #
 
 BGE_PYTHON_VERS=2.6
-FACE_BIN="lightbot_face"
+FACE_BIN="lightHead"
 
 check()
 {
