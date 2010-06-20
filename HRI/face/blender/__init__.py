@@ -22,14 +22,17 @@
 #
 # FACE MODULE: blender backend
 #
-# This module handles the Blender Game Engine.
-# 
+# This module uses the Blender Game Engine as a backend for animating LightHead.
+# To make this work, you need to let the initialization routine list the AU you
+#  support: define a property per AU in your .blend. Also, for most AUs you need
+#  a Shape Action actuator which provides the relative basic facial animation.
+#
 # MODULES IO:
 #===========
 # INPUT: - face
 #
-# A few things to remember:
-#  * defining classes in toplevel scripts (like here) leads to scope problems (imports...)
+# A few things to remember for integration with Blender (2.49):
+#  * defining classes in toplevel scripts (like here) leads to scope problems
 #
 
 import sys
@@ -38,82 +41,58 @@ import comm
 
 
 PREFIX="OB"
-EYES_MAX_ANGLE=30
 TIME_STEP=1/GameLogic.getLogicTicRate()
 SH_ACT_LEN=50
 
 def check_actuators(cont, acts):
-    """Check required actuators are ok."""
+    """Check if actuators have their property set and their mode ."""
     for act in acts:
         if not cont.owner.has_key('p'+act.name) or \
                 act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
-#    property_act = cont.actuators['- property setter']
-#            print ": Setting property 'p"+act.name+"'"
-#            property_act.prop_name = 'p'+act.name
-#            property_act.value = "0"
-#            cont.activate(property_act)
             print "missing property: p"+act.name, "or bad Action Playback type"
             sys.exit(-1)
 
 
-def set_eyelids(srv_face, time_step):
-    """This function is for demo purposes only and do not use a proper interface
-    """
-    factor = float(GameLogic.eyes[0].orientation[2][1]) + .505
-    GameLogic.getCurrentController().owner['p43L'] = 0.9-factor * SH_ACT_LEN
-    GameLogic.getCurrentController().owner['p43R'] = 0.9-factor * SH_ACT_LEN
-#    srv_face.conflict_solver.set_AU('gaze', '43', 0.9-factor, time_step)
-    srv_face.conflict_solver.set_AU('gaze', '07', factor, time_step)
-
-
 def initialize():
-    # for init, imports are done on demand since the standalone BGE has issues.
-    print "LIGHTBOT face synthesis, using python version:", sys.version
+    """Initialize connections and configures facial subsystem"""
+
+    # for init, imports are done on demand
+    print "LIGHTHEAD face synthesis, using python version:", sys.version
 
     import logging
     logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
-    cont = GameLogic.getCurrentController()
-    
     import conf
-    missing = conf.load()
-    if missing:
-        raise Exception("WARNING: missing definitions %s in config file:" %\
-                            (missing, conf.file_loaded))
+    missing = conf.load(raise_exception=True)
     
     import face
-    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
+    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient,
+                                           conf.conn_face)
     # set available Action Units from the blender file (Blender Shape Actions)
+    cont = GameLogic.getCurrentController()
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    GameLogic.srv_face.set_available_AUs([act.name for act in acts])
-    # override actuators mode
     check_actuators(cont, acts)
-
-    import threading
-    threading.Thread(name='face', target=GameLogic.srv_face.serve_forever).start()
-    # for demo purposes only
-    objs = GameLogic.getCurrentScene().objects
-    GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
-    GameLogic.empty_e = objs[PREFIX+"Empty-eyes"]
-    GameLogic.empty_e['updated'] = False
-
-    print "BGE logic running at", GameLogic.getLogicTicRate(), "fps."
+    GameLogic.srv_face.set_available_AUs([act.name for act in acts])
 
     # ok, startup
     GameLogic.initialized = True	
     cont.activate(cont.actuators["- wakeUp -"])
-    set_eyelids(GameLogic.srv_face, 0)
+    print "BGE logic running at", GameLogic.getLogicTicRate(), "fps."
 
 
-def update_face(srv_face, cont):
+def update(srv_face, cont, eyes):
     for au, infos in srv_face.update(TIME_STEP):
         target_val, duration, elapsed, value = infos
-#        print "setting property p"+au+" to value", value
+        if au == '63.5':
+            eyes[0].applyRotation([target_val, 0,0], False)
+            eyes[1].applyRotation([target_val, 0,0], False)
+        elif au == '61.5L':
+            eyes[0].applyRotation([0,target_val,0], False)
+        elif au == '61.5R':
+            eyes[1].applyRotation([0,target_val,0], False)
         cont.owner['p'+au] = value * SH_ACT_LEN
         cont.activate(cont.actuators[au])
-#TODO: check why 43R is a valid key, and what is the value ?
-# print cont.owner['43R'], cont.owner['p43R']
 
 
 
@@ -127,12 +106,12 @@ def main():
     if not hasattr(GameLogic, "initialized"):
         try:
             initialize()
+
+            import threading
+            threading.Thread(name='face',
+                             target=GameLogic.srv_face.serve_forever).start()
         except Exception, e:
             cont.activate(cont.actuators["- QUITTER"])
             raise
 
-#   update eyes
-    if GameLogic.empty_e['updated']:       # handle empty_e when moved
-        set_eyelids(GameLogic.srv_face, TIME_STEP)
-        GameLogic.empty_e['updated'] = False
-    update_face(GameLogic.srv_face, cont)
+    update(GameLogic.srv_face, cont, GameLogic.eyes)
