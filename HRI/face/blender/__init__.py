@@ -43,6 +43,7 @@ import comm
 PREFIX="OB"
 TIME_STEP=1/GameLogic.getLogicTicRate()
 SH_ACT_LEN=50
+EYES_AU = ['61.5L', '61.5R', '63.5']
 
 def check_actuators(cont, acts):
     """Check if actuators have their property set and their mode ."""
@@ -69,7 +70,7 @@ def initialize():
     import face
     GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient,
                                            conf.conn_face)
-    # for eye orientation
+    # for eye orientation.
     objs = GameLogic.getCurrentScene().objects
     GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
 
@@ -78,7 +79,7 @@ def initialize():
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
     check_actuators(cont, acts)
-    GameLogic.srv_face.set_available_AUs([act.name for act in acts])
+    GameLogic.srv_face.set_available_AUs([act.name for act in acts]+EYES_AU)
 
     # ok, startup
     GameLogic.initialized = True	
@@ -96,8 +97,9 @@ def update(srv_face, cont, eyes):
             eyes[0].applyRotation([0,target_val,0], False)
         elif au == '61.5R':
             eyes[1].applyRotation([0,target_val,0], False)
-        cont.owner['p'+au] = value * SH_ACT_LEN
-        cont.activate(cont.actuators[au])
+        else:
+            cont.owner['p'+au] = value * SH_ACT_LEN
+            cont.activate(cont.actuators[au])
 
 
 
