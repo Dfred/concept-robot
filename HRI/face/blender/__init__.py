@@ -58,16 +58,21 @@ def initialize():
 
     # for init, imports are done on demand
     print "LIGHTHEAD face synthesis, using python version:", sys.version
+    print "loaded module from", __path__[0]
 
     import logging
     logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
     import conf
-    missing = conf.load(raise_exception=True)
+    missing = conf.load(raise_exception=False)
     
     import face
     GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient,
                                            conf.conn_face)
+    # for eye orientation
+    objs = GameLogic.getCurrentScene().objects
+    GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
+
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = GameLogic.getCurrentController()
     acts = [act for act in cont.actuators if
