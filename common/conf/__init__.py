@@ -101,15 +101,19 @@ def load(raise_exception=True, reload=False):
 
     for conf_file in conf_files:
         if os.path.isfile(conf_file):
+            msg = None
             try:
                 execfile(conf_file, globals())
                 LOADED_FILE = conf_file
             except SyntaxError, err:
-                if raise_exception:
-                    raise LoadException(conf_file,
-                                        "error line "+str(err.lineno))
+                msg = "error line %i." % err.lineno
+            except Exception, e:
+                msg = e
+            else:
                 break
-            break
+            if msg and raise_exception:
+                raise LoadException(conf_file, msg)
+                break
 
     if LOADED_FILE == False and raise_exception:
         raise LoadException(conf_file, ERR_UNAVAILABLE)
