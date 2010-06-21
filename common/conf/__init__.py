@@ -46,19 +46,19 @@ ENV='LIGHTHEAD_CONF'
 FILE='lightHead.conf'
 REQUIRED=['conn_gaze', 'conn_face']
 
-ERR_UNAVAILABLE="No configuration file was found. Aborting!\
- You can define LIGHTHEAD_CONF system variable for complete filepath definition."
+ERR_UNAVAILABLE="""No configuration file was found. Aborting!
+ You can define LIGHTHEAD_CONF system variable for complete filepath definition."""
 
-file_loaded=False
+LOADED_FILE=False
 
-class ConfLoadException(Exception):
+class LoadException(Exception):
     pass
 
 def get_unix_sockets(print_flag=False):
     """Try to get unix sockets from the loaded configuration.
     Returns: [ declared_unix_sockets ]
     """
-    if not file_loaded:
+    if not LOADED_FILE:
         load()
     entries=[getattr(MODULE,c) for c in dir(MODULE) if c.startswith('conn_')]
     sockets=[port for host, port in entries if type(port) == type("")]
@@ -74,16 +74,16 @@ def check_missing():
     return [ i for i in REQUIRED if i not in dir(MODULE) ]
 
 
-def load(reload=False):
+def load(raise_exception=True, reload=False):
     """Try to load 1st available configuration file, ignoring Subsequent calls
     unless reload is set to True.
 
     Returns: see check_missing()
     """
-    global file_loaded
+    global LOADED_FILE
     if reload:
-        raise ConfLoadException("reload of conf not coded yet")
-    elif file_loaded:
+        raise LoadException(LOADED_FILE, "reload of conf not coded yet")
+    elif LOADED_FILE:
         return check_missing()
 
     conf_files=[]
@@ -103,10 +103,14 @@ def load(reload=False):
         if os.path.isfile(conf_file):
             try:
                 execfile(conf_file, globals())
-                file_loaded = conf_file
+                LOADED_FILE = conf_file
             except SyntaxError, err:
-                print "error line", err.lineno
+                if raise_exception:
+                    raise LoadException(conf_file,
+                                        "error line "+str(err.lineno))
+                break
             break
-    if file_loaded == False:
-        raise ConfLoadException(conf_file, ERR_UNAVAILABLE)
+
+    if LOADED_FILE == False and raise_exception:
+        raise LoadException(conf_file, ERR_UNAVAILABLE)
     return check_missing()
