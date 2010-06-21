@@ -74,7 +74,7 @@ if ! test -z "$MISSING"; then
     echo "missing entries in conf: $MISSING"
     exit 1
 fi
-CONF_FILE=`python -c 'import conf; conf.load(); print conf.file_loaded'`
+CONF_FILE=`python -c 'import conf; conf.load(); print conf.LOADED_FILE'`
 ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
