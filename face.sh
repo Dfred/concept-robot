@@ -27,12 +27,27 @@
 BGE_PYTHON_VERS=2.6
 FACE_BIN="lightHead"
 
+check_python_conf()
+{
+python -c 'import conf;
+try:
+ missing = conf.load()
+except conf.LoadException, e:
+ print "CONFIGURATION ERROR:", e[1], ". Last tried file:", e[0]
+ exit(1)
+if missing:
+ print "missing definitions", missing
+ exit(1)
+exit(0)'
+if test $? != 0; then exit 1; fi
+}
+
 check()
 {
   if ! $1; then
 	echo
 	echo $2
-	exit -1
+	exit 1
   fi
 }
 
@@ -54,7 +69,11 @@ case `uname -s` in
 esac
 export PYTHONPATH
 
-
+MISSING= check_python_conf
+if ! test -z "$MISSING"; then
+    echo "missing entries in conf: $MISSING"
+    exit 1
+fi
 CONF_FILE=`python -c 'import conf; conf.load(); print conf.file_loaded'`
 ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
