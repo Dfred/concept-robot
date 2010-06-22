@@ -88,15 +88,15 @@ def initialize():
 
 
 def update(srv_face, cont, eyes):
-    for au, infos in srv_face.update(TIME_STEP):
-        target_val, duration, elapsed, value = infos
+    for au, value in srv_face.update(TIME_STEP):
+        print "rotation", au, value
         if au == '63.5':
-            eyes[0].applyRotation([target_val, 0,0], False)
-            eyes[1].applyRotation([target_val, 0,0], False)
+            eyes[0].applyRotation([value,.0,.0], False)
+            eyes[1].applyRotation([value,.0,.0], False)
         elif au == '61.5L':
-            eyes[0].applyRotation([0,target_val,0], False)
+            eyes[0].applyRotation([.0,value,.0], False)
         elif au == '61.5R':
-            eyes[1].applyRotation([0,target_val,0], False)
+            eyes[1].applyRotation([.0,value,.0], False)
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])

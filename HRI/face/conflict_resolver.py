@@ -19,12 +19,11 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import collections
 import logging
 
-logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
-
+LOG.setLevel(logging.DEBUG)
 
 class ConflictSolver(object):
     def __init__(self):
@@ -36,7 +35,7 @@ class ConflictSolver(object):
          available_AUs: list of AU names.
         """
         for name in available_AUs:
-            self.AUs[name] = [0]*4  # target_val, duration, elapsed, value
+            self.AUs[name] = [0.0]*4  # target_val, duration, elapsed, value
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
     def set_AU(self, origin, name, target_value, duration):
@@ -46,9 +45,8 @@ class ConflictSolver(object):
          target_value: normalized value
          duration: time in seconds
         """
-        print origin, name, target_value, duration
         try:
-            self.AUs[name] = target_value, duration, 0
+            self.AUs[name][:3] = target_value, duration, 0
         except KeyError:
             if name[:-1] in "LR":
                 raise Exception('AU %s is not defined' % name)
@@ -68,12 +66,17 @@ class ConflictSolver(object):
          time_step: time in seconds elapsed since last call.
         """
         #TODO: use motion dynamics
+        to_update = collections.deque()
         for id,info in self.AUs.iteritems():
-            target, duration, elapsed, val = info
-            if val == target or elapsed > duration:
+            target, duration, elapsed, value = info
+            if value == target or elapsed > duration:
                 continue        # let self.AUs[id] be reset on next command
 
             factor = not duration and 1 or elapsed/duration
-            self.AUs[id][2:] = elapsed+time_step, val + (target - val)*factor
-        return self.AUs.iteritems()
+            up_value = value + (target - value)*factor
+            LOG.warning("value %f, target %f, duration %f, elapsed",
+                        value, target, duration, elapsed)
+            self.AUs[id][2:] = elapsed+time_step, up_value
+            to_update.append((id, up_value))
+        return to_update
 
