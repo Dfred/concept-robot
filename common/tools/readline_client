@@ -50,16 +50,14 @@ atexit.register(readline.write_history_file, HISTFILE)
 class myUI(cmd.Cmd):
     def __init__(self):
         self.use_rawinput = True # False # For MinGW ?
-        print "enter 'EOF' or press ^D to quit"
-        self.prompt = "<connecting ...>"
         cmd.Cmd.__init__(self)
+        print " - enter 'bye' or press ^D to quit"
         self.server = None
-        threading.Thread(target=self.cmdloop).start()
 
     def default(self, line):
         if line and self.server and self.server.status == "connected":
             self.server.send_msg(line)
-        if line in [ 'EOF', 'bye' ]:
+        if line.upper() in [ 'EOF', 'BYE' ]:
             if self.server:
                 self.server.running = False
 
@@ -70,7 +68,6 @@ class myUI(cmd.Cmd):
     def postcmd(self, stop, line):
         """return True to stop readline thread"""
         if not self.server or not self.server.running:
-            print "exiting"
             readline.write_history_file(HISTFILE)
             return True
 
@@ -79,7 +76,7 @@ class myUI(cmd.Cmd):
 
     def redraw_prompt(self):
         self.preloop()
-        print self.prompt,
+        print '\n'+self.prompt,
         self.stdout.flush()
 
 
@@ -107,17 +104,17 @@ class commConsClient(comm.BaseClient):
         """Called when the client has just connected successfully"""
         self.status = "connected"
         if self.ui:
-            print "\nnow connected to", self.target_addr
-            self.ui.redraw_prompt()
+            print "\n - now connected to", self.target_addr
 
     def handle_disconnect(self):
         self.status = "disconnected"
         self.running = False
+        if self.ui:
+            self.ui.redraw_prompt()
 
     def handle_error(self, e):
-        print "\nCommunication error:", e
+        print "\n - Communication error:", e,"\n - press enter to finish"
         self.handle_disconnect()
-        print "press enter to finish"
 
     def handle_timeout(self):
         """Called when timeout waiting for data has expired."""
