@@ -334,11 +334,14 @@ class BaseClient(BaseComm):
         self.connected = True
         self.handle_connect()
 
-        self.read_until_done()
-
-        self.cnx.close()
-        self.connected = False
-        self.handle_disconnect()
+	try:
+	    self.read_until_done()
+	except select.error, e:
+	    self.handle_error(e)
+	finally:
+            self.cnx.close()
+            self.connected = False
+            self.handle_disconnect()
 
     def read_until_done(self):
         """Wait, read and process data, calling self.handle_timeout when
