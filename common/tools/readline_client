@@ -53,13 +53,13 @@ class myUI(cmd.Cmd):
     def default(self, line):
         global ADDR_PORT
 
-        if line and self.cnx and self.cnx.status == "connected":
-            self.cnx.send_msg(line)
         if line.upper() in [ 'EOF', 'BYE' ]:
             if self.cnx:
-                self.cnx.running = False
+                print "\n- disconnecting"
+                self.cnx.disconnect()
+                self.cnx = None
             self.done = True
-        if line.upper() == '!RECO':
+        elif line.upper() == '!RECO':
             if not self.cnx:
                 self.cnx = commConsClient()
                 self.cnx.ui = self
@@ -68,6 +68,8 @@ class myUI(cmd.Cmd):
                                  args=(ADDR_PORT,)).start()
             else:
                 print "\n connection already exists and runs!", self.cnx.status
+        elif line and self.cnx and self.cnx.status == "connected":
+            self.cnx.send_msg(line)
 
     def emptyline(self):
         """forget the command when no command is given"""
@@ -82,6 +84,7 @@ class myUI(cmd.Cmd):
 
     def redraw_prompt(self):
         self.preloop()
+        self.stdout.flush()
         print '\n'+self.prompt,
         self.stdout.flush()
 
@@ -96,8 +99,10 @@ class commConsClient(comm.BaseClient):
     def loop_forever(self, addr_port):
         """Process inputs until disconnection"""
         try:
+            if self.ui:
+                print "\n - connecting to ", addr_port
             comm.BaseClient.__init__(self, addr_port)
-            self.connect_and_run()
+            self.connect_and_run(self.ui and .5 or None)
         except comm.error, e:
             print "\n"+str(e)
             self.handle_error()
@@ -109,8 +114,7 @@ class commConsClient(comm.BaseClient):
         """Called when the client has just connected successfully"""
         self.status = "connected"
         if self.ui:
-            print "\n - now connected to", self.target_addr
-            self.ui.preloop()
+            self.ui.redraw_prompt()
 
     def handle_disconnect(self):
         self.status = "disconnected"
