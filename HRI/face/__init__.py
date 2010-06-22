@@ -43,7 +43,7 @@ LOG = logging.getLogger("face-srv")
 
 import comm
 import conf
-from constraint_solver import ConflictSolver
+from conflict_resolver import ConflictSolver
 
 BLINK_PROBABILITY=0.0
 BLINK_DURATION=1        # in seconds
