@@ -322,9 +322,14 @@ class BaseClient(BaseComm):
         self.connected = False
 
     def set_timeout(self, timeout):
-        self.cnx.settimeout(self.timeout)
+        self.cnx.settimeout(timeout)
 
-    def connect_and_run(self):
+    def disconnect(self):
+        """Set flag for disconnection.
+        You need to set a timeout to connect_and_run() or read_until_done()"""
+        self.running = False
+
+    def connect_and_run(self, timeout=None):
         try:
             self.cnx.connect(self.target_addr)
         except socket.error, e:
@@ -335,7 +340,7 @@ class BaseClient(BaseComm):
         self.handle_connect()
 
 	try:
-	    self.read_until_done()
+	    self.read_until_done(timeout)
 	except select.error, e:
 	    self.handle_error(e)
 	finally:
@@ -343,7 +348,7 @@ class BaseClient(BaseComm):
             self.connected = False
             self.handle_disconnect()
 
-    def read_until_done(self):
+    def read_until_done(self, timeout):
         """Wait, read and process data, calling self.handle_timeout when
         self.timeout elapsed.
         """
@@ -355,9 +360,9 @@ class BaseClient(BaseComm):
         self.running = True
         line = ""
         while self.running:
-            fd_sets = select.select([self.cnx], [], [], self.cnx.gettimeout())
-            if not fd_sets[0]:
-                self.handle_timeout()
+            fd_sets = select.select([self.cnx], [], [self.cnx], timeout)
+            if not fd_sets[0] and not self.handle_timeout():
+                continue
             if fd_sets[2]:
                 abort(self)
                 self.handle_error()
@@ -376,6 +381,13 @@ class BaseClient(BaseComm):
         """Callback for client successful connection to (remote) server.
         """
         pass
+
+    def handle_timeout(self):
+        """Callback for timeout on waiting for input
+        Returning False would skip recv()
+        """
+        pass
+
 
     def handle_error(self, e):
         """Callback for connection error.
