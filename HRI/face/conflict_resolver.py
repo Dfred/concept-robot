@@ -48,9 +48,9 @@ class ConflictSolver(object):
         """
         print origin, name, target_value, duration
         try:
-            self.AUs[name][:3] = target_value, duration, 0
+            self.AUs[name] = target_value, duration, 0
         except KeyError:
-            if len(name) != 2:
+            if name[:-1] in "LR":
                 raise Exception('AU %s is not defined' % name)
             self.AUs[name+'R'][:3] = target_value, duration, 0
             self.AUs[name+'L'][:3] = target_value, duration, 0
