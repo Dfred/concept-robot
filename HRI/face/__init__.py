@@ -64,7 +64,7 @@ class FaceClient(comm.RequestHandler):
         """
         origin = argline.strip()
         if origin not in ORIGINS:
-            LOG.warning("[origin] unknow origin:", self.origin)
+            LOG.warning("[origin] unknown origin: %s", origin)
         self.origin = origin
         
     def cmd_start(self, argline):
@@ -86,10 +86,10 @@ class FaceClient(comm.RequestHandler):
         """if empty, returns current values. Otherwise, set them.
          argline: sending_module AU_name  target_value  duration.
         """
-        if self.origin == None:
-            LOG.debug("received AU request from unkown origin", argline)
-            return
         if len(argline):
+            if self.origin == None:
+                LOG.warning("[AU] origin not yet set (%s)", argline)
+                return
             try:
                 au_name, value, duration = argline.split()[:3]
                 self.server.conflict_solver.set_AU(self.origin,
