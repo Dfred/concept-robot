@@ -152,6 +152,9 @@ class Face(object):
         return [(item[0],item[1][0],item[1][1])
                 for item in self.conflict_solver.AUs.iteritems()]
 
+    def get_AU(self, name):
+        return self.conflict_solver.AUs[name]
+
     def update(self, time_step):
         if self.blink_p > random.random():
             self.do_blink(BLINK_DURATION)
