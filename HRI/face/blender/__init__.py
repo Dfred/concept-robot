@@ -34,19 +34,17 @@
 # A few things to remember for integration with Blender (2.49):
 #  * defining classes in toplevel scripts (like here) leads to scope problems
 #
-
-import sys
+import time
+from math import cos, sin
 import GameLogic
-import comm
 
-
-PREFIX="OB"
-TIME_STEP=1/GameLogic.getLogicTicRate()
-SH_ACT_LEN=50
+PREFIX = "OB"
+SH_ACT_LEN = 50
 EYES_AU = ['61.5L', '61.5R', '63.5']
+RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 
 def check_actuators(cont, acts):
-    """Check if actuators have their property set and their mode ."""
+    """Check if actuators have their property set and are in proper mode ."""
     for act in acts:
         if not cont.owner.has_key('p'+act.name) or \
                 act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
@@ -56,11 +54,13 @@ def check_actuators(cont, acts):
 
 def initialize():
     """Initialize connections and configures facial subsystem"""
+    import sys
 
     # for init, imports are done on demand
     print "LIGHTHEAD face synthesis, using python version:", sys.version
     print "loaded module from", __path__[0]
 
+    import comm
     import logging
     logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
@@ -84,24 +84,53 @@ def initialize():
     # ok, startup
     GameLogic.initialized = True	
     cont.activate(cont.actuators["- wakeUp -"])
+
+    GameLogic.last_update_time = time.time()    
+#    GameLogic.setMaxLogicFrame(1)       # relative to rendering
+    GameLogic.setLogicTicRate(32.0)
     print "BGE logic running at", GameLogic.getLogicTicRate(), "fps."
+    print "BGE physics running at", GameLogic.getPhysicsTicRate(), "fps."
+    print "BGE graphics currently at", GameLogic.getAverageFrameRate(), "fps."
+#    import Rasterizer
+#    Rasterizer.enableMotionBlur( 0.65)
 
 
-def update(srv_face, cont, eyes):
-    for au, value in srv_face.update(TIME_STEP):
-        print "rotation", au, value
+def update(srv_face, cont, eyes, time_diff):
+    for au, value in srv_face.update(time_diff):
         if au == '63.5':
-            eyes[0].applyRotation([value,.0,.0], False)
-            eyes[1].applyRotation([value,.0,.0], False)
-        elif au == '61.5L':
-            eyes[0].applyRotation([.0,value,.0], False)
-        elif au == '61.5R':
-            eyes[1].applyRotation([.0,value,.0], False)
+            ax = value
+            az0 = -srv_face.get_AU('61.5R')[3]
+            az1 = -srv_face.get_AU('61.5L')[3]
+            # eyes[0].localOrientation = [[cos(az0), -sin(az0)*cos(ax), sin(az0)*sin(ax)],
+            #                             [sin(az0), cos(az0)*cos(ax), -cos(az0)*sin(ax)],
+            #                             [0,        sin(ax),           cos(ax)]]
+            # eyes[1].localOrientation = [[cos(az1), -sin(az1)*cos(ax), sin(az1)*sin(ax)],
+            #                             [sin(az1), cos(az1)*cos(ax), -cos(az1)*sin(ax)],
+            #                             [0,        sin(ax),           cos(ax)]]
+            eyes[0].localOrientation = [[cos(az0),        -sin(az0),       0],
+                                        [cos(ax)*sin(az0), cos(ax)*cos(az0), -sin(ax)],
+                                        [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)]]
+            eyes[1].localOrientation = [[cos(az1),        -sin(az1),       0],
+                                        [cos(ax)*sin(az1), cos(ax)*cos(az1), -sin(ax)],
+                                        [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)]]
+            print "eyeL\t", GameLogic.eyes[0].worldOrientation[0], \
+                "\n\t", GameLogic.eyes[0].worldOrientation[1], \
+                "\n\t", GameLogic.eyes[0].worldOrientation[2]
+            print "eyeR\t", GameLogic.eyes[1].worldOrientation[0], \
+                "\n\t", GameLogic.eyes[1].worldOrientation[1], \
+                "\n\t", GameLogic.eyes[1].worldOrientation[2]
+        elif au[0] == '6':
+            pass        # we just did the eyes before (yes, 6 is an eye prefix !)
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
 
 
+#TODO: write clean-up code
+def shutdown():
+    """Shutdown server and other clean-ups"""
+    cont.activate(cont.actuators["- asleep -"])
+    pass
 
 #
 # Main loop
@@ -120,5 +149,7 @@ def main():
         except Exception, e:
             cont.activate(cont.actuators["- QUITTER"])
             raise
-
-    update(GameLogic.srv_face, cont, GameLogic.eyes)
+    
+    update(GameLogic.srv_face, cont, GameLogic.eyes,
+           time.time() - GameLogic.last_update_time)
+    GameLogic.last_update_time = time.time()
