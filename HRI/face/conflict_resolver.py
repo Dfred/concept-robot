@@ -65,17 +65,20 @@ class ConflictSolver(object):
         """Update AU values. This function shall be called for each frame.
          time_step: time in seconds elapsed since last call.
         """
-        #TODO: use motion dynamics
+        #TODO: motion dynamics
         to_update = collections.deque()
         for id,info in self.AUs.iteritems():
             target, duration, elapsed, value = info
-            if value == target or elapsed > duration:
-                continue        # let self.AUs[id] be reset on next command
+            if elapsed >= duration:      # be active for the required amount of time
+                if value != target:
+                    self.AUs[id][2:] = duration, target
+                    to_update.append((id, target))
+                continue
 
             factor = not duration and 1 or elapsed/duration
             up_value = value + (target - value)*factor
-            LOG.warning("value %f, target %f, duration %f, elapsed",
-                        value, target, duration, elapsed)
+#            print id,"value",value,"target",target,"duration",duration,"elapsed",elapsed
+
             self.AUs[id][2:] = elapsed+time_step, up_value
             to_update.append((id, up_value))
         return to_update
