@@ -35,7 +35,7 @@
 #  * defining classes in toplevel scripts (like here) leads to scope problems
 #
 import time
-from math import cos, sin
+from math import cos, sin, pi
 import GameLogic
 
 PREFIX = "OB"
@@ -96,31 +96,25 @@ def initialize():
 
 
 def update(srv_face, cont, eyes, time_diff):
+    eyes_done = False
     for au, value in srv_face.update(time_diff):
-        if au == '63.5':
-            ax = value
-            az0 = -srv_face.get_AU('61.5R')[3]
-            az1 = -srv_face.get_AU('61.5L')[3]
-            # eyes[0].localOrientation = [[cos(az0), -sin(az0)*cos(ax), sin(az0)*sin(ax)],
-            #                             [sin(az0), cos(az0)*cos(ax), -cos(az0)*sin(ax)],
-            #                             [0,        sin(ax),           cos(ax)]]
-            # eyes[1].localOrientation = [[cos(az1), -sin(az1)*cos(ax), sin(az1)*sin(ax)],
-            #                             [sin(az1), cos(az1)*cos(ax), -cos(az1)*sin(ax)],
-            #                             [0,        sin(ax),           cos(ax)]]
-            eyes[0].localOrientation = [[cos(az0),        -sin(az0),       0],
-                                        [cos(ax)*sin(az0), cos(ax)*cos(az0), -sin(ax)],
-                                        [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)]]
-            eyes[1].localOrientation = [[cos(az1),        -sin(az1),       0],
-                                        [cos(ax)*sin(az1), cos(ax)*cos(az1), -sin(ax)],
-                                        [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)]]
-            print "eyeL\t", GameLogic.eyes[0].worldOrientation[0], \
-                "\n\t", GameLogic.eyes[0].worldOrientation[1], \
-                "\n\t", GameLogic.eyes[0].worldOrientation[2]
-            print "eyeR\t", GameLogic.eyes[1].worldOrientation[0], \
-                "\n\t", GameLogic.eyes[1].worldOrientation[1], \
-                "\n\t", GameLogic.eyes[1].worldOrientation[2]
-        elif au[0] == '6':
-            pass        # we just did the eyes before (yes, 6 is an eye prefix !)
+        if au[0] == '6':        # yes, 6 is an eye prefix !
+            if eyes_done:
+                continue
+            # The model is supposed to look towards negative Y values
+            # Also Up is positive Z values
+            ax  = -srv_face.get_AU('63.5')[3]
+            az0 = srv_face.get_AU('61.5R')[3]
+            az1 = srv_face.get_AU('61.5L')[3]
+            eyes[0].worldOrientation = [
+                [cos(az0),        -sin(az0),         0],
+                [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
+                [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)] ]
+            eyes[1].worldOrientation = [
+                [cos(az1),        -sin(az1),          0],
+                [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
+                [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
+            eyes_done = True
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
