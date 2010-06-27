@@ -38,8 +38,8 @@ import sys, random, time
 import asyncore
 import logging
 
-logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger("face-srv")
+LOG.setLevel(logging.DEBUG)
 
 import comm
 import conf
