@@ -28,7 +28,6 @@ LOG.setLevel(logging.DEBUG)
 class ConflictSolver(object):
     def __init__(self):
         self.AUs = {}
-        self.face = {}
 
     def set_available_AUs(self, available_AUs):
         """Define list of AUs available for a specific face.
@@ -38,9 +37,8 @@ class ConflictSolver(object):
             self.AUs[name] = [0.0]*4  # target_val, duration, elapsed, value
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
-    def set_AU(self, origin, name, target_value, duration):
+    def set_AU(self, name, target_value, duration):
         """Set targets for a specific AU, giving priority to specific inputs.
-         origin: name of the input
          name: AU name
          target_value: normalized value
          duration: time in seconds
@@ -57,9 +55,8 @@ class ConflictSolver(object):
             LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
 
     def solve(self):
-        """Solve target conflicts.
+        """Here we can set additional checks (eg. AU1 vs AU4, ...)
         """
-        
 
     def update(self, time_step):
         """Update AU values. This function shall be called for each frame.
@@ -69,7 +66,7 @@ class ConflictSolver(object):
         to_update = collections.deque()
         for id,info in self.AUs.iteritems():
             target, duration, elapsed, value = info
-            if elapsed >= duration:      # be active for the required amount of time
+            if elapsed >= duration:      # keep timing
                 if value != target:
                     self.AUs[id][2:] = duration, target
                     to_update.append((id, target))
