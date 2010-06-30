@@ -61,9 +61,6 @@ def initialize():
     print "loaded module from", __path__[0]
 
     import comm
-    import logging
-    logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
-
     import conf
     missing = conf.load(raise_exception=False)
     
