@@ -36,21 +36,20 @@
 #
 import time
 from math import cos, sin, pi
-import GameLogic
+import GameLogic as G
 
-PREFIX = "OB"
+OBJ_PREFIX = "OB"
+CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
-EYES_AU = ['61.5L', '61.5R', '63.5']
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 
-def check_actuators(cont, acts):
+def check_actuators(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
     for act in acts:
-        if not cont.owner.has_key('p'+act.name) or \
-                act.mode != GameLogic.KX_ACTIONACT_PROPERTY:
+        if not owner.has_key('p'+act.name) or \
+                act.mode != G.KX_ACTIONACT_PROPERTY:
             print "missing property: p"+act.name, "or bad Action Playback type"
             sys.exit(-1)
-
 
 def initialize():
     """Initialize connections and configures facial subsystem"""
@@ -65,29 +64,35 @@ def initialize():
     missing = conf.load(raise_exception=False)
     
     import face
-    GameLogic.srv_face = comm.createServer(face.Face, face.FaceClient,
+    G.srv_face = comm.createServer(face.Face, face.FaceClient,
                                            conf.conn_face)
     # for eye orientation.
-    objs = GameLogic.getCurrentScene().objects
-    GameLogic.eyes = (objs[PREFIX+"eye-R"], objs[PREFIX+"eye-L"])
+    objs = G.getCurrentScene().objects
+    G.eyes = (objs[OBJ_PREFIX+"eye-R"], objs[OBJ_PREFIX+"eye-L"])
+
+    # for jaw opening
+    G.jaw = objs[OBJ_PREFIX+"jaw"]
+#    G.jaw_cont = G.jaw.controllers['c_open'+CTR_SUFFIX+'1']
+#    G.jaw_act = G.jaw_cont.getActuator('a_open')
 
     # set available Action Units from the blender file (Blender Shape Actions)
-    cont = GameLogic.getCurrentController()
+    cont = G.getCurrentController()
+    owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    check_actuators(cont, acts)
-    GameLogic.srv_face.set_available_AUs([act.name for act in acts]+EYES_AU)
+    check_actuators(owner, acts)
+    G.srv_face.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
-    GameLogic.initialized = True	
+    G.initialized = True	
     cont.activate(cont.actuators["- wakeUp -"])
 
-    GameLogic.last_update_time = time.time()    
-#    GameLogic.setMaxLogicFrame(1)       # relative to rendering
-    GameLogic.setLogicTicRate(32.0)
-    print "BGE logic running at", GameLogic.getLogicTicRate(), "fps."
-    print "BGE physics running at", GameLogic.getPhysicsTicRate(), "fps."
-    print "BGE graphics currently at", GameLogic.getAverageFrameRate(), "fps."
+    G.last_update_time = time.time()    
+#    G.setMaxLogicFrame(1)       # relative to rendering
+    G.setLogicTicRate(32.0)
+    print "BGE logic running at", G.getLogicTicRate(), "fps."
+    print "BGE physics running at", G.getPhysicsTicRate(), "fps."
+    print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
 #    import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
 
@@ -112,6 +117,8 @@ def update(srv_face, cont, eyes, time_diff):
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
+        elif au == '26':
+            G.jaw['pJaw'] = SH_ACT_LEN*value    # see always sensor in .blend
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
@@ -128,19 +135,19 @@ def shutdown():
 #
 
 def main():
-    cont = GameLogic.getCurrentController()
+    cont = G.getCurrentController()
 
-    if not hasattr(GameLogic, "initialized"):
+    if not hasattr(G, "initialized"):
         try:
             initialize()
 
             import threading
             threading.Thread(name='face',
-                             target=GameLogic.srv_face.serve_forever).start()
+                             target=G.srv_face.serve_forever).start()
         except Exception, e:
             cont.activate(cont.actuators["- QUITTER"])
             raise
     
-    update(GameLogic.srv_face, cont, GameLogic.eyes,
-           time.time() - GameLogic.last_update_time)
-    GameLogic.last_update_time = time.time()
+    update(G.srv_face, cont, G.eyes,
+           time.time() - G.last_update_time)
+    G.last_update_time = time.time()
