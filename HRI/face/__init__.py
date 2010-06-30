@@ -134,8 +134,8 @@ class FaceClient(comm.RequestHandler):
 
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        # TODO: AU buffer flip (watch out for attack differences
-
+        self.origin_index = 0
+        # TODO: AU buffer flip (watch out for attack differences)
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
