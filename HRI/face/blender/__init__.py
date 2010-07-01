@@ -118,6 +118,7 @@ def update(srv_face, cont, eyes, time_diff):
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
         elif au == '26':
+            # TODO: try with G.setChannel
             G.jaw['pJaw'] = SH_ACT_LEN*value    # see always sensor in .blend
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
