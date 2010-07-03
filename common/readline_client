@@ -23,8 +23,8 @@
 # Windows users: you need pyreadline from PyPI (http://pypi.python.org/pypi).
 #
 
-
 import threading
+import platform
 import readline
 import logging
 import atexit
@@ -39,12 +39,17 @@ import comm
 logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
 
 # readline history
-HISTFILE=os.path.join(os.environ["HOME"], ".comm-cons-clent.history")
+try:
+    HOME=os.environ["HOME"]
+except:
+    HOME=''
+HISTFILE=os.path.join(HOME, ".comm-cons-clent.history")
+
 ADDR_PORT=None
 
 class myUI(cmd.Cmd):
     def __init__(self):
-        self.use_rawinput = True # False # For MinGW ?
+        self.use_rawinput = platform.system() != 'Windows'
         cmd.Cmd.__init__(self)
         print " - enter 'bye' or press ^D to quit"
         self.cnx = None
