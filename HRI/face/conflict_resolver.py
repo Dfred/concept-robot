@@ -72,8 +72,10 @@ class ConflictSolver(object):
                     to_update.append((id, target))
                 continue
 
-            factor = not duration and 1 or elapsed/duration
-            up_value = value + (target - value)*factor
+#            factor = not duration and 1 or elapsed/duration
+#            up_value = value + (target - value)*factor
+            factor = (float(target) - value)/(duration-elapsed)
+            up_value = factor * time_step
 #            print id,"value",value,"target",target,"duration",duration,"elapsed",elapsed
 
             self.AUs[id][2:] = elapsed+time_step, up_value
