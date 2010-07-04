@@ -34,7 +34,7 @@
 #
 
 import sys, random, time
-
+import collections
 import asyncore
 import logging
 
@@ -58,7 +58,13 @@ class FaceClient(comm.RequestHandler):
     
     def __init__(self, *args):
         self.origin = None
-        self.origin_index = 0
+        self.fifos = {
+            ORGN_FACE : collections.deque(),
+            ORGN_GAZE : collections.deque(),
+            ORGN_LIPS : collections.deque(),
+            ORGN_HEAD : collections.deque()
+            }
+        self.fifo = None                                # pointer
         comm.RequestHandler.__init__(self, *args)       # keep last call.
 
     def cmd_origin(self, argline):
@@ -73,27 +79,8 @@ class FaceClient(comm.RequestHandler):
         except ValueError:
             LOG.warning("[origin] unknown origin: %s", origin)
             return
-        # Trick enforcing a stack of potential target overwrites for conflicts.
-        if index < self.origin_index:
-            LOG.warning("[origin] %s occurs too late, ignored!", origin)
-            return
+        self.fifo = self.fifos[origin]
         self.origin = origin
-        self.origin_index = index
-
-    # def cmd_start(self, argline):
-    #     try:
-    #         start = float(argline.strip())
-    #     except Exception, e:
-    #         LOG.warning("[origin] bad argument line:'%s', caused: %s" %
-    #                     (argline,e) )
-
-    #     self.start_time = float(start)
-    #     if self.start_time - time.time() < 0:
-    #         LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
-    #                     (start, time.time()) )
-    #     if self.start_time - time.time() > 30:
-    #         LOG.warning("[origin] time received > 30s in future %s" % start)
-
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them.
@@ -105,12 +92,9 @@ class FaceClient(comm.RequestHandler):
                 return
             try:
                 au_name, value, duration = argline.split()[:3]
-                self.server.conflict_solver.set_AU(au_name,
-                                                   float(value),
-                                                   float(duration))
-            except Exception, e:
-                LOG.warning("[AU] bad argument line:'%s', caused: %s" %
-                            (argline,e) )
+                self.fifo.append((au_name, float(value), float(duration)))
+            except FloatException:
+                LOG.warning("[AU] invalid float argument")
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
@@ -134,8 +118,30 @@ class FaceClient(comm.RequestHandler):
 
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        self.origin_index = 0
-        # TODO: AU buffer flip (watch out for attack differences)
+        for origin in ORIGINS:
+            print "commiting", origin
+            for au, target, attack in self.fifos[origin]:
+                try:
+                    self.server.conflict_solver.set_AU(au, target, attack)
+                except KeyError, e:
+                    LOG.warning("[AU] bad argument line:'%s', AU %s not found",
+                                au+" %f %f" % (target, attack), e)
+            self.fifos[origin].clear()
+
+    # def cmd_start(self, argline):
+    #     try:
+    #         start = float(argline.strip())
+    #     except Exception, e:
+    #         LOG.warning("[origin] bad argument line:'%s', caused: %s" %
+    #                     (argline,e) )
+
+    #     self.start_time = float(start)
+    #     if self.start_time - time.time() < 0:
+    #         LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
+    #                     (start, time.time()) )
+    #     if self.start_time - time.time() > 30:
+    #         LOG.warning("[origin] time received > 30s in future %s" % start)
+
 
     def cmd_blink(self, argline):
         """argline: duration of the blink in seconds."""
