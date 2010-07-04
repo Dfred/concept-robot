@@ -23,7 +23,7 @@ import collections
 import logging
 
 LOG = logging.getLogger(__name__)
-LOG.setLevel(logging.DEBUG)
+LOG.setLevel(logging.INFO)
 
 class ConflictSolver(object):
     def __init__(self):
@@ -34,7 +34,8 @@ class ConflictSolver(object):
          available_AUs: list of AU names.
         """
         for name in available_AUs:
-            self.AUs[name] = [0.0]*4  # target_val, duration, elapsed, value
+            # target_coeffs, duration, elapsed, value
+            self.AUs[name] = [(0,0) , .0 , .0, .0]
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
     def set_AU(self, name, target_value, duration):
@@ -43,16 +44,18 @@ class ConflictSolver(object):
          target_value: normalized value
          duration: time in seconds
         """
-        try:
-            self.AUs[name][:3] = target_value, duration, 0
-        except KeyError:
-            if name[:-1] in "LR":
-                raise Exception('AU %s is not defined' % name)
-            self.AUs[name+'R'][:3] = target_value, duration, 0
-            self.AUs[name+'L'][:3] = target_value, duration, 0
-            LOG.debug("set AU[%sR/L]: %s" % (name, self.AUs[name+'R']))
+        duration = max(duration, .001)
+        if self.AUs.has_key(name):
+            self.AUs[name][:3] = ( ((target_value - self.AUs[name][3])/duration,
+                                    self.AUs[name][3]),
+                                   duration, 0)
         else:
-            LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
+            self.AUs[name+'R'][:3] = ( ((target_value-self.AUs[name+'R'][3])/duration,
+                                        self.AUs[name+'R'][3]),
+                                       duration, 0)
+            self.AUs[name+'L'][:3] = ( ((target_value-self.AUs[name+'L'][3])/duration,
+                                        self.AUs[name+'L'][3]),
+                                       duration, 0)
 
     def solve(self):
         """Here we can set additional checks (eg. AU1 vs AU4, ...)
@@ -65,20 +68,17 @@ class ConflictSolver(object):
         #TODO: motion dynamics
         to_update = collections.deque()
         for id,info in self.AUs.iteritems():
-            target, duration, elapsed, value = info
+            coeffs, duration, elapsed, value = info
+            target = coeffs[0] * duration + coeffs[1]
+            elapsed += time_step
             if elapsed >= duration:      # keep timing
                 if value != target:
                     self.AUs[id][2:] = duration, target
                     to_update.append((id, target))
                 continue
 
-#            factor = not duration and 1 or elapsed/duration
-#            up_value = value + (target - value)*factor
-            factor = (float(target) - value)/(duration-elapsed)
-            up_value = factor * time_step
-#            print id,"value",value,"target",target,"duration",duration,"elapsed",elapsed
-
-            self.AUs[id][2:] = elapsed+time_step, up_value
+            up_value = coeffs[0] * elapsed + coeffs[1]
+            self.AUs[id][2:] = elapsed, up_value
             to_update.append((id, up_value))
         return to_update
 
