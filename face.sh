@@ -30,6 +30,8 @@ FACE_BIN="lightHead"
 check_python_conf()
 {
 python -c 'import conf;
+conf.FILE="lightHead.conf"
+print "candidate files: ", conf.build_paths()
 try:
  missing = conf.load()
 except conf.LoadException, e:
@@ -74,12 +76,12 @@ if ! test -z "$MISSING"; then
     echo "missing entries in conf: $MISSING"
     exit 1
 fi
-CONF_FILE=`python -c 'import conf; conf.load(); print conf.LOADED_FILE'`
+CONF_FILE=`python -c 'import conf; conf.FILE="lightHead.conf"; conf.load(); print conf.LOADED_FILE'`
 ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
 # remove old unix sockets if present
-SOCKETS=`python -c 'import conf; conf.get_unix_sockets(1)'`
+SOCKETS=`python -c 'import conf; conf.FILE="lightHead.conf"; conf.get_unix_sockets(1)'`
 if test $? -ne 0; then
 	echo "ERROR: Failure to get socket list !"
 	exit -1

@@ -42,18 +42,18 @@ import os, sys
 
 MODULE=sys.modules[__name__]
 
-ENV='LIGHTHEAD_CONF'
-FILE='lightHead.conf'
+FILE=None       # this is the one-file-takes-all approach to configuration
 REQUIRED=['conn_gaze', 'conn_face']
 
 ERR_UNAVAILABLE="""No configuration file was found. Aborting!
- You can define LIGHTHEAD_CONF system variable for complete filepath definition."""
+ You can define %s system variable for complete filepath definition."""
 
 LOADED_FILE=False
 
 class LoadException(Exception):
     pass
 
+# TODO: this should just be in the configuration file itself.
 def get_unix_sockets(print_flag=False):
     """Try to get unix sockets from the loaded configuration.
     Returns: [ declared_unix_sockets ]
@@ -73,6 +73,34 @@ def check_missing():
     """
     return [ i for i in REQUIRED if i not in dir(MODULE) ]
 
+def build_env():
+    """Builds a string from the value of FILE using:
+    * upper case
+    * translation of dot ('.') to underscore ('_')
+    """
+    global FILE
+    return FILE.upper().replace('.','_')
+
+def build_paths():
+    """Builds paths where conf file could be.
+    Checks for a environment variable, name being built from build_env()
+    """
+    global FILE
+    if FILE == None:
+        raise LoadException('unset','conf.FILE has not been set')
+
+    conf_files=[]
+    try:
+        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
+    except OSError, err:
+        raise LoadException(err, 'Cheesy OS error')
+    else:
+        conf_files.append(os.path.join('/etc', FILE))
+        try:
+            conf_files.append(os.environ[build_env()])
+        except (OSError,KeyError):
+            pass
+    return conf_files
 
 def load(raise_exception=True, reload=False):
     """Try to load 1st available configuration file, ignoring Subsequent calls
@@ -86,20 +114,7 @@ def load(raise_exception=True, reload=False):
     elif LOADED_FILE:
         return check_missing()
 
-    conf_files=[]
-    try:
-        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
-    except OSError, err:
-        print err
-        exit()
-    conf_files.append(os.path.join('/etc', FILE))
-
-    try:
-        conf_files.append(os.environ[ENV])
-    except (OSError,KeyError):
-        pass
-
-    for conf_file in conf_files:
+    for conf_file in build_paths():
         if os.path.isfile(conf_file):
             msg = None
             try:
@@ -116,5 +131,5 @@ def load(raise_exception=True, reload=False):
                 break
 
     if LOADED_FILE == False and raise_exception:
-        raise LoadException(conf_file, ERR_UNAVAILABLE)
+        raise LoadException(conf_file, ERR_UNAVAILABLE % build_env())
     return check_missing()
