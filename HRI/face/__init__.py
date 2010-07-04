@@ -119,7 +119,6 @@ class FaceClient(comm.RequestHandler):
     def cmd_commit(self, argline):
         """Commit buffered updates"""
         for origin in ORIGINS:
-            print "commiting", origin
             for au, target, attack in self.fifos[origin]:
                 try:
                     self.server.conflict_solver.set_AU(au, target, attack)
