@@ -61,19 +61,18 @@ def initialize():
 
     import comm
     import conf
-    missing = conf.load(raise_exception=False)
+    conf.NAME=sys.argv[-1]
+    missing = conf.load()
     
     import face
-    G.srv_face = comm.createServer(face.Face, face.FaceClient,
-                                           conf.conn_face)
+    G.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
+
     # for eye orientation.
     objs = G.getCurrentScene().objects
     G.eyes = (objs[OBJ_PREFIX+"eye-R"], objs[OBJ_PREFIX+"eye-L"])
 
     # for jaw opening
     G.jaw = objs[OBJ_PREFIX+"jaw"]
-#    G.jaw_cont = G.jaw.controllers['c_open'+CTR_SUFFIX+'1']
-#    G.jaw_act = G.jaw_cont.getActuator('a_open')
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()

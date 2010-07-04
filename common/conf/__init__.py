@@ -42,7 +42,7 @@ import os, sys
 
 MODULE=sys.modules[__name__]
 
-FILE=None       # this is the one-file-takes-all approach to configuration
+NAME=None       # this is the one-file-takes-all approach to configuration
 REQUIRED=['conn_gaze', 'conn_face']
 
 ERR_UNAVAILABLE="""No configuration file was found. Aborting!
@@ -74,28 +74,29 @@ def check_missing():
     return [ i for i in REQUIRED if i not in dir(MODULE) ]
 
 def build_env():
-    """Builds a string from the value of FILE using:
+    """Builds a string from the value of NAME using:
+    * NAME's basename
     * upper case
     * translation of dot ('.') to underscore ('_')
     """
-    global FILE
-    return FILE.upper().replace('.','_')
+    global NAME
+    return os.path.basename(NAME).upper().replace('.','_')
 
 def build_paths():
     """Builds paths where conf file could be.
     Checks for a environment variable, name being built from build_env()
     """
-    global FILE
-    if FILE == None:
-        raise LoadException('unset','conf.FILE has not been set')
+    global NAME
+    if NAME == None:
+        raise LoadException('unset','conf.NAME has not been set')
 
     conf_files=[]
     try:
-        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+FILE))
+        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+NAME))
     except OSError, err:
         raise LoadException(err, 'Cheesy OS error')
     else:
-        conf_files.append(os.path.join('/etc', FILE))
+        conf_files.append(os.path.join('/etc', NAME))
         try:
             conf_files.append(os.environ[build_env()])
         except (OSError,KeyError):
