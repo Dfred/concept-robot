@@ -34,22 +34,26 @@
 # A few things to remember for integration with Blender (2.49):
 #  * defining classes in toplevel scripts (like here) leads to scope problems
 #
-import time
+import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
+EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 
-def check_actuators(owner, acts):
+def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
     for act in acts:
         if not owner.has_key('p'+act.name) or \
                 act.mode != G.KX_ACTIONACT_PROPERTY:
-            print "missing property: p"+act.name, "or bad Action Playback type"
-            sys.exit(-1)
+            return act.name
+    for name in EXTRA_PROPS:
+        if not owner.has_key('p'+name):
+            return name
+    return False
 
 def initialize():
     """Initialize connections and configures facial subsystem"""
@@ -79,14 +83,16 @@ def initialize():
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    check_actuators(owner, acts)
+    err = check_defects(owner, acts)
+    if err:
+        print "missing property p%s or bad Shape Action Playback type!" % err
+        sys.exit(1)
+    # all properties must be set to the face mesh.
+    # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
     G.srv_face.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
     G.initialized = True	
-    cont.activate(cont.actuators["- wakeUp -"])
-
-    G.last_update_time = time.time()    
 #    G.setMaxLogicFrame(1)       # relative to rendering
     G.setLogicTicRate(32.0)
     print "BGE logic running at", G.getLogicTicRate(), "fps."
@@ -94,6 +100,8 @@ def initialize():
     print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
 #    import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
+    cont.activate(cont.actuators["- wakeUp -"])
+    G.last_update_time = time.time()    
 
 
 def update(srv_face, cont, eyes, time_diff):
@@ -107,18 +115,18 @@ def update(srv_face, cont, eyes, time_diff):
             ax  = -srv_face.get_AU('63.5')[3]
             az0 = srv_face.get_AU('61.5R')[3]
             az1 = srv_face.get_AU('61.5L')[3]
-            eyes[0].worldOrientation = [
+            eyes[0].localOrientation = [
                 [cos(az0),        -sin(az0),         0],
                 [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
                 [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)] ]
-            eyes[1].worldOrientation = [
+            eyes[1].localOrientation = [
                 [cos(az1),        -sin(az1),          0],
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
         elif au == '26':
             # TODO: try with G.setChannel
-            G.jaw['pJaw'] = SH_ACT_LEN*value    # see always sensor in .blend
+            G.jaw['p26'] = SH_ACT_LEN*value    # see always sensor in .blend
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
@@ -128,7 +136,7 @@ def update(srv_face, cont, eyes, time_diff):
 def shutdown():
     """Shutdown server and other clean-ups"""
     cont.activate(cont.actuators["- asleep -"])
-    pass
+    sys.exit(0)
 
 #
 # Main loop
