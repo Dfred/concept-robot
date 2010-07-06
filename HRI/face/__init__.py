@@ -212,6 +212,7 @@ class Face(object):
 
 
 if __name__ == '__main__':
+    conf.name = sys.argv[-1]
     conf.load()
     try:
         server = comm.createServer(Face, FaceClient, conf.conn_face)
