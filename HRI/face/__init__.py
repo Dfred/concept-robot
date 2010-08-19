@@ -77,7 +77,7 @@ class FaceClient(comm.RequestHandler):
         try:
             index = ORIGINS.index(origin)
         except ValueError:
-            LOG.warning("[origin] unknown origin: %s", origin)
+            LOG.warning("[origin] unknown origin: '%s'", origin)
             return
         self.fifo = self.fifos[origin]
         self.origin = origin
@@ -151,7 +151,7 @@ class FaceClient(comm.RequestHandler):
                         (argline,e) )
 
 
-class Face(object):
+class Face(comm.BaseServ):
     """Main facial feature animation module - server
 
     Also maintains consistent muscle activation.
@@ -165,8 +165,9 @@ class Face(object):
     def __init__(self):
         self.blink_p = BLINK_PROBABILITY
         self.conflict_solver = ConflictSolver()
+        comm.BaseServ.__init__(self)
         LOG.info("Face started")
-        
+
     def set_available_AUs(self, AUs):
         return self.conflict_solver.set_available_AUs(AUs)
 
@@ -181,34 +182,6 @@ class Face(object):
         if self.blink_p > random.random():
             self.do_blink(BLINK_DURATION)
         return self.conflict_solver.update(time_step)
-
-    def set_f_expr(self, id, target, duration):
-        """Set a facial expression."""
-        #TODO: this is indeed way too simple...
-        sets={ "raised_brows": ('01', '02'),
-               "furrowed_brows": ('04'),
-               "squint": ('04', '10'),
-               "smile": ('07', '10', '12', '25'),
-               "agreement_chin": ('17'),
-               "begrudging_acceptance" : ('02R', '17'),
-               "neutral": ('01','02','04',      # leave eyelids
-                           '09','10','12','15','16','17','18','20','25'), 
-               "thought" : ('02', '15', '17'),
-               "understanding" : ('07', '09', '12', '16'),
-               "misunderstanding" : ('02', '04', '07', '09', '15', '16', '18'),
-               "unsure_understanding" : ('02', '09', '20')
-               }
-        for au in sets[id]:
-            self.conflict_solver.set_AU('f_expr', au, float(target), float(duration))
-
-    def set_blink_probability(self, p):
-        self.blink_p = p
-
-    def do_blink(self, duration):
-        """set AUs to create a blink of any duration"""
-        LOG.debug("blink: %ss." % duration)
-        self.conflict_solver.set_AU('f_expr', "43", .8, duration)
-        self.conflict_solver.set_AU('f_expr', "07", .2, duration)
 
 
 if __name__ == '__main__':

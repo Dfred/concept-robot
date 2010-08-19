@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-# Lighthead-bot programm is a HRI PhD project at
-#  the University of Plymouth,
+# Lighthead-bot programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.  
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
@@ -38,6 +37,8 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
+SINGLE_THREAD = True
+
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
@@ -55,7 +56,7 @@ def check_defects(owner, acts):
             return name
     return False
 
-def initialize():
+def initialize(threading=True):
     """Initialize connections and configures facial subsystem"""
     import sys
 
@@ -69,7 +70,8 @@ def initialize():
     missing = conf.load()
     
     import face
-    G.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face)
+    G.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face,
+                                   threading)
 
     # for eye orientation.
     objs = G.getCurrentScene().objects
@@ -136,26 +138,40 @@ def update(srv_face, cont, eyes, time_diff):
 def shutdown():
     """Shutdown server and other clean-ups"""
     cont.activate(cont.actuators["- asleep -"])
+    import face
+    G.srv_face.set_handler_looping(G.srv_face, face.Face, True, timeout=0)
+    if G.srv_face.clients:
+        G.srv_face.clients[0].finish()
     sys.exit(0)
 
 #
 # Main loop
 #
+import select
 
 def main():
     cont = G.getCurrentController()
 
     if not hasattr(G, "initialized"):
         try:
-            initialize()
-
-            import threading
-            threading.Thread(name='face',
-                             target=G.srv_face.serve_forever).start()
+            initialize(not SINGLE_THREAD)
+            if SINGLE_THREAD:
+                # we don't want to block in FaceClient.__init__
+                # we also don't want to block waiting for data
+                import face
+                G.srv_face.set_handler(G.srv_face, face.Face, False, False)
+                print 'single-thread mode: waiting for a connection on', \
+                    G.srv_face.server_address
+                G.srv_face.handle_request()
+            else:
+                from threading import Thread
+                Thread(target=G.srv_face.serve_forever,name='server').start()
+                print 'multi-thread mode: started server thread'
         except Exception, e:
             cont.activate(cont.actuators["- QUITTER"])
             raise
-    
-    update(G.srv_face, cont, G.eyes,
-           time.time() - G.last_update_time)
+    if SINGLE_THREAD:
+        if G.srv_face.clients and not G.srv_face.clients[0].handle_once():
+            G.srv_face.clients[0].finish()
+    update(G.srv_face, cont, G.eyes, time.time() - G.last_update_time)
     G.last_update_time = time.time()
