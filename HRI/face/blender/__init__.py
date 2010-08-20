@@ -66,7 +66,9 @@ def initialize(threading=True):
 
     import comm
     import conf
-    conf.NAME=sys.argv[-1]
+    # look for and load a file called lightHead.conf
+    # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
+    conf.NAME='lightHead.conf'
     missing = conf.load()
     
     import face
