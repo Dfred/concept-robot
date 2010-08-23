@@ -27,7 +27,7 @@ import conf
 
 AFFECT_DIMS=["joy", "sad", "dis", "sur", "fea", "ang"]
 
-class AffectClient(comm.RemoteClient):
+class AffectClient(comm.RequestHandler):
     """Remote connection handler: protocol parser"""
 
     def cmd_affect(self, argline):
@@ -56,13 +56,13 @@ class AffectClient(comm.RemoteClient):
 
 
 
-class Affect(comm.BasicServer):
+class Affect(object):
     """Affective module - server.
     This class maps affective vector to AU values. Blending these values is the
     job of the face module. These AU values are pushed/sent on an update basis.
     """
 
-    def __init__(self, addr_port, face_autoconnect=False):
+    def __init__(self):
         self.mood = []
         self.pers = []
         self.sinks = {AFFECT_DIMS[0]: .5, #joy
@@ -82,18 +82,12 @@ class Affect(comm.BasicServer):
                       AFFECT_DIMS[5]: { 4:.6,  9:.9, 10:.8, 17:.7}
                       }
                        
-        comm.BasicServer.__init__(self, AffectClient)
-        self.listen_to(addr_port)
-
-        self.face_conn = False
-        if face_autoconnect:
-            self.face_conn = comm.BasicHandler()
-            try:
-                self.face_conn.connect_to(conf.conn_face)
-            except UserWarning, e:
-                print sys.argv[0], "FATAL ERROR", err
-                exit(-1)
-
+##        self.face_conn = comm.BasicHandler()
+##        try:
+##            self.face_conn.connect_to(conf.conn_face)
+##        except UserWarning, e:
+##            print sys.argv[0], "FATAL ERROR", err
+##            exit(-1)
         LOG.info("Affect started")
 
     def update(self, time_step):
@@ -133,10 +127,9 @@ if __name__ == "__main__":
     if missing:
         print "WARNING: missing configuration entries:", missing
     try:
-        server = Affect(conf.conn_affect, True)
+        server = comm.createServer(Affect, AffectClient, conf.conn_affect)
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
-    while server.is_readable:
-        comm.loop(0.5, count=1)   # wait 10ms or new data before returning
+    server.serve_forever()
     LOG.info("Affect done")

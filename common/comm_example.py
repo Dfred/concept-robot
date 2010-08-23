@@ -115,6 +115,10 @@ class ClientR(comm.RequestHandler):
         print "SERVER> ping received", args
         self.send_msg("pong %i" % time.time())
 
+class DummyServer(object):
+    """A dummy server. inheritance from object is mandatory"""
+    pass
+
 
 REMOTE_MODULES = { "bc": comm.BaseClient,
                    "print" : PrintClient,
@@ -129,8 +133,8 @@ if __name__ == '__main__':
     print "### argv: "+str(sys.argv)
     remains, clients, server = comm.create(sys.argv,
                                            REMOTE_MODULES,
-                                           comm.createBaseServer,   # a server and
-                                           ClientR)                 # its handler
+                                           DummyServer,   # a server and
+                                           ClientR)       # its handler
     print "### remaining args: "+str(remains)
     print "### clients: \t"+str(clients)
     print "### server: \t"+str(server)
