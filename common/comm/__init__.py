@@ -239,7 +239,7 @@ class BaseComm:
         """When a method (a command) is not found in self. See process().
         To be overriden.
         """
-        pass
+        LOG.debug("function %s not found (command was '%s')", cmd, args)
 
     def parse_cmd(self, cmdline):
         cmd_tokens = cmdline.split(None,1) # keep 1
@@ -466,7 +466,7 @@ class BaseClient(BaseComm):
     def handle_connect(self):
         """Callback for client successful connection to (remote) server.
         """
-        pass
+        LOG.debug('client connected to remote server %s', self.target_addr)
 
     def handle_timeout(self):
         """Callback for timeout on waiting for input
@@ -484,9 +484,10 @@ class BaseClient(BaseComm):
     def handle_disconnect(self):
         """Callback after client disconnection to (remote) server.
         """
-        pass
+        LOG.debug('client disconnected from remote server %s', self.target_addr)
 
-    def handle_notfound(self, cmd):
+    def handle_notfound(self, cmd, args):
         """Callback for client unfound command handler from (remote) server.
         """
-        pass
+        LOG.debug("function %s not found (command was '%s')", cmd, args)
+
