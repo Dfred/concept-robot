@@ -150,24 +150,71 @@ class Face(comm.BaseServ):
     On target overwrite, interpolation starts from current value.
     """
 
-    EYELIDS = ['43R', '43L', '07R', '07L']
-
     def __init__(self):
-        self.conflict_solver = ConflictSolver()
+        self.AUs = {}
         comm.BaseServ.__init__(self)
 
-    def set_available_AUs(self, AUs):
-        return self.conflict_solver.set_available_AUs(AUs)
+    def set_available_AUs(self, available_AUs):
+        """Define list of AUs available for a specific face.
+         available_AUs: list of AU names.
+        """
+        for name in available_AUs:
+            # target_coeffs, duration, elapsed, value
+            self.AUs[name] = [(0,0) , .0 , .0, .0]
+        LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
-    def get_all_AU(self):
-        return [(item[0],item[1][0],item[1][1])
-                for item in self.conflict_solver.AUs.iteritems()]
+    def set_AU(self, name, target_value, duration):
+        """Set targets for a specific AU, giving priority to specific inputs.
+         name: AU name
+         target_value: normalized value
+         duration: time in seconds
+        """
+        duration = max(duration, .001)
+        if self.AUs.has_key(name):
+            self.AUs[name][:3] = (
+                ((target_value - self.AUs[name][3])/duration,
+                 self.AUs[name][3]), duration, 0)
+        else:
+            self.AUs[name+'R'][:3] = (
+                ((target_value-self.AUs[name+'R'][3])/duration,
+                 self.AUs[name+'R'][3]), duration, 0)
+            self.AUs[name+'L'][:3] = (
+                ((target_value-self.AUs[name+'L'][3])/duration,
+                 self.AUs[name+'L'][3]), duration, 0)
 
-    def get_AU(self, name):
-        return self.conflict_solver.AUs[name]
+    def solve(self):
+        """Here we can set additional checks (eg. AU1 vs AU4, ...)
+        """
 
     def update(self, time_step):
-        return self.conflict_solver.update(time_step)
+        """Update AU values. This function shall be called for each frame.
+         time_step: time in seconds elapsed since last call.
+        """
+        #TODO: motion dynamics
+        to_update = collections.deque()
+        for id,info in self.AUs.iteritems():
+            coeffs, duration, elapsed, value = info
+            target = coeffs[0] * duration + coeffs[1]
+            elapsed += time_step
+            if elapsed >= duration:      # keep timing
+                if value != target:
+                    self.AUs[id][2:] = duration, target
+                    to_update.append((id, target))
+                continue
+
+            up_value = coeffs[0] * elapsed + coeffs[1]
+            self.AUs[id][2:] = elapsed, up_value
+            to_update.append((id, up_value))
+        return to_update
+
+    def get_all_AU(self):
+        return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
+
+    def get_AU(self, name):
+        return self.AUs[name]
+
+    def update(self, time_step):
+        return self.update(time_step)
 
 
 if __name__ == '__main__':
