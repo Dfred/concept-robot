@@ -45,8 +45,6 @@ import comm
 import conf
 from conflict_resolver import ConflictSolver
 
-BLINK_PROBABILITY=0.0
-BLINK_DURATION=1        # in seconds
 ORGN_FACE = 'face'
 ORGN_GAZE = 'gaze'
 ORGN_LIPS = 'lips'
@@ -142,14 +140,6 @@ class FaceClient(comm.RequestHandler):
     #         LOG.warning("[origin] time received > 30s in future %s" % start)
 
 
-    def cmd_blink(self, argline):
-        """argline: duration of the blink in seconds."""
-        try:
-            self.server.do_blink(float(argline))
-        except Exception, e:
-            LOG.warning("[blink] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
-
 
 class Face(comm.BaseServ):
     """Main facial feature animation module - server
@@ -163,10 +153,8 @@ class Face(comm.BaseServ):
     EYELIDS = ['43R', '43L', '07R', '07L']
 
     def __init__(self):
-        self.blink_p = BLINK_PROBABILITY
         self.conflict_solver = ConflictSolver()
         comm.BaseServ.__init__(self)
-        LOG.info("Face started")
 
     def set_available_AUs(self, AUs):
         return self.conflict_solver.set_available_AUs(AUs)
@@ -179,8 +167,6 @@ class Face(comm.BaseServ):
         return self.conflict_solver.AUs[name]
 
     def update(self, time_step):
-        if self.blink_p > random.random():
-            self.do_blink(BLINK_DURATION)
         return self.conflict_solver.update(time_step)
 
 
