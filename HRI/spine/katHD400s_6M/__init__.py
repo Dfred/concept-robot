@@ -6,9 +6,13 @@
 #
 # Axis are independant: an axis can be controlled (rigid) while others not.
 #
+import logging
 
 import KNI
-from .. import SpineBase
+from spine import SpineBase
+
+LOG = logging.getLogger(__package__)
+
 
 def showTPos(tpos):
     print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
@@ -39,6 +43,8 @@ class SpineHW(SpineBase):
         self._accel = 1                 
         self._tolerance = 0
         #TODO: fill self.neck_info and self.torso_info
+        LOG.info('connecting to Katana400s-6m')
+#        init_arm()
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -137,11 +143,12 @@ class SpineHW(SpineBase):
             raise SpineException('failed to reach rotation/position')
         return True
 
-# Just initializes the arm
-import os.path
-KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
-if KNI.initKatana(KatHD400s_6m, "192.168.1.1") == -1:
-    raise SpineException('configuration file not found or'
-                         ' failed to connect to hardware', KatHD400s_6m)
-else:
-    print 'loaded config file', KatHD400s_6m, 'and now connected'
+def init_arm():
+    # Just initializes the arm
+    import os.path
+    KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
+    if KNI.initKatana(KatHD400s_6m, "192.168.1.1") == -1:
+        raise SpineException('configuration file not found or'
+                             ' failed to connect to hardware', KatHD400s_6m)
+    else:
+        print 'loaded config file', KatHD400s_6m, 'and now connected'
