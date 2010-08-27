@@ -35,6 +35,22 @@ class SpineClient(object):
     """
     """
 
+    def cmd_rotate(self, argline):
+        """relative rotation on 3 axis"""
+        args = [ float(arg) for arg in argline.split(',') ]
+        if not args:
+            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
+            return
+        self.server.set_neck_rot_pos(rot_xyz=tuple(args))
+        
+    def cmd_move(self, argline):
+        """relative position on 3 axis"""
+        args = [ float(arg) for arg in argline.split(',') ]
+        if not args:
+            self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
+            return
+        self.server.set_neck_rot_pos(pos_xyz=tuple(args))
+
     def cmd_commit(self, argline):
         pass
 
@@ -85,7 +101,7 @@ class SpineBase(object):
         """Unlock spine after collision detection cause locking"""
         raise NotImplemented()
 
-    def set_neck_rot_pos(self, axis3_rot, axis3_pos):
+    def set_neck_rot_pos(self, axis3_rot=None, axis3_pos=None):
         """Set head orientation and optional position from neck reference point.
         axis3_rot: triplet of floats in radians
         axis3_pos: triplet of floats in meters
