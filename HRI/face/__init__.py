@@ -43,51 +43,18 @@ LOG.setLevel(logging.DEBUG)
 
 import comm
 import conf
-from conflict_resolver import ConflictSolver
 
-ORGN_FACE = 'face'
-ORGN_GAZE = 'gaze'
-ORGN_LIPS = 'lips'
-ORGN_HEAD = 'head'
-ORIGINS = (ORGN_GAZE, ORGN_FACE, ORGN_LIPS, ORGN_HEAD)
-
-class FaceClient(comm.RequestHandler):
+class FaceClient():
     """Remote connection handler: protocol parser."""
     
     def __init__(self, *args):
-        self.origin = None
-        self.fifos = {
-            ORGN_FACE : collections.deque(),
-            ORGN_GAZE : collections.deque(),
-            ORGN_LIPS : collections.deque(),
-            ORGN_HEAD : collections.deque()
-            }
-        self.fifo = None                                # pointer
-        comm.RequestHandler.__init__(self, *args)       # keep last call.
-
-    def cmd_origin(self, argline):
-        """Sets the channel type.
-        This stills allow for multiplexed channel or multi-channel since each
-         instance represents a channel. In multiplexed channel, the sender need
-         to ensure not mixing AUs whitout setting origin first.
-        """
-        origin = argline.strip()
-        try:
-            index = ORIGINS.index(origin)
-        except ValueError:
-            LOG.warning("[origin] unknown origin: '%s'", origin)
-            return
-        self.fifo = self.fifos[origin]
-        self.origin = origin
+        self.fifo = collections.deque()
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them.
          argline: sending_module AU_name  target_value  duration.
         """
         if len(argline):
-            if self.origin == None:
-                LOG.warning("[AU] origin not yet set (%s)", argline)
-                return
             try:
                 au_name, value, duration = argline.split()[:3]
                 self.fifo.append((au_name, float(value), float(duration)))
@@ -103,27 +70,15 @@ class FaceClient(comm.RequestHandler):
             self.send_msg(str(msg))
 
 
-    def cmd_f_expr(self, argline):
-        # TODO: rewrite player to get rid of this function
-        """argline: facial expression id + intensity + duration.
-        That function is for the humanPlayer (ie. would eventually disappear)
-        """
-        try:
-            self.server.set_f_expr(*argline.split())
-        except Exception, e:
-            LOG.warning("[f_expr] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
-
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        for origin in ORIGINS:
-            for au, target, attack in self.fifos[origin]:
-                try:
-                    self.server.conflict_solver.set_AU(au, target, attack)
-                except KeyError, e:
-                    LOG.warning("[AU] bad argument line:'%s', AU %s not found",
-                                au+" %f %f" % (target, attack), e)
-            self.fifos[origin].clear()
+        for au, target, attack in self.fifo:
+            try:
+                self.server.set_AU(au, target, attack)
+            except KeyError, e:
+                LOG.warning("[AU] bad argument line:'%s', AU %s not found",
+                            au+" %f %f" % (target, attack), e)
+        self.fifo.clear()
 
     # def cmd_start(self, argline):
     #     try:
@@ -141,7 +96,7 @@ class FaceClient(comm.RequestHandler):
 
 
 
-class Face(comm.BaseServ):
+class FaceServer():
     """Main facial feature animation module - server
 
     Also maintains consistent muscle activation.
@@ -152,7 +107,12 @@ class Face(comm.BaseServ):
 
     def __init__(self):
         self.AUs = {}
-        comm.BaseServ.__init__(self)
+
+    def get_all_AU(self):
+        return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
+
+    def get_AU(self, name):
+        return self.AUs[name]
 
     def set_available_AUs(self, available_AUs):
         """Define list of AUs available for a specific face.
@@ -207,23 +167,15 @@ class Face(comm.BaseServ):
             to_update.append((id, up_value))
         return to_update
 
-    def get_all_AU(self):
-        return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
-
-    def get_AU(self, name):
-        return self.AUs[name]
-
-    def update(self, time_step):
-        return self.update(time_step)
 
 
 if __name__ == '__main__':
     conf.name = sys.argv[-1]
     conf.load()
     try:
-        server = comm.createServer(Face, FaceClient, conf.conn_face)
+        server = comm.create_server(FaceServer, FaceClient, conf.conn_face)
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
     server.serve_forever()
-    LOG.debug("Face done")
+    LOG.debug("Face server done")
