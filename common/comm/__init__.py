@@ -46,29 +46,13 @@ import select
 import logging
 
 import SocketServer
-
-# save users from importing socket
-error = socket.error
-
 # removes port availability delay
 SocketServer.TCPServer.allow_reuse_address = True
 
-FORMAT = "%(filename)s[%(lineno)d] -%(levelname)s-\t%(message)s"
-# Set basic config of logger for client modules not dealing with logging.
-logging.basicConfig(format=FORMAT, level=logging.WARNING)
-
+LOGFORMAT = "%(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
 # create our logging object and set log format
-LOG = logging.getLogger("comm")
-#LOG.setLevel(logging.DEBUG)
+LOG = logging.getLogger(__package__)
 
-
-class NullHandler(logging.Handler):
-    """A dummy Handler.
-    Set package's logger handler with this class before importing this package,
-     you can also set handlers per module.
-    """
-    def emit(self, record):
-        pass
 
 class CmdError(Exception):
     """Base Exception class for error in command processing.
@@ -76,130 +60,15 @@ class CmdError(Exception):
     """
     pass
 
-
-def get_conn_infos(addr_port):
-    if hasattr(socket, "AF_UNIX") and \
-            type(addr_port[1]) == type("") and \
-            addr_port[0] in ["127.0.0.1", "localhost"]:
-        return socket.AF_UNIX, addr_port[1]
-    return socket.AF_INET, addr_port
+class ClassError(Exception):
+    """Exception for dealing with type generation"""
+    pass
 
 
-SERVER_CLASSES = {
-    type(42): {'udp': { True : SocketServer.ThreadingUDPServer,
-                        False: SocketServer.UDPServer },
-               'tcp': { True : SocketServer.ThreadingTCPServer,
-                        False: SocketServer.TCPServer }
-               },
-    type(''): {'':{True : hasattr(SocketServer,"ThreadingUnixStreamServer") and\
-                   SocketServer.ThreadingUnixStreamServer,
-                   False: hasattr(SocketServer,"UnixStreamServer") and\
-                   SocketServer.UnixStreamServer }
-               },
-    }
-
-def getBaseServerClass(addr_port, threading):
-    """Returns the appropriate base class for server according to addr_port"""
-    """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
-     port field (eg. 'udp:4242'). Default is udp."""
-    D_PROTO = 'tcp'
-    addr, port = addr_port
-    if type(port) == type(''):
-        proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
-        if port.isdigit():
-            port = int(port)
-            addr_port = (addr, port)
-    else:
-        proto = D_PROTO
-    try:
-        srv_class = SERVER_CLASSES[type(port)][proto][threading]
-        if type(port) == '' and \
-           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
-            addr_port = addr_port[1]
-        LOG.debug('address-port: %s, selected server class: %s',
-                  addr_port, srv_class)
-        return addr_port, srv_class
-    except KeyError:
-        raise Exception('No suitable server class from addr_port. Check conf.')
-
-
-def createServer(ext_class, handler_class, addr_port, threading=True):
-    """Creates a new (compound) type of server according to addr_port
-
-        ext_class: extension class to be a base of the new type.
-        handler_class: class to be instancied on accepted connection.
-        addr_port: (address, port). port type is relevant, see conf module.
-    """
-    addr_port, base_class = getBaseServerClass(addr_port, threading)
-
-    def server_init(self, addr_port, handler_class):
-        """Call all subtypes initializers"""
-        base_class.__init__(self, addr_port, handler_class)
-        ext_class.__init__(self)
-
-    return type(ext_class.__name__+base_class.__name__,
-                (base_class, ext_class),
-                {"__init__":server_init})(addr_port, handler_class)
-
-
-#XXX: so far, creation from commandline is used only by comm_example
-def create(cmdline, remoteClient_classes, server_class, request_handler):
-    """Parses cmdline and instanciates given classes.
-    Note that any matching argument will be swallowed whether a successful
-     instanciation has been made or not.
-
-     cmdline: user command line checked for arguments (module_name=ip:port)
-     remoteClient_class: cmdline name-to-class {"module_name":client_class,...}
-     server_class: class to be instancied (see parse_args())
-     request_handler: handler class for server incoming connections
-    Returns (unused arguments, [client_class objects], server_class object)
-    """
-
-    def parse_args(args):    
-        """Parses arguments of the form: name=ip_address_or_fqdn:port
-         'name' indentifies 'ip_address' as a remote server to connect to,
-         if 'name=' is ommited 'ip_address' identifies a local interface used to
-         listen to remote connections.
-
-         args: an array of strings (as returned by sys.argv).
-        Returns (unused arguments, [(name, addr, port), ...] )
-        """
-
-        RE_NAME   = r'(?P<NAME>\w+)'
-        RE_IPADDR = r'(\d{1,3}\.){3}\d{1,3}'
-        RE_ADDR   = r'(?P<ADDR>'+RE_IPADDR+'|[\w-]+)'
-        RE_PORT   = r'(?P<PORT>\d{2,5}|[\w/\.]+[^/])'
-
-        # these are case insensitive
-        CRE_CMDLINE_ARG = re.compile('('+RE_NAME+'=)?'+RE_ADDR+':'+RE_PORT)
-        
-        unused, infos = [], []
-        for arg in args:
-            m = CRE_CMDLINE_ARG.match(arg)
-            if m == None:
-                unused.append(arg)
-            else:
-                port = m.group("PORT")
-                if port.isdigit():
-                    port = int(port)
-                infos.append((m.group("NAME"), m.group("ADDR"), port))
-        return (unused, infos)
-
-    clients = []
-    server = None
-    unused, infos = parse_args(cmdline)
-    for name, address, port in infos:
-        if name == None:
-            server = createServer(server_class, request_handler, (address,port))
-        else:
-            try:
-                clients.append(remoteClient_class[name]((address, port)))
-            except KeyError:
-                LOG.warning("found unmatched name '"+name+"' in cmdline")
-    return (unused, clients, server)
-
-class BaseServ(object):
-    """Allows setting:
+class BaseServer(object):
+    """Allows using a single threaded approach to SocketServer.
+    See set_hooks()'s docstring for how to use it.
+    Also allows user classes not to inherit from anything (see create_server() )
     """
     def __init__(self):
         # set default looping behaviour for comm.RequestHandler
@@ -207,23 +76,31 @@ class BaseServ(object):
         self.clients = []
 
     def finish_request(self, request, client_addr):
+        """Hook of SocketServer function so we can set a connection timeout."""
+        LOG.debug('finish_request hook')
         self.RequestHandlerClass(request, client_addr, self)
         request.settimeout(self.handler_timeout)
-        LOG.debug('finish_request hook')
 
     def close_request(self, request):
         LOG.debug('close_request hook (ignoring close)')
         pass
 
-    def set_handler(self, obj, cls, looping, timeout):
+    def set_hooks(self, obj, looping, timeout):
+        """Hooks finish_request and close_request for SocketServer to behave as
+        we want:
+        * not blocking in the Handler's __init__
+        * not closing connection after __init__
+        """
         self.handler_looping = looping
         self.handler_timeout = timeout
-        if not looping:
-            import types
-            # disable closing of socket while we're still on it (ugly, I know..)
-            obj.finish_request=types.MethodType(BaseServ.finish_request,obj,cls)
-            obj.close_request =types.MethodType(BaseServ.close_request, obj,cls)
-            LOG.debug('overriden finish_request and close_request')
+        if looping:
+            return
+        cls = obj.__class__
+        import types
+        # disable closing of socket while we're still on it (ugly, I know..)
+        obj.finish_request= types.MethodType(BaseServer.finish_request,obj, cls)
+        obj.close_request = types.MethodType(BaseServer.close_request, obj, cls)
+        LOG.debug('overriden finish_request and close_request')
 
 
 class BaseComm:
@@ -246,15 +123,18 @@ class BaseComm:
         cmd, args = self.CMD_PREFIX+cmd_tokens.pop(0),\
                     cmd_tokens and cmd_tokens[0] or ""
         try:
-            if cmd in dir(self):
-                exec("self."+cmd+"(args)")
-            else:
-                LOG.info("%s> command not found '%s'",
-                         self.request.fileno(),cmdline)
+            try:
+                bound_fct = getattr(self, cmd)
+            except AttributeError:
                 self.handle_notfound(cmd, args)
-        except CmdError, e:
+            else:
+                bound_fct(args)
+        except Exception, e:
             LOG.warning("%s> unsuccessful command '%s' [%s]",
                         self.request.fileno(), cmdline, e)
+            if LOG.getEffectiveLevel() == logging.DEBUG:
+                import traceback;
+                traceback.print_exc()
 
     def process(self, command):
         """Command dispatcher function.
@@ -489,5 +369,149 @@ class BaseClient(BaseComm):
     def handle_notfound(self, cmd, args):
         """Callback for client unfound command handler from (remote) server.
         """
-        LOG.debug("function %s not found (command was '%s')", cmd, args)
+        LOG.debug("function %s not found [argument(s): '%s']", cmd, args)
+
+
+def get_conn_infos(addr_port):
+    if hasattr(socket, "AF_UNIX") and \
+            type(addr_port[1]) == type("") and \
+            addr_port[0] in ["127.0.0.1", "localhost"]:
+        return socket.AF_UNIX, addr_port[1]
+    return socket.AF_INET, addr_port
+
+
+SERVER_CLASSES = {
+    type(42): {'udp': { True : SocketServer.ThreadingUDPServer,
+                        False: SocketServer.UDPServer },
+               'tcp': { True : SocketServer.ThreadingTCPServer,
+                        False: SocketServer.TCPServer }
+               },
+    type(''): {'':{True : hasattr(SocketServer,"ThreadingUnixStreamServer") and\
+                   SocketServer.ThreadingUnixStreamServer,
+                   False: hasattr(SocketServer,"UnixStreamServer") and\
+                   SocketServer.UnixStreamServer }
+               },
+    }
+
+def getBaseServerClass(addr_port, threading):
+    """Returns the appropriate base class for server according to addr_port"""
+    """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
+     port field (eg. 'udp:4242'). Default is udp."""
+    D_PROTO = 'tcp'
+    addr, port = addr_port
+    if type(port) == type(''):
+        proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
+        if port.isdigit():
+            port = int(port)
+            addr_port = (addr, port)
+    else:
+        proto = D_PROTO
+    try:
+        srv_class = SERVER_CLASSES[type(port)][proto][threading]
+        if type(port) == '' and \
+           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
+            addr_port = addr_port[1]
+        LOG.debug('address-port: %s, selected server class: %s',
+                  addr_port, srv_class)
+        return addr_port, srv_class
+    except KeyError:
+        raise Exception('No suitable server class from addr_port. Check conf.')
+
+
+def create_server(ext_class, handler_class, addr_port, threading=True):
+    """Creates a new (compound) type of server according to addr_port, also
+     creates a new type of RequestHandler so users don't inherit from anything.
+
+        ext_class: extension class to be a base of the new type.
+        handler_class: class to be instancied on accepted connection.
+        addr_port: (address, port). port type is relevant, see conf module.
+    """
+    def server_init(self, addr_port, handler_class):
+        """Call all subtypes initializers"""
+        LOG.debug('initializing compound server %s', self.__class__)
+        # most of this mess because of parameters in SocketServer.__init__
+        base_class.__init__(self, addr_port, handler_class)
+        BaseServer.__init__(self)
+        ext_class.__init__(self)
+
+    def requestHandler_init(self, request, client_addr, server):
+        """Call all subtypes initializers"""
+        LOG.debug('initializing compound request handler %s', self.__class__)
+        # most of this mess because I have fun doing it
+        RequestHandler.__init__(self, request, client_addr, server)
+        handler_class.__init__(self)
+
+    if not issubclass(ext_class, object):
+        raise ClassError('class %s must inherit from object' % ext_class)
+    if not issubclass(handler_class, object):
+        raise ClassError('class %s must inherit from object' % handler_class)
+
+    addr_port, base_class = getBaseServerClass(addr_port, threading)
+    compound_handler_class = type(handler_class.__name__+'RequestHandler',
+                                  (handler_class, RequestHandler),
+                                  {"__init__":requestHandler_init})
+
+    return type(ext_class.__name__+base_class.__name__,
+                (base_class, BaseServer, ext_class),
+                {"__init__":server_init})(addr_port, compound_handler_class)
+
+
+
+#XXX: so far, creation from commandline is used only by comm_example
+def create_from_cmdline(cmdline, remoteClient_classes,
+                        server_class, request_handler_class):
+    """Parses cmdline and instanciates given classes.
+    Note that any matching argument will be swallowed whether a successful
+     instanciation has been made or not.
+
+     cmdline: user command line checked for arguments (module_name=ip:port)
+     remoteClient_classes: cmdline name-to-class {"module_name":client_class,..}
+     server_class: class to be instancied (see parse_args())
+     request_handler_class: handler class for server incoming connections
+    Returns (unused arguments, [client_class objects], server_class object)
+    """
+
+    def parse_args(args):    
+        """Parses arguments of the form: name=ip_address_or_fqdn:port
+         'name' indentifies 'ip_address' as a remote server to connect to,
+         if 'name=' is ommited 'ip_address' identifies a local interface used to
+         listen to remote connections.
+
+         args: an array of strings (as returned by sys.argv).
+        Returns (unused arguments, [(name, addr, port), ...] )
+        """
+
+        RE_NAME   = r'(?P<NAME>\w+)'
+        RE_IPADDR = r'(\d{1,3}\.){3}\d{1,3}'
+        RE_ADDR   = r'(?P<ADDR>'+RE_IPADDR+'|[\w-]+)'
+        RE_PORT   = r'(?P<PORT>\d{2,5}|[\w/\.]+[^/])'
+
+        # these are case insensitive
+        CRE_CMDLINE_ARG = re.compile('('+RE_NAME+'=)?'+RE_ADDR+':'+RE_PORT)
+        
+        unused, infos = [], []
+        for arg in args:
+            m = CRE_CMDLINE_ARG.match(arg)
+            if m == None:
+                unused.append(arg)
+            else:
+                port = m.group("PORT")
+                if port.isdigit():
+                    port = int(port)
+                infos.append((m.group("NAME"), m.group("ADDR"), port))
+        return (unused, infos)
+
+    clients = []
+    server = None
+    unused, infos = parse_args(cmdline)
+    for name, address, port in infos:
+        if name == None:
+            server = create_server(server_class, request_handler_class,
+                                   (address,port))
+        else:
+            try:
+                clients.append(remoteClient_classes[name]((address, port)))
+            except KeyError:
+                LOG.warning("found unmatched name '"+name+"' in cmdline")
+    return (unused, clients, server)
 
