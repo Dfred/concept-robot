@@ -44,7 +44,7 @@ LOG.setLevel(logging.DEBUG)
 import comm
 import conf
 
-class FaceClient():
+class FaceClient(object):
     """Remote connection handler: protocol parser."""
     
     def __init__(self, *args):
@@ -96,7 +96,7 @@ class FaceClient():
 
 
 
-class FaceServer():
+class FaceServer(object):
     """Main facial feature animation module - server
 
     Also maintains consistent muscle activation.
