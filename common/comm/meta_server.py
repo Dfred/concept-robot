@@ -6,9 +6,7 @@ class MetaRequestHandler(object):
     """
     """
 
-    def setup(self):
-        import comm;
-        comm.RequestHandler.setup(self)
+    def __init__(self):
         self.curr_handler = None
 
     def handle_notfound(self, cmd, argline):
