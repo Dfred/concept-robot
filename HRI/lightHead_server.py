@@ -13,14 +13,16 @@ ORIGINS = (ORGN_GAZE, ORGN_FACE, ORGN_LIPS, ORGN_HEAD)
 class lightHeadHandler(MetaRequestHandler):
     """Handles high level protocol transactions: origin and commit"""
 
-    def setup(self):
-        MetaRequestHandler.setup(self)
+    def __init__(self):
+        MetaRequestHandler.__init__(self)
         self.handlers = dict([ (k,val[1]) for k,val in \
                                    self.server.origins.iteritems() ])
-        self.curr_handler = None
 
     def cmd_origin(self, argline):
-        self.curr_handler = self.handlers[argline]
+        if not argline:
+            self.send_msg("origin is %s" % self.curr_handler)
+        else:
+            self.curr_handler = self.handlers[argline]
 
     def cmd_commit(self, argline):
         for key in ORIGINS:
