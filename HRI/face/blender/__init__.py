@@ -79,6 +79,8 @@ def initialize(threading=True):
         print 'setting debug mode'
         # set system-wide logging level
         comm.logging.basicConfig(level=comm.logging.DEBUG,format=comm.LOGFORMAT)
+    else:
+        comm.set_default_logging()
 
     from lightHead_server import lightHeadServer, lightHeadHandler
     G.server = comm.create_server(lightHeadServer, lightHeadHandler,
@@ -187,7 +189,8 @@ def main():
     else:
         if SINGLE_THREAD:
             # pump data
-            if G.server.clients and not G.server.clients[0].handle_once():
+            if G.server.clients and not G.server.clients[0].read_once():
+                G.server.set_hooks(G.server, True, timeout=0)
                 G.server.clients[0].finish()
         # update blender with fresh face data
         update(G.server[FACE], cont, G.eyes, time.time() - G.last_update_time)

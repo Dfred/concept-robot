@@ -44,7 +44,7 @@ LOG.setLevel(logging.DEBUG)
 import comm
 import conf
 
-class FaceClient(object):
+class FaceComm(object):
     """Remote connection handler: protocol parser."""
     
     def __init__(self, *args):
@@ -66,7 +66,7 @@ class FaceClient(object):
             AU_info.sort()
             # name, target, duration
             for triplet in AU_info:
-                msg += "AU %s\t%.3f\t%.3f\n" % triplet
+                msg += "AU {0[0]:5s} {0[1]} {0[2]:.3f}\n".format(triplet)
             self.send_msg(str(msg))
 
 
@@ -96,8 +96,8 @@ class FaceClient(object):
 
 
 
-class FaceServer(object):
-    """Main facial feature animation module - server
+class Face(object):
+    """Main facial feature animation module
 
     Also maintains consistent muscle activation.
     AU value is normalized: 0 -> AU not streched, 1 -> stretched to max
@@ -132,8 +132,8 @@ class FaceServer(object):
         duration = max(duration, .001)
         if self.AUs.has_key(name):
             self.AUs[name][:3] = (
-                ((target_value - self.AUs[name][3])/duration,
-                 self.AUs[name][3]), duration, 0)
+                ((target_value-self.AUs[name][3])/duration, self.AUs[name][3]),
+                duration, 0)
         else:
             self.AUs[name+'R'][:3] = (
                 ((target_value-self.AUs[name+'R'][3])/duration,
