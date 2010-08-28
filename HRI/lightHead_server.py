@@ -15,14 +15,15 @@ class lightHeadHandler(MetaRequestHandler):
 
     def __init__(self):
         MetaRequestHandler.__init__(self)
-        self.handlers = dict([ (k,val[1]) for k,val in \
-                                   self.server.origins.iteritems() ])
+        self.handlers = {}
+        for origin, srv_hclass in self.server.origins.iteritems():
+            self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
     def cmd_origin(self, argline):
         if not argline:
             self.send_msg("origin is %s" % self.curr_handler)
         else:
-            self.curr_handler = self.handlers[argline]
+            self.set_current_subhandler(self.handlers[argline])
 
     def cmd_commit(self, argline):
         for key in ORIGINS:
@@ -42,28 +43,28 @@ class lightHeadServer(MetaServer):
     def get_handler(self, keyword):
         return self.origins[keyword][1]
 
-    def register(self, server, request_handler, origin):
+    def register(self, server, request_handler_class, origin):
         """bufferize server-handler associations with origin keyword."""
         if origin not in ORIGINS:
             LOG.error("rejecting unknown origin '%s'", origin)
             return
-        LOG.debug("registering server %s & handler %s for origin '%s'",
-                  server, request_handler, origin)
-        MetaServer.register(self, server,request_handler)
-        self.origins[origin] = (self.servers[-1], self.handlers[-1])
+        LOG.debug("registering server %s & handler class %s for origin '%s'",
+                  server, request_handler_class, origin)
+        MetaServer.register(self, server, request_handler_class)
+        self.origins[origin] = self.servers_SHclasses[-1]
 
 
     def create_protocol_handlers(self):
-        """Bind individual servers and their handler to the meta server.
-        Upon reception of 'origin' (protocol keyword), it switches to .
-        """
+        """Bind individual servers and their handler to the meta server."""
         # TODO: use conf for automatic registration
-        from face import FaceServer, FaceClient
-        server = FaceServer()
-        handler = FaceClient()
-        self.register(server, handler, 'face')
-        self.register(server, handler, 'gaze')
-        self.register(server, handler, 'lips')
-        from spine import SpineServer, SpineClient
-        self.register(SpineServer(), SpineClient(), 'head')
+
+        from face import Face, FaceComm
+        server = self.create_subserver(Face)
+        self.register(server, FaceComm, 'face')
+        self.register(server, FaceComm, 'gaze')
+        self.register(server, FaceComm, 'lips')
+
+        from spine import Spine, SpineComm
+        server = self.create_subserver(Spine)
+        self.register(server, SpineComm, 'head')
 
