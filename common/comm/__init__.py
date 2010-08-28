@@ -325,7 +325,7 @@ class BaseClient(BaseComm):
         self.handle_connect()
 
 	try:
-	    self.read_while_running(timeout)
+	    self.read_while_running()
 	except select.error, e:
 	    self.handle_error(e)
 	finally:

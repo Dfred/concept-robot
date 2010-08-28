@@ -36,7 +36,7 @@ import comm
 
 # set logging verbosity
 # TODO: set it for the module only
-logging.basicConfig(level=logging.WARNING, format=comm.FORMAT)
+logging.basicConfig(level=logging.WARNING, format=comm.LOGFORMAT)
 
 # readline history
 try:
@@ -107,10 +107,10 @@ class commConsClient(comm.BaseClient):
             if self.ui:
                 print "\n - connecting to ", addr_port
             comm.BaseClient.__init__(self, addr_port)
-            self.connect_and_run(self.ui and .5 or None)
-        except comm.error, e:
+            self.connect_and_run()
+        except Exception, e:
             print "\n"+str(e)
-            self.handle_error()
+            self.handle_error(e)
         finally:
             if self.ui:
                 self.ui.cnx = None
@@ -118,6 +118,7 @@ class commConsClient(comm.BaseClient):
     def handle_connect(self):
         """Called when the client has just connected successfully"""
         self.status = "connected"
+        self.handler_timeout = self.ui and .5 or None
         if self.ui:
             self.ui.redraw_prompt()
 
