@@ -8,6 +8,10 @@
 #  backend provides required functions, the end-result should be similar.
 #
 
+import logging
+LOG = logging.getLogger(__package__)
+
+
 class NotImplemented(Exception):
     pass
 
@@ -31,24 +35,24 @@ class NeckInfo(SpineElementInfo):
     pass
 
 
-class SpineClient(object):
+class SpineComm(object):
     """
     """
 
     def cmd_rotate(self, argline):
         """relative rotation on 3 axis"""
-        args = [ float(arg) for arg in argline.split(',') ]
-        if not args:
+        if not argline:
             self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
             return
+        args = [ float(arg) for arg in argline.split(',') ]
         self.server.set_neck_rot_pos(rot_xyz=tuple(args))
         
     def cmd_move(self, argline):
         """relative position on 3 axis"""
-        args = [ float(arg) for arg in argline.split(',') ]
-        if not args:
+        if not argline:
             self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
             return
+        args = [ float(arg) for arg in argline.split(',') ]
         self.server.set_neck_rot_pos(pos_xyz=tuple(args))
 
     def cmd_commit(self, argline):
@@ -122,7 +126,7 @@ class SpineBase(object):
 
 
 from spine.backend import SpineHW
-SpineServer = SpineHW    
+Spine = SpineHW    
 __all__ = ['Spine', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 

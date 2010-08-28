@@ -2,23 +2,23 @@
 
 #
 # This module implements the Katana-400-6M backend for the spine module.
-#
+# No protocol change so there's no need to override SpineClient.
 #
 # Axis are independant: an axis can be controlled (rigid) while others not.
 #
-import logging
-
 import KNI
 from spine import SpineBase
 
+import logging
 LOG = logging.getLogger(__package__)
-
 
 def showTPos(tpos):
     print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
         '- position: (X:{0.X}, Y:{0.Y}, Z:{0.Z})'.format(tpos)
 
 class SpineHW(SpineBase):
+    """Spine implementation for the Katana400s-6m"""
+
     AXIS_LIMITS = [ (-18300, 31000),
                (-31000, 5900),
                (-31000, 1900),
@@ -44,7 +44,7 @@ class SpineHW(SpineBase):
         self._tolerance = 0
         #TODO: fill self.neck_info and self.torso_info
         LOG.info('connecting to Katana400s-6m')
-#        init_arm()
+        init_arm()
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -71,6 +71,8 @@ class SpineHW(SpineBase):
     def get_neck_info(self):
         """Returns NeckInfo instance"""
         # TODO: convert to radians
+        tp = KNI.TPos()
+        KNI.getPosition(tp)
         self._neck_info.pos = [tp.X, tp.Y, tp.Z]
         self._neck_info.rot = [tp.phi, tp.theta, tp.psi]
         return self._neck_info
