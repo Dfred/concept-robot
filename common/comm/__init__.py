@@ -112,11 +112,48 @@ class BaseComm:
     CMD_PREFIX = "cmd_"
     CRE_PROTOCOL_SYNTAX = re.compile("\s*\w+(\s+\w+)*")
 
+    def __init__(self):
+        self.command = ''
+
+    def read_once(self, timeout=0):
+        """Non-blocking call for processing client commands (see __init__).
+        No check for self.running.
+        """
+        r, w, e = select.select([self.request], [], [self.request], timeout)
+        if not r: #and not self.handle_timeout():
+            return True
+        if e:
+            self.handle_error()
+            return self.abort()
+        try:
+            buff = self.request.recv(1024)
+            if not buff:
+                return self.abort()
+            self.command += buff
+        except socket.error, e:
+            self.handle_error(e)
+            return False
+        self.command = self.command[self.process(self.command):]
+        return True
+
+    def read_while_running(self):
+        """Blocking call for processing of client commands (see __init__).
+        Returns if self.running is True.
+        """
+        self.running = True
+        while self.running and self.read_once():
+            pass
+
+#    def handle_timeout(self):
+#        """called on timeout from select.
+#        (there's actually better ways to do this I'm sure, like Exceptions)"""
+#        LOG.debug("timeout on select for %s", self.client_address)
+
     def handle_notfound(self, cmd, args):
         """When a method (a command) is not found in self. See process().
         To be overriden.
         """
-        LOG.debug("function %s not found (command was '%s')", cmd, args)
+        LOG.debug("function %s not found in %s [args: '%s']", cmd, self, args)
 
     def parse_cmd(self, cmdline):
         cmd_tokens = cmdline.split(None,1) # keep 1
@@ -179,7 +216,6 @@ class BaseComm:
     def cmd_bye(self, args):
         """Disconnects that client."""
         self.running = False
-
     cmd_EOF = cmd_bye
         
 
@@ -193,14 +229,17 @@ class RequestHandler(BaseComm, SocketServer.BaseRequestHandler):
     Define your own protocol handler overriding BaseComm.process .
     """
 
+    def __init__(self, request, client_address, server):
+        BaseComm.__init__(self)
+        SocketServer.BaseRequestHandler.__init__(self, request, client_address,
+                                                 server)
+
     def setup(self):
         """Overrides SocketServer"""
-        SocketServer.BaseRequestHandler.setup(self)
         self.server.clients.append(self)
-        self.command = ""       # for handle..()
         # check if we want to block in self.handle()
         self.handle = self.server.handler_looping and \
-                      self.handle_while_running or self.handle_once
+                      self.read_while_running or self.read_once
         self.addr_port = type(self.client_address) == type("") and \
             ("localhost", "UNIX Socket") or self.client_address
         LOG.info("%i> connection accepted from %s on "+str(self.addr_port[1]),
@@ -212,34 +251,13 @@ class RequestHandler(BaseComm, SocketServer.BaseRequestHandler):
             return
         LOG.info("%i> connection terminated : %s on "+str(self.addr_port[1]),
                  self.request.fileno(), self.addr_port[0])
-        SocketServer.BaseRequestHandler.finish(self)
         self.server.clients.remove(self)
 
-    def handle_once(self):
-        """Non-blocking call for processing client commands (see __init__).
-        No check for self.running.
-        """
-        r, w, e = select.select([self.request], [], [], 0)
-        if not r:
-            return True
-        try:
-            self.command += self.request.recv(1024)
-            LOG.debug("readline().strip(): [%i] %s",
-                      len(self.command), self.command)
-        except socket.error, e:
-            LOG.error("comm channel broken (client: %s): %s",
-                      self.addr_port[0], e)
-            return False
-        self.command = self.command[self.process(self.command):]
-        return True
-
-    def handle_while_running(self):
-        """Blocking call for processing of client commands (see __init__).
-        Returns if self.running is True.
-        """
-        self.running = True
-        while self.running and self.handle_once():
-            pass
+    def abort(self):
+        """For read_while_running"""
+        LOG.debug("communication with remote client has been interrupted")
+        self.running = False
+        return False
 
     def cmd_shutdown(self, args):
         """Disconnects all clients and terminate the server process."""
@@ -283,6 +301,7 @@ class BaseClient(BaseComm):
         setting a socket timeout.
     """
     def __init__(self, addr_port):
+        BaseComm.__init__(self)
         family, self.target_addr = get_conn_infos(addr_port)
         self.request = socket.socket(family)
         self.connected = False
@@ -295,7 +314,7 @@ class BaseClient(BaseComm):
         You need to set a timeout to connect_and_run() or read_until_done()"""
         self.running = False
 
-    def connect_and_run(self, timeout=None):
+    def connect_and_run(self):
         try:
             self.request.connect(self.target_addr)
         except socket.error, e:
@@ -306,7 +325,7 @@ class BaseClient(BaseComm):
         self.handle_connect()
 
 	try:
-	    self.read_until_done(timeout)
+	    self.read_while_running(timeout)
 	except select.error, e:
 	    self.handle_error(e)
 	finally:
@@ -314,34 +333,10 @@ class BaseClient(BaseComm):
             self.connected = False
             self.handle_disconnect()
 
-    def read_until_done(self, timeout):
-        """Wait, read and process data, calling self.handle_timeout when
-        self.timeout elapsed.
-        """
-
-        def abort(self):
-            LOG.debug("communication with server has been interrupted")
-            self.running = False
-
-        self.running = True
-        line = ""
-        while self.running:
-            fd_sets = select.select([self.request], [], [self.request], timeout)
-            if not fd_sets[0] and not self.handle_timeout():
-                continue
-            if fd_sets[2]:
-                abort(self)
-                self.handle_error()
-            else:
-                try:
-                    buff = self.request.recv(1024)
-                except socket.error, e:
-                    self.handle_error(e)
-                    return
-                if not buff:
-                    abort(self)
-            line += buff
-            line = line[self.process(line):]
+    def abort(self):
+        """For read_while_running"""
+        LOG.debug("communication with remote server has been interrupted")
+        self.running = False
 
     def handle_connect(self):
         """Callback for client successful connection to (remote) server.
@@ -354,7 +349,6 @@ class BaseClient(BaseComm):
         """
         pass
 
-
     def handle_error(self, e):
         """Callback for connection error.
         """
@@ -366,10 +360,11 @@ class BaseClient(BaseComm):
         """
         LOG.debug('client disconnected from remote server %s', self.target_addr)
 
-    def handle_notfound(self, cmd, args):
-        """Callback for client unfound command handler from (remote) server.
-        """
-        LOG.debug("function %s not found [argument(s): '%s']", cmd, args)
+
+def set_default_loggging():
+    """This function does nothing if the root logger already has
+    handlers configured."""
+    logging.basicConfig(level=logging.INFO, format=LOGFORMAT)
 
 
 def get_conn_infos(addr_port):
@@ -418,6 +413,24 @@ def getBaseServerClass(addr_port, threading):
         raise Exception('No suitable server class from addr_port. Check conf.')
 
 
+def create_requestHandler_class(handler_class):
+    """Creates a new (compound) type of RequestHandler suitable for inclusion to
+    a compound server. Users can simply ignore networking in the class code.
+    """
+    if not issubclass(handler_class, object):
+        raise ClassError('class %s must inherit from object' % handler_class)
+
+    def requestHandler_init(self, request, client_addr, server):
+        """Call all subclasses initializers"""
+        LOG.debug('initializing compound request handler %s', self.__class__)
+        # most of this mess because I have fun doing it
+        RequestHandler.__init__(self, request, client_addr, server)
+        handler_class.__init__(self)
+
+    return type(handler_class.__name__+'RequestHandler',
+                (handler_class, RequestHandler),
+                {"__init__":requestHandler_init})
+
 def create_server(ext_class, handler_class, addr_port, threading=True):
     """Creates a new (compound) type of server according to addr_port, also
      creates a new type of RequestHandler so users don't inherit from anything.
@@ -426,6 +439,11 @@ def create_server(ext_class, handler_class, addr_port, threading=True):
         handler_class: class to be instancied on accepted connection.
         addr_port: (address, port). port type is relevant, see conf module.
     """
+    if not issubclass(ext_class, object):
+        raise ClassError('class %s must inherit from object' % ext_class)
+
+    mixed_handler_class = create_requestHandler_class(handler_class)
+    addr_port, base_class = getBaseServerClass(addr_port, threading)
     def server_init(self, addr_port, handler_class):
         """Call all subtypes initializers"""
         LOG.debug('initializing compound server %s', self.__class__)
@@ -434,26 +452,9 @@ def create_server(ext_class, handler_class, addr_port, threading=True):
         BaseServer.__init__(self)
         ext_class.__init__(self)
 
-    def requestHandler_init(self, request, client_addr, server):
-        """Call all subtypes initializers"""
-        LOG.debug('initializing compound request handler %s', self.__class__)
-        # most of this mess because I have fun doing it
-        RequestHandler.__init__(self, request, client_addr, server)
-        handler_class.__init__(self)
-
-    if not issubclass(ext_class, object):
-        raise ClassError('class %s must inherit from object' % ext_class)
-    if not issubclass(handler_class, object):
-        raise ClassError('class %s must inherit from object' % handler_class)
-
-    addr_port, base_class = getBaseServerClass(addr_port, threading)
-    compound_handler_class = type(handler_class.__name__+'RequestHandler',
-                                  (handler_class, RequestHandler),
-                                  {"__init__":requestHandler_init})
-
     return type(ext_class.__name__+base_class.__name__,
                 (base_class, BaseServer, ext_class),
-                {"__init__":server_init})(addr_port, compound_handler_class)
+                {"__init__":server_init})(addr_port, mixed_handler_class)
 
 
 
