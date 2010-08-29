@@ -48,17 +48,31 @@ SH_ACT_LEN = 50
 EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 
+def shutdown(cont):
+    """Shutdown server and other clean-ups"""
+    cont.activate(cont.actuators["- QUITTER"])
+#    cont.activate(cont.actuators["- asleep -"])
+    G.server.set_hooks(G.server, True, timeout=0)
+    if G.server.clients:
+        G.server.clients[0].finish()
+    sys.exit(0)
+
+def fatal(error):
+    print '*** Fatal Error ***'
+    import traceback; traceback.print_exc()
+    shutdown(G.getCurrentController())
+
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
-    for act in acts:
-        if not owner.has_key('p'+act.name) or \
-                act.mode != G.KX_ACTIONACT_PROPERTY:
-            return act.name
-    for name in EXTRA_PROPS:
+    keys = [ act.name for act in acts] + EXTRA_PROPS
+    for name in keys:
         if not owner.has_key('p'+name):
-            return name
+            raise Exception('missing property p%s' % name)
+    for act in acts :
+        if act.mode != G.KX_ACTIONACT_PROPERTY:
+            raise Exception('Actuator %s shall use Shape Action Playback of'
+                            'type property' % act.name)
     return False
-
 
 def initialize(threading=True):
     """Initialize connections and configures facial subsystem"""
@@ -99,10 +113,10 @@ def initialize(threading=True):
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    err = check_defects(owner, acts)
-    if err:
-        print "missing property p%s or bad Shape Action Playback type!" % err
-        sys.exit(1)
+    try:
+        check_defects(owner, acts)
+    except Exception, e:
+        fatal(e)
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
     G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
@@ -133,17 +147,8 @@ def initialize(threading=True):
     G.last_update_time = time.time()    
 
 
-def shutdown(cont):
-    """Shutdown server and other clean-ups"""
-    cont.activate(cont.actuators["- QUITTER"])
-#    cont.activate(cont.actuators["- asleep -"])
-    G.server.set_hooks(G.server, True, timeout=0)
-    if G.server.clients:
-        G.server.clients[0].finish()
-    #sys.exit(0)
-
-
-def update(faceServer, cont, eyes, time_diff):
+def update(faceServer, eyes, time_diff):
+    cont = G.getCurrentController()
     eyes_done = False
     for au, value in faceServer.update(time_diff):
         if au[0] == '6':        # yes, 6 is an eye prefix !
@@ -178,14 +183,11 @@ def update(faceServer, cont, eyes, time_diff):
 import select
 
 def main():
-    cont = G.getCurrentController()
-
     if not hasattr(G, "initialized"):
         try:
             initialize(not SINGLE_THREAD)
         except Exception, e:
-            import traceback; traceback.print_exc()
-            shutdown(cont)
+            fatal(e)
     else:
         if SINGLE_THREAD:
             # pump data
@@ -193,5 +195,5 @@ def main():
                 G.server.set_hooks(G.server, True, timeout=0)
                 G.server.clients[0].finish()
         # update blender with fresh face data
-        update(G.server[FACE], cont, G.eyes, time.time() - G.last_update_time)
+        update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
         G.last_update_time = time.time()

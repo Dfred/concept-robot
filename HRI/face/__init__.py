@@ -44,6 +44,12 @@ LOG.setLevel(logging.DEBUG)
 import comm
 import conf
 
+class FaceProtocolError(comm.ProtocolError):
+    pass
+
+class FaceError(comm.CmdError):
+    pass
+
 class FaceComm(object):
     """Remote connection handler: protocol parser."""
     
@@ -59,7 +65,7 @@ class FaceComm(object):
                 au_name, value, duration = argline.split()[:3]
                 self.fifo.append((au_name, float(value), float(duration)))
             except FloatException:
-                LOG.warning("[AU] invalid float argument")
+                raise FaceProtocolError("[AU] invalid float argument")
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
@@ -76,8 +82,8 @@ class FaceComm(object):
             try:
                 self.server.set_AU(au, target, attack)
             except KeyError, e:
-                LOG.warning("[AU] bad argument line:'%s', AU %s not found",
-                            au+" %f %f" % (target, attack), e)
+                raise FaceError("[AU] bad argument line:'%s', AU %s not found",
+                                au+" %f %f" % (target, attack), e)
         self.fifo.clear()
 
     # def cmd_start(self, argline):
