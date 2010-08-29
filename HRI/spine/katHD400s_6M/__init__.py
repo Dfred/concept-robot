@@ -6,11 +6,13 @@
 #
 # Axis are independant: an axis can be controlled (rigid) while others not.
 #
-import KNI
-from spine import SpineBase
+import math
 
 import logging
 LOG = logging.getLogger(__package__)
+
+import KNI
+from spine import SpineError, SpineBase
 
 def showTPos(tpos):
     print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
@@ -19,14 +21,19 @@ def showTPos(tpos):
 class SpineHW(SpineBase):
     """Spine implementation for the Katana400s-6m"""
 
-    AXIS_LIMITS = [ (-18300, 31000),
-               (-31000, 5900),
-               (-31000, 1900),
-               (- 1700, 31000),
-               (-17600, 31000),
-               (-16900, 31000) ]
+    # The configuration file has other references, but this one maximizes 
+    #  the range of movements from origin (based on ideal pose for our setup).
+    # Another approach would have been to use these references and use offsets.
 
-    SPEED_LIMITS = [ (0,255), (1,2) ]   # 1: brief max speed, 2: quick max speed
+    AXIS_LIMITS = [ None,                               # indices like KNI
+        (-18300, 31000,  6350, -12750/(math.pi/2)),
+        (-31000, 5900, -21800, -23900/(math.pi/2)),
+        (-31000, 1900, -17500, 0),                      # not use so kept frozen
+        (- 1700, 31000, 14700,  12800/(math.pi/2)),     # neck x
+        (-17600, 31000,  6500,  12900/(math.pi/2)),     # neck y
+        (-16900, 31000, 13750,  12750/(math.pi/2)) ]    # neck z
+
+    SPEED_LIMITS = [ (0,255), (1,2) ]   # 1: long accel, 2: short accel
     
     # folded, but calibration from this position makes it collide slightly
 #POSE_REST = [23500, 5600, 1800, 25100, 6500, 6900]     
@@ -35,16 +42,20 @@ class SpineHW(SpineBase):
 # vertical, calibrate OK
     POSE_REST = [6350, -18000, -15600, 30900, 6500, 6900]
 
+    @staticmethod
+    def rad2enc(axis, rad):
+        return int(SpineHW.AXIS_LIMITS[axis][3]*rad) + SpineHW.AXIS_LIMITS[axis][2]
+
     def __init__(self):
         SpineBase.__init__(self)
         self.has_torso = True
-        self._calibrated = False
         self._speed = 50
         self._accel = 1                 
-        self._tolerance = 0
+        self._tolerance = 50
         #TODO: fill self.neck_info and self.torso_info
         LOG.info('connecting to Katana400s-6m')
         init_arm()
+        #TODO: set self.limits_
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -77,39 +88,38 @@ class SpineHW(SpineBase):
         self._neck_info.rot = [tp.phi, tp.theta, tp.psi]
         return self._neck_info
 
-    def switch_on(self, with_calibration=True):
-        """Mandatory 1st call after hardware is switched on."""
-        if with_calibration:
+    def switch_on(self):
+        """Mandatory 1st call after hardware is switched on.
+        Starts calibration if needed.
+        """
+        # KNI.getEncoder returns -1 if KNI is initialized but not calibrated
+        if KNI.moveMot(1, KNI.getEncoder(1), 1, 1) == -1:
             self.calibrate()
+        self.switch_auto()
 
     def switch_off(self):
         """Set the robot for safe hardware switch off."""
-        if self._motors_on:
-            pose_rest()
+        self.pose_rest()
         self.switch_manual()
-
-    def calibrate(self):
-        """Mandatory call upon hardware switch on. Also can be use to test 
-         calibration procedure."""
-        if self._calibrated:
-            return
-        # TODO: use a sequence so that the arm is not colliding in itself
-        if KNI.calibrate(0) == -1:
-            raise SpineException('failed to calibrate hardware')
-        self._calibrated = True
-        self._motors_on = True
 
     def switch_manual(self):
         """WARNING: Allow free manual handling of the robot. ALL MOTORS OFF!"""
         if KNI.allMotorsOff() == -1:
-            raise SpineException('failed to switch motors off')
+            raise SpineError('failed to switch motors off')
         self._motors_on = False
 
     def switch_auto(self):
         """Resumes normal (driven-mode) operation of the robot."""
         if not self._motors_on and KNI.allMotorsOn() == -1:
-            raise SpineException('failed to switch motors on')
+            raise SpineError('failed to switch motors on')
         self._motors_on = True
+
+    def calibrate(self):
+        """Mandatory call upon hardware switch on. Also can be use to test 
+         calibration procedure."""
+        # TODO: use a sequence so that the arm does not collide itself
+        if KNI.calibrate(0) == -1:
+            raise SpineError('failed to calibrate hardware')
 
     def reach_pose(self, pose):
         """This pose is defined so that the hardware is safe to switch-off.
@@ -119,7 +129,7 @@ class SpineHW(SpineBase):
         move_settings = [self._speed, self._accel, self._tolerance]
         # no wait
         if KNI.moveToPosEnc(*pose+move_settings+[False]) == -1:
-            raise SpineException('failed to reach pose')
+            raise SpineError('failed to reach pose')
 
     def pose_rest(self):
         self.reach_pose(self.POSE_REST)
@@ -129,9 +139,38 @@ class SpineHW(SpineBase):
         Use this function to pose the robot so it has an even range of possible
         movements."""
         self.reach_pose([ (mn+mx)/2 for mn,mx in self.AXIS_LIMITS ])
-        
+
+    def set_neck_orientation(self, xyz, wait=True):
+        """Our own version since the IK is useless (ERROR: No solution found)"""
+        encs = [ SpineHW.rad2enc(4+i, v) for i,v in enumerate(xyz) ]
+        for i, enc in enumerate(encs):
+            axis = 4+i
+            LOG.debug('moving axis %i to encoder %i', axis, enc)
+            if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
+                raise SpineError('failed to reach rotation (axis %i)' % axis)
+        if not wait:
+            return
+        for i, enc in enumerate(encs):
+            if KNI.waitForMot(4+i, enc, self._tolerance) != 1:
+                raise SpineError('failed to wait for motor %i' % (4+i))
+
+    def set_torso_orientation(self, xyz, wait=True):
+        """Our own version since the IK is useless (ERROR: No solution found)"""
+        for axis, enc in [(1, SpineHW.rad2enc(xyz[0])),
+                          (2, SpineHW.rad2enc(xyz[2])) ]:
+            LOG.debug('moving axis %i to encoder %i', axis, enc)
+            if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
+                raise SpineError('failed to reach rotation (axis %i)' % axis)
+        if not wait:
+            return
+        for i, enc in enumerate(encs):
+            if KNI.waitForMot(1+i, enc, self._tolerance) != 1:
+                raise SpineError('failed to wait for motor %i' % (1+i))
+
     def set_neck_rot_pos(self, rot_xyz=None, pos_xyz=None):
         if not self._motors_on or (rot_xyz == pos_xyz == None):
+            LOG.info('motors are %s [rot: %s\t pos: %s]', self._motors_on,
+                     rot_xyz, pos_xyz) 
             return False
         tp = KNI.TPos()
         KNI.getPosition(tp)
@@ -142,7 +181,7 @@ class SpineHW(SpineBase):
         ret = KNI.moveToPos(tp, self._speed, self._accel)
         KNI.getPosition(tp)
         if ret == -1:
-            raise SpineException('failed to reach rotation/position')
+            raise SpineError('failed to reach rotation/position')
         return True
 
 def init_arm():
@@ -150,7 +189,7 @@ def init_arm():
     import os.path
     KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
     if KNI.initKatana(KatHD400s_6m, "192.168.1.1") == -1:
-        raise SpineException('configuration file not found or'
-                             ' failed to connect to hardware', KatHD400s_6m)
+        raise SpineError('configuration file not found or'
+                         ' failed to connect to hardware', KatHD400s_6m)
     else:
         print 'loaded config file', KatHD400s_6m, 'and now connected'
