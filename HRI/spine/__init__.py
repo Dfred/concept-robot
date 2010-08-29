@@ -7,15 +7,18 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-
+import comm
 import logging
 LOG = logging.getLogger(__package__)
 
 
-class NotImplemented(Exception):
+class SpineProtocolError(comm.ProtocolError):
     pass
 
-class SpineException(Exception):
+class SpineError(comm.CmdError):
+    pass
+
+class NotImplemented(SpineError):
     pass
 
 
@@ -39,18 +42,42 @@ class SpineComm(object):
     """
     """
 
-    def cmd_rotate(self, argline):
-        """relative rotation on 3 axis"""
-        if not argline:
-            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
+    def cmd_switch(self, argline):
+        args = argline.split()
+        try:
+            fct = getattr(self.server, 'switch_'+args[0])
+        except AttributeError :
+            LOG.debug('no switch_%s function available', args[0])
             return
-        args = [ float(arg) for arg in argline.split(',') ]
-        self.server.set_neck_rot_pos(rot_xyz=tuple(args))
-        
+        if len(args)>1:
+            fct(int(args[1]))
+        else:
+            fct()
+        self.server.pose_rest()
+
+    def cmd_rotate(self, argline):
+        """relative rotation on 3 axis.\tsyntax is: neck|torso x,y,z [wait]'
+        """
+        if not argline:
+#            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
+            return
+        args = argline.split()
+        if len(args) not in (2,3):
+            raise SpineProtocolError('2 arguments required')
+        xyz = [ float(arg) for arg in args[1].split(',') ]
+        wait = len(args) == 3 and args[2] == 'wait'
+        if args[0] == 'neck':
+            self.server.set_neck_orientation(xyz, wait)
+        elif args[0] == 'torso':
+            self.server.set_torso_orientation(xyz, wait)
+#        self.server.set_neck_rot_pos(rot_xyz=tuple(args))
+        else:
+            raise SpineProtocolError("invalid body-part %s", args[0])
+
     def cmd_move(self, argline):
         """relative position on 3 axis"""
         if not argline:
-            self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
+#            self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
             return
         args = [ float(arg) for arg in argline.split(',') ]
         self.server.set_neck_rot_pos(pos_xyz=tuple(args))
@@ -95,7 +122,7 @@ class SpineBase(object):
         """function to call upon collision detection locking"""
         self._lock_handler = handler
     
-    def switch_on(self, with_calibration=True):
+    def switch_on(self):
         raise NotImplemented()
 
     def switch_off(self):
@@ -105,15 +132,18 @@ class SpineBase(object):
         """Unlock spine after collision detection cause locking"""
         raise NotImplemented()
 
+    def set_neck_orientation(self, axis3):
+        raise NotImplemented()
+
+    def set_torso_orientation(self, axis3):
+        raise NotImplemented()
+
     def set_neck_rot_pos(self, axis3_rot=None, axis3_pos=None):
         """Set head orientation and optional position from neck reference point.
         axis3_rot: triplet of floats in radians
         axis3_pos: triplet of floats in meters
         """
         # to be overriden
-        raise NotImplemented()
-
-    def set_torso_orientation(self, axis3):
         raise NotImplemented()
 
     def set_all(self, axis3_no, axis3_np, axis3_to):
