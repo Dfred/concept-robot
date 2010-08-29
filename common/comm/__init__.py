@@ -53,10 +53,15 @@ LOGFORMAT = "%(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
 # create our logging object and set log format
 LOG = logging.getLogger(__package__)
 
+class ProtocolError(Exception):
+    """Base Exception class for protocol error.
+    Failed transmissions shall raise exceptions inherting from this class.
+    """
+    pass
 
 class CmdError(Exception):
     """Base Exception class for error in command processing.
-    Failed commands shall raise Exceptions inherting from this class.
+    Failed commands shall raise exceptions inherting from this class.
     """
     pass
 
@@ -170,8 +175,9 @@ class BaseComm:
             LOG.warning("%s> unsuccessful command '%s' [%s]",
                         self.request.fileno(), cmdline, e)
             if LOG.getEffectiveLevel() == logging.DEBUG:
+                LOG.debug('=' * 42)
                 import traceback;
-                traceback.print_exc()
+                LOG.debug(traceback.format_exc())
 
     def process(self, command):
         """Command dispatcher function.
