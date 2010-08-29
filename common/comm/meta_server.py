@@ -35,11 +35,21 @@ class MetaRequestHandler(object):
             return
         try:
             fct = getattr(self.curr_handler, cmd)
-        except :
+        except AttributeError:
             LOG.info("%s has no function '%s'", self.curr_handler, cmd)
+        except :
             raise
         else:
             fct(argline)
+
+    def cmd_list(self, argline):
+        """list all available commands"""
+        cmds = []
+        for obj in (self, self.curr_handler):
+            cmds.append( [a[4:] for a in dir(obj) if a.startswith('cmd_')] )
+        cmds[1] = filter(lambda x: x not in cmds[0], cmds[1])
+        self.send_msg('commands:\t{0[0]}\nextra commands:\t{0[1]}'.format(cmds))
+
 
 
 class MetaServer(object):
