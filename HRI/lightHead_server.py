@@ -27,7 +27,13 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_commit(self, argline):
         for key in ORIGINS:
-            self.handlers[key].cmd_commit(argline)
+            if self.handlers.has_key(key):
+                self.handlers[key].cmd_commit(argline)
+
+    def cmd_reload(self, argline):
+        """reload subserver modules"""
+        self.send_msg('TODO')
+
 
 class lightHeadServer(MetaServer):
     """Sets and regroups subservers of the lightHead system."""
@@ -64,7 +70,13 @@ class lightHeadServer(MetaServer):
         self.register(server, FaceComm, 'gaze')
         self.register(server, FaceComm, 'lips')
 
-        from spine import Spine, SpineComm
-        server = self.create_subserver(Spine)
+        import conf
+        if not hasattr(conf, 'conn_head'):
+            return
+        from spine import Spine, SpineComm, SpineError
+        try:
+            server = self.create_subserver(Spine)
+        except SpineError, e:
+            LOG.error('spine connection error', e)
         self.register(server, SpineComm, 'head')
 
