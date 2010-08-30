@@ -128,9 +128,13 @@ def initialize(threading=True):
     print "BGE logic running at", G.getLogicTicRate(), "fps."
     print "BGE physics running at", G.getPhysicsTicRate(), "fps."
     print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
-#    import Rasterizer
+    import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    cont.activate(cont.actuators["- wakeUp -"])
+    Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
+    print "GLSL shaders are",
+    # yeah.. weird:
+    print ['enabled', 'disabled'][Rasterizer.getGLSLMaterialSetting("shaders")]
+    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
 
     if SINGLE_THREAD:
         # we don't want to block in FaceClient.__init__
@@ -143,7 +147,7 @@ def initialize(threading=True):
         from threading import Thread
         Thread(target=G.server.serve_forever,name='server').start()
         print 'multi-thread mode: started server thread'
-
+    cont.activate(cont.actuators["- wakeUp -"])
     G.last_update_time = time.time()    
 
 
