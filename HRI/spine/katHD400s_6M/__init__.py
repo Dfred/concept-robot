@@ -27,11 +27,11 @@ class SpineHW(SpineBase):
 
     AXIS_LIMITS = [ None,                               # indices like KNI
         (-18300, 31000,  6350, -12750/(math.pi/2)),
-        (-31000, 5900, -21800, -23900/(math.pi/2)),
-        (-31000, 1900, -17500, 0),                      # not use so kept frozen
-        (- 1700, 31000, 14700,  12800/(math.pi/2)),     # neck x
-        (-17600, 31000,  6500,  12900/(math.pi/2)),     # neck y
-        (-16900, 31000, 13750,  12750/(math.pi/2)) ]    # neck z
+        (-31000,  5900, -9850, -23900/(math.pi/2)),     # real 0: -21800
+        (-31000,  1900, -2450,  11850/(math.pi/2)),     # real 0: -14300
+        (  8300, 21100, 30900,  12800/(math.pi/2)),     # neck x
+        (    50, 12950,  6500,  12900/(math.pi/2)),     # neck y
+        (-15600, 14200,  -500,  12750/(math.pi/2)) ]    # neck z
 
     SPEED_LIMITS = [ (0,255), (1,2) ]   # 1: long accel, 2: short accel
     
@@ -40,11 +40,13 @@ class SpineHW(SpineBase):
 # vertical, calibrate OK
 #POSE_REST = [28350, -21600, -17300, 30900, 6500, 6900]
 # vertical, calibrate OK
-    POSE_REST = [6350, -18000, -15600, 30900, 6500, 6900]
+    POSE_REST = [6350, -18000, -15600, 30900, 6500, -500]
 
     @staticmethod
     def rad2enc(axis, rad):
-        return int(SpineHW.AXIS_LIMITS[axis][3]*rad) + SpineHW.AXIS_LIMITS[axis][2]
+        info = SpineHW.AXIS_LIMITS[axis]
+        e = int(info[3]*rad) + info[2]
+        return min(max(info[0], e), info[1])
 
     def __init__(self):
         SpineBase.__init__(self)
@@ -96,6 +98,8 @@ class SpineHW(SpineBase):
         if KNI.moveMot(1, KNI.getEncoder(1), 1, 1) == -1:
             self.calibrate()
         self.switch_auto()
+        self.set_neck_orientation((0,0,0))
+        self.set_torso_orientation((0,0,0))
 
     def switch_off(self):
         """Set the robot for safe hardware switch off."""
@@ -138,34 +142,35 @@ class SpineHW(SpineBase):
         """This pose is defined according to the mean value of each axis.
         Use this function to pose the robot so it has an even range of possible
         movements."""
-        self.reach_pose([ (mn+mx)/2 for mn,mx in self.AXIS_LIMITS ])
+        self.reach_pose([(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS[1:]])
 
     def set_neck_orientation(self, xyz, wait=True):
         """Our own version since the IK is useless (ERROR: No solution found)"""
-        encs = [ SpineHW.rad2enc(4+i, v) for i,v in enumerate(xyz) ]
-        for i, enc in enumerate(encs):
-            axis = 4+i
+        encs = [ (4+i, SpineHW.rad2enc(4+i, v)) for i,v in enumerate(xyz) ]
+        for axis, enc in encs:
             LOG.debug('moving axis %i to encoder %i', axis, enc)
             if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
                 raise SpineError('failed to reach rotation (axis %i)' % axis)
         if not wait:
             return
-        for i, enc in enumerate(encs):
-            if KNI.waitForMot(4+i, enc, self._tolerance) != 1:
-                raise SpineError('failed to wait for motor %i' % (4+i))
+        for axis, enc in encs:
+            if KNI.waitForMot(axis, enc, self._tolerance) != 1:
+                raise SpineError('failed to wait for motor %i' % (axis))
 
     def set_torso_orientation(self, xyz, wait=True):
         """Our own version since the IK is useless (ERROR: No solution found)"""
-        for axis, enc in [(1, SpineHW.rad2enc(xyz[0])),
-                          (2, SpineHW.rad2enc(xyz[2])) ]:
+        encs = [ (1, SpineHW.rad2enc(1, xyz[0])),
+                 (2, SpineHW.rad2enc(2, xyz[2])),
+                 (3, SpineHW.rad2enc(3, 0)) ]
+        for axis, enc in encs:
             LOG.debug('moving axis %i to encoder %i', axis, enc)
             if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
                 raise SpineError('failed to reach rotation (axis %i)' % axis)
         if not wait:
             return
-        for i, enc in enumerate(encs):
-            if KNI.waitForMot(1+i, enc, self._tolerance) != 1:
-                raise SpineError('failed to wait for motor %i' % (1+i))
+        for axis, enc in encs:
+            if KNI.waitForMot(axis, enc, self._tolerance) != 1:
+                raise SpineError('failed to wait for motor %i' % axis)
 
     def set_neck_rot_pos(self, rot_xyz=None, pos_xyz=None):
         if not self._motors_on or (rot_xyz == pos_xyz == None):

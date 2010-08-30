@@ -42,6 +42,10 @@ class SpineComm(object):
     """
     """
 
+    def __init__(self):
+        self.map = ('53.5', '55.5', '51.5') 
+        self.xyz = [0,0,0]
+
     def cmd_switch(self, argline):
         args = argline.split()
         try:
@@ -53,19 +57,23 @@ class SpineComm(object):
             fct(int(args[1]))
         else:
             fct()
-        self.server.pose_rest()
+
+    def cmd_AU(self, argline):
+        """from expr2: AU, target, attack_time"""
+        args = argline.split()
+        self.xyz[self.map.index(args[0])] = args[1:]
 
     def cmd_rotate(self, argline):
-        """relative rotation on 3 axis.\tsyntax is: neck|torso x,y,z [wait]'
+        """relative rotation on 3 axis.\tsyntax is: neck|torso x y z [wait]'
         """
         if not argline:
 #            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
             return
         args = argline.split()
-        if len(args) not in (2,3):
-            raise SpineProtocolError('2 arguments required')
-        xyz = [ float(arg) for arg in args[1].split(',') ]
-        wait = len(args) == 3 and args[2] == 'wait'
+        if len(args) < 4:
+            raise SpineProtocolError('4 arguments required')
+        xyz = [ float(arg) for arg in args[1:4] ]
+        wait = len(args) == 5 and args[4] == 'wait'
         if args[0] == 'neck':
             self.server.set_neck_orientation(xyz, wait)
         elif args[0] == 'torso':
@@ -83,7 +91,8 @@ class SpineComm(object):
         self.server.set_neck_rot_pos(pos_xyz=tuple(args))
 
     def cmd_commit(self, argline):
-        pass
+        """from expr2"""
+        self.cmd_rotate('neck '+' '.join([ value for value, time in self.xyz ]))
 
 
 class SpineBase(object):
