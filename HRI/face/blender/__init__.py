@@ -37,7 +37,10 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
+DEBUG_MODE = True
 SINGLE_THREAD = True
+
+FACE = 'face'
 
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
@@ -45,15 +48,30 @@ SH_ACT_LEN = 50
 EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 
+def shutdown(cont):
+    """Shutdown server and other clean-ups"""
+    cont.activate(cont.actuators["- QUITTER"])
+#    cont.activate(cont.actuators["- asleep -"])
+    G.server.set_hooks(G.server, True, timeout=0)
+    if G.server.clients:
+        G.server.clients[0].finish()
+    sys.exit(0)
+
+def fatal(error):
+    print '*** Fatal Error ***'
+    import traceback; traceback.print_exc()
+    shutdown(G.getCurrentController())
+
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
-    for act in acts:
-        if not owner.has_key('p'+act.name) or \
-                act.mode != G.KX_ACTIONACT_PROPERTY:
-            return act.name
-    for name in EXTRA_PROPS:
+    keys = [ act.name for act in acts] + EXTRA_PROPS
+    for name in keys:
         if not owner.has_key('p'+name):
-            return name
+            raise Exception('missing property p%s' % name)
+    for act in acts :
+        if act.mode != G.KX_ACTIONACT_PROPERTY:
+            raise Exception('Actuator %s shall use Shape Action Playback of'
+                            'type property' % act.name)
     return False
 
 def initialize(threading=True):
@@ -61,17 +79,27 @@ def initialize(threading=True):
     import sys
 
     # for init, imports are done on demand
-    print "LIGHTHEAD face synthesis, using python version:", sys.version
+    print "LIGHTHEAD Facial Animation System, python version:", sys.version
     print "loaded module from", __path__[0]
 
-    import comm
     import conf
-    conf.NAME=sys.argv[-1]
+    # look for and load a file called lightHead.conf
+    # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
+    conf.NAME='lightHead.conf'
     missing = conf.load()
-    
-    import face
-    G.srv_face = comm.createServer(face.Face, face.FaceClient, conf.conn_face,
-                                   threading)
+
+    import comm
+    if DEBUG_MODE:
+        print 'setting debug mode'
+        # set system-wide logging level
+        comm.logging.basicConfig(level=comm.logging.DEBUG,format=comm.LOGFORMAT)
+    else:
+        comm.set_default_logging()
+
+    from lightHead_server import lightHeadServer, lightHeadHandler
+    G.server = comm.create_server(lightHeadServer, lightHeadHandler,
+                                  conf.conn_face, threading)
+    G.server.create_protocol_handlers()
 
     # for eye orientation.
     objs = G.getCurrentScene().objects
@@ -85,13 +113,13 @@ def initialize(threading=True):
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    err = check_defects(owner, acts)
-    if err:
-        print "missing property p%s or bad Shape Action Playback type!" % err
-        sys.exit(1)
+    try:
+        check_defects(owner, acts)
+    except Exception, e:
+        fatal(e)
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
-    G.srv_face.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
+    G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
     G.initialized = True	
@@ -103,20 +131,34 @@ def initialize(threading=True):
 #    import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
     cont.activate(cont.actuators["- wakeUp -"])
+
+    if SINGLE_THREAD:
+        # we don't want to block in FaceClient.__init__
+        # we also don't want to block waiting for data
+        G.server.set_hooks(G.server, False, timeout=0)
+        print 'single-thread mode: waiting for a connection on', \
+            G.server.server_address
+        G.server.handle_request()
+    else:
+        from threading import Thread
+        Thread(target=G.server.serve_forever,name='server').start()
+        print 'multi-thread mode: started server thread'
+
     G.last_update_time = time.time()    
 
 
-def update(srv_face, cont, eyes, time_diff):
+def update(faceServer, eyes, time_diff):
+    cont = G.getCurrentController()
     eyes_done = False
-    for au, value in srv_face.update(time_diff):
+    for au, value in faceServer.update(time_diff):
         if au[0] == '6':        # yes, 6 is an eye prefix !
             if eyes_done:
                 continue
             # The model is supposed to look towards negative Y values
             # Also Up is positive Z values
-            ax  = -srv_face.get_AU('63.5')[3]
-            az0 = srv_face.get_AU('61.5R')[3]
-            az1 = srv_face.get_AU('61.5L')[3]
+            ax  = -faceServer.get_AU('63.5')[3]
+            az0 = faceServer.get_AU('61.5R')[3]
+            az1 = faceServer.get_AU('61.5L')[3]
             eyes[0].localOrientation = [
                 [cos(az0),        -sin(az0),         0],
                 [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
@@ -134,15 +176,6 @@ def update(srv_face, cont, eyes, time_diff):
             cont.activate(cont.actuators[au])
 
 
-#TODO: write clean-up code
-def shutdown():
-    """Shutdown server and other clean-ups"""
-    cont.activate(cont.actuators["- asleep -"])
-    import face
-    G.srv_face.set_handler_looping(G.srv_face, face.Face, True, timeout=0)
-    if G.srv_face.clients:
-        G.srv_face.clients[0].finish()
-    sys.exit(0)
 
 #
 # Main loop
@@ -150,28 +183,17 @@ def shutdown():
 import select
 
 def main():
-    cont = G.getCurrentController()
-
     if not hasattr(G, "initialized"):
         try:
             initialize(not SINGLE_THREAD)
-            if SINGLE_THREAD:
-                # we don't want to block in FaceClient.__init__
-                # we also don't want to block waiting for data
-                import face
-                G.srv_face.set_handler(G.srv_face, face.Face, False, False)
-                print 'single-thread mode: waiting for a connection on', \
-                    G.srv_face.server_address
-                G.srv_face.handle_request()
-            else:
-                from threading import Thread
-                Thread(target=G.srv_face.serve_forever,name='server').start()
-                print 'multi-thread mode: started server thread'
         except Exception, e:
-            cont.activate(cont.actuators["- QUITTER"])
-            raise
-    if SINGLE_THREAD:
-        if G.srv_face.clients and not G.srv_face.clients[0].handle_once():
-            G.srv_face.clients[0].finish()
-    update(G.srv_face, cont, G.eyes, time.time() - G.last_update_time)
-    G.last_update_time = time.time()
+            fatal(e)
+    else:
+        if SINGLE_THREAD:
+            # pump data
+            if G.server.clients and not G.server.clients[0].read_once():
+                G.server.set_hooks(G.server, True, timeout=0)
+                G.server.clients[0].finish()
+        # update blender with fresh face data
+        update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
+        G.last_update_time = time.time()

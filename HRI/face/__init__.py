@@ -44,89 +44,48 @@ LOG.setLevel(logging.DEBUG)
 
 import comm
 import conf
-from conflict_resolver import ConflictSolver
 
-BLINK_PROBABILITY=0.0
-BLINK_DURATION=1        # in seconds
-ORGN_FACE = 'face'
-ORGN_GAZE = 'gaze'
-ORGN_LIPS = 'lips'
-ORGN_HEAD = 'head'
-ORIGINS = (ORGN_GAZE, ORGN_FACE, ORGN_LIPS, ORGN_HEAD)
+class FaceProtocolError(comm.ProtocolError):
+    pass
 
-class FaceClient(comm.RequestHandler):
+class FaceError(comm.CmdError):
+    pass
+
+class FaceComm(object):
     """Remote connection handler: protocol parser."""
     
     def __init__(self, *args):
-        self.origin = None
-        self.fifos = {
-            ORGN_FACE : collections.deque(),
-            ORGN_GAZE : collections.deque(),
-            ORGN_LIPS : collections.deque(),
-            ORGN_HEAD : collections.deque()
-            }
-        self.fifo = None                                # pointer
-        comm.RequestHandler.__init__(self, *args)       # keep last call.
-
-    def cmd_origin(self, argline):
-        """Sets the channel type.
-        This stills allow for multiplexed channel or multi-channel since each
-         instance represents a channel. In multiplexed channel, the sender need
-         to ensure not mixing AUs whitout setting origin first.
-        """
-        origin = argline.strip()
-        try:
-            index = ORIGINS.index(origin)
-        except ValueError:
-            LOG.warning("[origin] unknown origin: '%s'", origin)
-            return
-        self.fifo = self.fifos[origin]
-        self.origin = origin
+        self.fifo = collections.deque()
 
     def cmd_AU(self, argline):
         """if empty, returns current values. Otherwise, set them.
          argline: sending_module AU_name  target_value  duration.
         """
         if len(argline):
-            if self.origin == None:
-                LOG.warning("[AU] origin not yet set (%s)", argline)
-                return
             try:
                 au_name, value, duration = argline.split()[:3]
                 self.fifo.append((au_name, float(value), float(duration)))
             except FloatException:
-                LOG.warning("[AU] invalid float argument")
+                raise FaceProtocolError("[AU] invalid float argument")
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
             AU_info.sort()
             # name, target, duration
             for triplet in AU_info:
-                msg += "AU %s\t%.3f\t%.3f\n" % triplet
+                msg += "AU {0[0]:5s} {0[1]} {0[2]:.3f}\n".format(triplet)
             self.send_msg(str(msg))
 
 
-    def cmd_f_expr(self, argline):
-        # TODO: rewrite player to get rid of this function
-        """argline: facial expression id + intensity + duration.
-        That function is for the humanPlayer (ie. would eventually disappear)
-        """
-        try:
-            self.server.set_f_expr(*argline.split())
-        except Exception, e:
-            LOG.warning("[f_expr] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
-
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        for origin in ORIGINS:
-            for au, target, attack in self.fifos[origin]:
-                try:
-                    self.server.conflict_solver.set_AU(au, target, attack)
-                except KeyError, e:
-                    LOG.warning("[AU] bad argument line:'%s', AU %s not found",
+        for au, target, attack in self.fifo:
+            try:
+                self.server.set_AU(au, target, attack)
+            except KeyError, e:
+                raise FaceError("[AU] bad argument line:'%s', AU %s not found",
                                 au+" %f %f" % (target, attack), e)
-            self.fifos[origin].clear()
+        self.fifo.clear()
 
     # def cmd_start(self, argline):
     #     try:
@@ -143,17 +102,9 @@ class FaceClient(comm.RequestHandler):
     #         LOG.warning("[origin] time received > 30s in future %s" % start)
 
 
-    def cmd_blink(self, argline):
-        """argline: duration of the blink in seconds."""
-        try:
-            self.server.do_blink(float(argline))
-        except Exception, e:
-            LOG.warning("[blink] bad argument line:'%s', caused: %s" %
-                        (argline,e) )
 
-
-class Face(comm.BaseServ):
-    """Main facial feature animation module - server
+class Face(object):
+    """Main facial feature animation module
 
     Also maintains consistent muscle activation.
     AU value is normalized: 0 -> AU not streched, 1 -> stretched to max
@@ -161,50 +112,77 @@ class Face(comm.BaseServ):
     On target overwrite, interpolation starts from current value.
     """
 
-    EYELIDS = ['43R', '43L', '07R', '07L']
-
     def __init__(self):
-        self.blink_p = BLINK_PROBABILITY
-        self.conflict_solver = ConflictSolver()
-        comm.BaseServ.__init__(self)
-        LOG.info("Face started")
-
-    def set_AU(self, name, target_value, duration):
-        """Set a target value for a specific AU"""
-        try:
-            self.AUs[name][:3] = target_value, duration, 0
-        except KeyError:
-            if len(name) != 2:
-                raise Exception('AU %s is not defined' % name)
-            self.AUs[name+'R'][:3] = target_value, duration, 0
-            self.AUs[name+'L'][:3] = target_value, duration, 0
-            LOG.debug("set AU[%sR/L]: %s" % (name, self.AUs[name+'R']))
-        else:
-            LOG.debug("set AU[%s]: %s" % (name, self.AUs[name]))
-
-    def set_available_AUs(self, AUs):
-        return self.conflict_solver.set_available_AUs(AUs)
+        self.AUs = {}
 
     def get_all_AU(self):
-        return [(item[0],item[1][0],item[1][1])
-                for item in self.conflict_solver.AUs.iteritems()]
+        return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
 
     def get_AU(self, name):
-        return self.conflict_solver.AUs[name]
+        return self.AUs[name]
+
+    def set_available_AUs(self, available_AUs):
+        """Define list of AUs available for a specific face.
+         available_AUs: list of AU names.
+        """
+        for name in available_AUs:
+            # target_coeffs, duration, elapsed, value
+            self.AUs[name] = [(0,0) , .0 , .0, .0]
+        LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
+
+    def set_AU(self, name, target_value, duration):
+        """Set targets for a specific AU, giving priority to specific inputs.
+         name: AU name
+         target_value: normalized value
+         duration: time in seconds
+        """
+        duration = max(duration, .001)
+        if self.AUs.has_key(name):
+            self.AUs[name][:3] = (
+                ((target_value-self.AUs[name][3])/duration, self.AUs[name][3]),
+                duration, 0)
+        else:
+            self.AUs[name+'R'][:3] = (
+                ((target_value-self.AUs[name+'R'][3])/duration,
+                 self.AUs[name+'R'][3]), duration, 0)
+            self.AUs[name+'L'][:3] = (
+                ((target_value-self.AUs[name+'L'][3])/duration,
+                 self.AUs[name+'L'][3]), duration, 0)
+
+    def solve(self):
+        """Here we can set additional checks (eg. AU1 vs AU4, ...)
+        """
 
     def update(self, time_step):
-        if self.blink_p > random.random():
-            self.do_blink(BLINK_DURATION)
-        return self.conflict_solver.update(time_step)
+        """Update AU values. This function shall be called for each frame.
+         time_step: time in seconds elapsed since last call.
+        """
+        #TODO: motion dynamics
+        to_update = collections.deque()
+        for id,info in self.AUs.iteritems():
+            coeffs, duration, elapsed, value = info
+            target = coeffs[0] * duration + coeffs[1]
+            elapsed += time_step
+            if elapsed >= duration:      # keep timing
+                if value != target:
+                    self.AUs[id][2:] = duration, target
+                    to_update.append((id, target))
+                continue
+
+            up_value = coeffs[0] * elapsed + coeffs[1]
+            self.AUs[id][2:] = elapsed, up_value
+            to_update.append((id, up_value))
+        return to_update
+
 
 
 if __name__ == '__main__':
     conf.name = sys.argv[-1]
     conf.load()
     try:
-        server = comm.createServer(Face, FaceClient, conf.conn_face)
+        server = comm.create_server(FaceServer, FaceClient, conf.conn_face)
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
     server.serve_forever()
-    LOG.debug("Face done")
+    LOG.debug("Face server done")
