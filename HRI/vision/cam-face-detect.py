@@ -19,7 +19,7 @@ import comm
 USAGE=sys.argv[0]+" --cascade=\"<cascade_path>\" [filename|camera_index]\n" 
 
 CASCADE_NAME="haarcascade_frontalface_alt.xml"
-SERVER_ADDR=("localhost", "/tmp/face")
+SERVER_ADDR=("localhost", 4243)
 
 STORAGE=cv.cvCreateMemStorage(0)
 SERVER=None
@@ -39,27 +39,19 @@ haar_flags = 0#cv.CV_HAAR_DO_CANNY_PRUNING # 0
 
 ###############################################################################
 # server stuff
-class FaceClient(comm.BasicHandler):
+class FaceClient(comm.RequestHandler):
     """Remote Connection Handler"""
     # nothing specific to do for the moment, server itself sends the stuff..
     pass
 
-class FDetect(comm.BasicServer):
+class FDetect(comm.BaseServ):
     """Face detection module - server"""
-
-    def __init__(self, addr_port):
-        comm.BasicServer.__init__(self, FaceClient)
-        try:
-            self.listen_to(addr_port)
-        except UserWarning, err:
-            print err
-            exit(-1)
 
     def send_values(self, face):
         if face:
             n_x = (face.x+float(face.width)/2)/self.img_w
             n_y = (face.y+float(face.height)/2)/self.img_h
-            for cl in self.get_clients():
+            for cl in self.clients:
                 cl.send_msg("face %f,%f %i"%(n_x, n_y, face.width+face.height))
 
 #############################################################################
@@ -97,7 +89,7 @@ def detect_and_draw(img):
 if __name__ == '__main__':
     # a small welcome
     print "OpenCV Python wrapper test"
-    print "OpenCV version: %s (%d, %d, %d)" % (cv.CV_VERSION,
+    print "OpenCV version: (%d, %d, %d)" % (#cv.CV_VERSION,
                                                cv.CV_MAJOR_VERSION,
                                                cv.CV_MINOR_VERSION,
                                                cv.CV_SUBMINOR_VERSION)
@@ -114,7 +106,10 @@ if __name__ == '__main__':
             input_name = sys.argv[1]
 
     # create a server object
-    SERVER = FDetect(SERVER_ADDR)
+    SERVER = comm.createServer(FDetect, FaceClient, SERVER_ADDR)
+    from threading import Thread
+    Thread(target=SERVER.serve_forever).start()
+    
     
     # the OpenCV API says this function is obsolete, but we can't
     # cast the output of cvLoad to a HaarClassifierCascade, so use this anyways
@@ -128,7 +123,7 @@ if __name__ == '__main__':
         highgui.cvCreateCameraCapture(int(input_name)) or \
         highgui.cvCreateFileCapture(input_name)
     if not capture:
-        print "Error opening capture device", device
+        print "Error opening capture device", input_name
         sys.exit(-1)
         
     # create window
@@ -153,7 +148,7 @@ if __name__ == '__main__':
             cv.cvFlip(frame, frame_copy, 0)
         
         detect_and_draw(frame_copy)
-        asyncore.loop(0.5, count=1)
+        
         
         key = highgui.cvWaitKey(10)
         if key > 0 and ord(key) == 27: # escape
