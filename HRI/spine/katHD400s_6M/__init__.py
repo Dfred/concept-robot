@@ -11,7 +11,11 @@ import math
 import logging
 LOG = logging.getLogger(__package__)
 
-import KNI
+try:
+    import KNI
+except ImportError:
+    raise ImportError('The KNI module is not included in this release and shall'
+                      ' be built from source.')
 from spine import SpineError, SpineBase
 
 def showTPos(tpos):
