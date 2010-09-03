@@ -64,8 +64,8 @@ class FaceComm(object):
             try:
                 au_name, value, duration = argline.split()[:3]
                 self.fifo.append((au_name, float(value), float(duration)))
-            except FloatException:
-                raise FaceProtocolError("[AU] invalid float argument")
+            except ValueError, e:
+                raise FaceProtocolError("[AU] invalid float argument (%s)", e)
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
