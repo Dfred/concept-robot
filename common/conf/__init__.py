@@ -87,7 +87,7 @@ def build_paths():
     Checks for a environment variable, name being built from build_env()
     """
     global NAME
-    if NAME == None:
+    if not NAME:
         raise LoadException('unset','conf.NAME has not been set')
 
     conf_files=[]
@@ -101,6 +101,7 @@ def build_paths():
             conf_files.append(os.environ[build_env()])
         except (OSError,KeyError):
             pass
+
     return conf_files
 
 def load(raise_exception=True, reload=False):

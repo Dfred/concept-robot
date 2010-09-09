@@ -163,9 +163,17 @@ class SpineBase(object):
         """
         raise NotImplemented()
 
+try:
+    from spine.backend import SpineHW
+except ImportError, e:
+    print 
+    print '*** MISCONFIGURATION ***'
+    print 'Make sure the backend link points to your backend!'
+    print 'for your information:', e
+    raise 
+else:
+    Spine = SpineHW
 
-from spine.backend import SpineHW
-Spine = SpineHW    
 __all__ = ['Spine', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 

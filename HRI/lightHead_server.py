@@ -73,7 +73,11 @@ class lightHeadServer(MetaServer):
         import conf
         if not hasattr(conf, 'conn_head'):
             return
-        from spine import Spine, SpineComm, SpineError
+        try:
+            from spine import Spine, SpineComm, SpineError
+        except ImportError, e:
+            print '!!! spine backend not available. spine not included !!!'
+            return
         try:
             server = self.create_subserver(Spine)
         except SpineError, e:

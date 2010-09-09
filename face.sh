@@ -26,38 +26,14 @@
 
 BGE_PYTHON_VERS=2.6
 FACE_BIN="lightHead"
-CONF="lightHead.conf"	# actually it's hardcoded in most of that file
+CONF_BASENAME="lightHead.conf"
 
-check_python_conf()
-{
-python -c 'import conf;
-conf.NAME="lightHead.conf"
-print "candidate files: ", conf.build_paths()
-try:
- missing = conf.load()
-except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], ". Last tried file:", e[0]
- exit(1)
-if missing:
- print "missing definitions", missing
- exit(1)
-exit(0)'
-if test $? != 0; then exit 1; fi
-}
+. common/source_me.sh
 
-check()
-{
-  if ! $1; then
-	echo
-	echo $2
-	exit 1
-  fi
-}
+check_exiting "test -x ./$FACE_BIN" "Could not find executable file '$FACE_BIN' in this directory."
+check_exiting "python -c 'print'"  "python not found. Did you set your PATH ?"
 
-check "test -x ./$FACE_BIN" "Could not find executable file '$FACE_BIN' in this directory."
-check "python -c 'print'"  "python not found. Did you set your PATH ?"
-
-# Platform dependent paths (handles the famous nagger)
+# Platform dependent paths (handles the famous nagger thanks to minGW)
 case `uname -s` in
 	MINGW*)
 	MODULES_PATH='common;HRI;HRI/face'
@@ -72,20 +48,20 @@ case `uname -s` in
 esac
 export PYTHONPATH
 
-MISSING= check_python_conf
+MISSING=$(check_python_conf $CONF_BASENAME)
 if ! test -z "$MISSING"; then
     echo "missing entries in conf: $MISSING"
     exit 1
 fi
-CONF_FILE=`python -c 'import conf; conf.NAME="lightHead.conf"; conf.load(); print conf.LOADED_FILE'`
+CONF_FILE=$(get_python_conf $CONF_BASENAME)
 ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
 # remove old unix sockets if present
-SOCKETS=`python -c 'import conf; conf.NAME="lightHead.conf"; conf.get_unix_sockets(1)'`
+SOCKETS=`python -c 'import conf; conf.NAME="'$CONF_BASENAME'"; conf.get_unix_sockets(1)'`
 if test $? -ne 0; then
 	echo "ERROR: Failure to get socket list !"
-	exit -1
+	exit 1
 fi
 if test -n "$SOCKETS" ; then
 	echo "deleting old sockets: "
@@ -97,4 +73,4 @@ fi
 # Now launch
 echo -n "--- launching face "
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
-./$FACE_BIN $@ "$CONF"
+./$FACE_BIN $@ "$CONF_BASENAME"

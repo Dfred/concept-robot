@@ -38,6 +38,7 @@ import collections
 import asyncore
 import logging
 
+logging.basicConfig(level=logging.DEBUG)
 LOG = logging.getLogger("face-srv")
 LOG.setLevel(logging.DEBUG)
 

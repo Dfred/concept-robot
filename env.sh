@@ -7,17 +7,32 @@ if test -z "$CONCEPT_DIR"; then
     CONCEPT_DIR=$PWD
 fi
 
-ETC_CONF=/etc/lightHead.conf
-PYTHONPATH=$PYTHONPATH:$CONCEPT_DIR/common/:$CONCEPT_DIR/HRI/
+source $CONCEPT_DIR/common/source_me.sh
+CONF_BASENAME='lightHead.conf'
+
+LIGHTHEAD_CONF=$(get_python_conf $CONF_BASENAME)
+if ! test -z "$LIGHTHEAD_CONF"; then
+    echo "found configuration file: " $LIGHTHEAD_CONF
+    export LIGHTHEAD_CONF
+else
+    echo -n "the conf module could not find any of these files: "
+    echo `get_python_conf_candidates $CONF_BASENAME`
+fi
+
+MISSING= check_python_conf $CONF_BASENAME
+if ! test -z "$MISSING"; then
+    echo "missing entries in conf: $MISSING"
+fi
 
 if test -z "$LIGHTHEAD_CONF"; then
-	export LIGHTHEAD_CONF=$CONCEPT_DIR/lightHead.conf
+	export LIGHTHEAD_CONF=$CONCEPT_DIR/common/lightHead.conf
 fi
 
-if ! test -r $ETC_CONF && ! test -r "$LIGHTHEAD_CONF"; then
-	echo "WARNING: no config file found: $ETC_CONF nor $LIGHTHEAD_CONF. Check your LIGHTHEAD_CONF variable."
+if ! test -r "$LIGHTHEAD_CONF"; then
+	echo "WARNING: $CONF_BASENAME could not be found or is not readable. Check your LIGHTHEAD_CONF variable."
 fi
 
+PYTHONPATH=$PYTHONPATH:$CONCEPT_DIR/common/:$CONCEPT_DIR/HRI/
 export PYTHONPATH
 
 alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lighthead.blend"

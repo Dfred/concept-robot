@@ -1,8 +1,15 @@
 #added by Dasari Pavan Kumar .. dasaripavan@gmail.com
 #under GPL
 
+#
+# Note: the material with index 0 is considered the skin.
+#				This shader deforms the mesh named 'Head' for vertices belonging to the skin mat.
+#
+
 import GameLogic
-object_list = GameLogic.getCurrentScene().getObjectList();
+object_list = GameLogic.getCurrentScene().objects;
+
+HEAD='OBHead'
 
 VertexShader = """
 
@@ -11,6 +18,7 @@ varying vec3 lightDir;
 varying vec3 halfVector;
 varying vec4 color;
 uniform sampler2D testTexture;
+
 void main()
 {
         gl_TexCoord[0] = gl_MultiTexCoord0 ;
@@ -18,8 +26,11 @@ void main()
         lightDir   = normalize ( gl_LightSource[0].position.xyz   ) ;
         halfVector = normalize ( gl_LightSource[0].halfVector.xyz ) ;
         
-        vec3 tex = texture2D(testTexture, vec2(gl_MultiTexCoord0)).rgb;//corresponding texture values
-        color = gl_Color;//initial color set to opengl color assigned to that vertex
+				//corresponding texture values
+        vec3 tex = texture2D(testTexture, vec2(gl_MultiTexCoord0)).rgb;
+
+				//initial color set to opengl color assigned to that vertex
+        color = gl_Color;
         
         vec4 WC = gl_Vertex;
         
@@ -43,10 +54,10 @@ void main()
 		//a,b,c are the radii of 3D superquadric onto which the mesh is projected with origin as center
 		//cx,cy,cz are the coordinates for the center of projection
 				
-        float a = 1.5, b = 0.5, c = 1.8, cx = 0.0, cy = CPy, cz = 0.2*(1.0-tex.x);//0.0;
+        float a = 1.5, b = 0.5, c = 1.8, cx = 0.0, cy = CPy, cz = 0.2*(1.0-tex.x);
 //				if(tex.x>0.95 && tex.y>0.95 && tex.z>0.95)//assuming a grey scale map
 		if(tex.x>0.05)
-        {
+    {
 			//assuming a superquadrics of order 3... hence solving for cube root                
 			float P = abs(WC.x-cx);
 			float Q = abs(WC.y-cy);
@@ -88,12 +99,11 @@ void main()
 								
 			//if(tOne>1.0)
 			//{
-                //color = vec4(0.0, 1.0, 0.0, 1.0);
-            //}       
-        }
-        
-        gl_Position = gl_ProjectionMatrix*gl_ModelViewMatrix*WC;
-        
+      //  color = vec4(0.0, 1.0, 0.0, 1.0);
+      //}       
+    }
+
+  gl_Position = gl_ProjectionMatrix*gl_ModelViewMatrix*WC;
 }
 """
 
@@ -121,27 +131,24 @@ void main()
 }
 """
 
-print object_list;
-shader_objs = [ object_list['OBbody'] ];
-print shader_objs;
-for obj in shader_objs:
+try:
+	obj = object_list[HEAD]
 	mesh = obj.getMesh();
-	print mesh;
-	print mesh.materials;
 	for mat in mesh.materials:
-		print "hello mat: ", mat;
-#		if not hasattr(mat,"getMaterialIndex"):
-#			break;
-		
-#		mat_index = mat.getMaterialIndex();
+		if not hasattr(mat,"getMaterialIndex"):
+			print "mat %s has no getMaterialIndex()" % mat
+			break;
+		mat_index = mat.getMaterialIndex();
 #		print "mat_index: ",mat_index,"  ", mat;
-        #use shader only for skin!
-		if mat:
+
+		if mat_index == 0:				#use shader only for skin!
 			shader = mat.getShader();
 			if not shader.isValid():
-				print "setting shader!... ", dir(shader);
+				print "setting shader!... "
 				shader.setSource(VertexShader,FragmentShader,1);
 				shader.setNumberOfPasses(1);
 				#print shader.getVertexProg();
 				#shader.setSampler('mytexture',0);
 				shader.setSampler('testTexture',0);
+except KeyError, e:
+	print "Failed to get object '%s' to apply shader on." % HEAD

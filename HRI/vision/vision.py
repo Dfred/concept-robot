@@ -10,9 +10,9 @@ logging.basicConfig(level=logging.WARNING)
 import comm
 
 #TODO: use global configuration
-VIS_ADDR = ("localhost","/tmp/vision")
+VIS_ADDR = ("localhost", 4245)
 
-class VisionClient(comm.RemoteClient):
+class VisionClient(comm.RequestHandler):
     """Remote connection handler"""
 
     def cmd_focus(self, args):
@@ -23,12 +23,8 @@ class VisionClient(comm.RemoteClient):
         else:
             self.send_msg(str(self.server.pos))
 
-    def cmd_shutdown(self, args):
-        """args: unused."""
-        self.server.shutdown()
 
-
-class Vision(comm.BasicServer):
+class Vision(comm.BaseServ):
     """Main vision module - server"""
     """
     Designed to receive on-demand queries from external systems.
@@ -36,13 +32,8 @@ class Vision(comm.BasicServer):
     Metric System is used.
     """
 
-    def __init__(self, addr_port):
-        comm.BasicServer.__init__(self, VisionClient)
-        try:
-            self.listen_to(addr_port)
-        except UserWarning, err:
-            print "FATAL ERROR:", sys.argv[0], err
-            exit(-1)
+    def __init__(self):
+        comm.BaseServ.__init__(self)
         self.pos = (.0, -1.0, .0)       # default to reasonably close
 
     def choose_focus(self, pos):
@@ -56,7 +47,7 @@ class Vision(comm.BasicServer):
             cl.send_msg("focus %f,%f,%f"% (self.pos[0], self.pos[1], self.pos[2]))
 
 if __name__ == '__main__':
-    server = Vision(VIS_ADDR)
-    while server.is_readable:
-        comm.loop(5, count=1)
+    server = comm.createServer(Vision, VisionClient, VIS_ADDR)
+    print 'server running'
+    server.serve_forever()
     print "Vision done"
