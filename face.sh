@@ -48,12 +48,22 @@ case `uname -s` in
 esac
 export PYTHONPATH
 
+CONF_FILE=$(get_python_conf $CONF_BASENAME)
+# if command failed
+if test $? -eq 1; then
+    echo $CONF_FILE
+    FILES=$(get_python_conf_candidates $CONF_BASENAME)
+    echo '\t\t     files searched for: ' $FILES
+    exit 1
+fi
+
+
 MISSING=$(check_python_conf $CONF_BASENAME)
 if ! test -z "$MISSING"; then
     echo "missing entries in conf: $MISSING"
     exit 1
 fi
-CONF_FILE=$(get_python_conf $CONF_BASENAME)
+
 ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
