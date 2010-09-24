@@ -367,7 +367,7 @@ class BaseClient(BaseComm):
         LOG.debug('client disconnected from remote server %s', self.target_addr)
 
 
-def set_default_loggging():
+def set_default_logging():
     """This function does nothing if the root logger already has
     handlers configured."""
     logging.basicConfig(level=logging.INFO, format=LOGFORMAT)

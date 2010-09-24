@@ -51,7 +51,6 @@ RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 def shutdown(cont):
     """Shutdown server and other clean-ups"""
     cont.activate(cont.actuators["- QUITTER"])
-#    cont.activate(cont.actuators["- asleep -"])
     G.server.set_hooks(G.server, True, timeout=0)
     if G.server.clients:
         G.server.clients[0].finish()
@@ -82,9 +81,9 @@ def initialize(threading=True):
     print "LIGHTHEAD Facial Animation System, python version:", sys.version
     print "loaded module from", __path__[0]
 
-    import conf
     # look for and load a file called lightHead.conf
     # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
+    import conf
     conf.NAME='lightHead.conf'
     missing = conf.load()
 
@@ -123,7 +122,7 @@ def initialize(threading=True):
 
     # ok, startup
     G.initialized = True	
-#    G.setMaxLogicFrame(1)       # relative to rendering
+    G.setMaxLogicFrame(1)       # relative to rendering
     G.setLogicTicRate(32.0)
     print "BGE logic running at", G.getLogicTicRate(), "fps."
     print "BGE physics running at", G.getPhysicsTicRate(), "fps."

@@ -36,17 +36,18 @@ Open people would just:
 ----------------------
 
 1) Open a shell and change into the directory containing this file.
+
 2) you can load environment variables (supposedly for development):
 
-$ source ./env.sh
+  $ source ./env.sh
 
-3) open the blend file to generate a standalone version for your platform:
+  2.1) open the blend file to generate a standalone version for your platform:
 
-$ edit_face
+  $ edit_face
 
-Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
+  Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
 
-4) now start the facial animation system with:
+3) start the facial animation system with:
  
 $ ./face.sh
 
