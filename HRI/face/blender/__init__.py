@@ -38,7 +38,7 @@ from math import cos, sin, pi
 import GameLogic as G
 
 DEBUG_MODE = True
-SINGLE_THREAD = True
+SINGLE_THREAD = True # False (requires locking)
 
 FACE = 'face'
 
@@ -56,10 +56,12 @@ def shutdown(cont):
         G.server.clients[0].finish()
     sys.exit(0)
 
+
 def fatal(error):
     print '*** Fatal Error ***'
     import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
+
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -72,6 +74,7 @@ def check_defects(owner, acts):
             raise Exception('Actuator %s shall use Shape Action Playback of'
                             'type property' % act.name)
     return False
+
 
 def initialize(threading=True):
     """Initialize connections and configures facial subsystem"""
@@ -135,17 +138,6 @@ def initialize(threading=True):
     print ['enabled', 'disabled'][Rasterizer.getGLSLMaterialSetting("shaders")]
     print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
 
-    if SINGLE_THREAD:
-        # we don't want to block in FaceClient.__init__
-        # we also don't want to block waiting for data
-        G.server.set_hooks(G.server, False, timeout=0)
-        print 'single-thread mode: waiting for a connection on', \
-            G.server.server_address
-        G.server.handle_request()
-    else:
-        from threading import Thread
-        Thread(target=G.server.serve_forever,name='server').start()
-        print 'multi-thread mode: started server thread'
     cont.activate(cont.actuators["- wakeUp -"])
     G.last_update_time = time.time()    
 
@@ -189,14 +181,25 @@ def main():
     if not hasattr(G, "initialized"):
         try:
             initialize(not SINGLE_THREAD)
+            if not SINGLE_THREAD:
+                from threading import Thread
+                Thread(target=G.server.serve_forever,name='server').start()
+                print 'multi-thread mode: started server thread'
         except Exception, e:
             fatal(e)
     else:
-        if SINGLE_THREAD:
-            # pump data
-            if G.server.clients and not G.server.clients[0].read_once():
-                G.server.set_hooks(G.server, True, timeout=0)
-                G.server.clients[0].finish()
+        if SINGLE_THREAD:       # actively check connection channel
+            if not G.server.clients:
+                # we don't want to block in FaceClient.__init__
+                # we also don't want to block waiting for data
+                G.server.set_hooks(G.server, looping=False, timeout=0)
+                print 'single-thread mode: waiting for a connection on', \
+                    G.server.server_address
+                G.server.handle_request()
+            else:
+                if not G.server.clients[0].read_once(): # handle disconnections
+                    G.server.set_hooks(G.server, looping=True, timeout=0)
+                    G.server.clients[0].finish()
         # update blender with fresh face data
         update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
         G.last_update_time = time.time()

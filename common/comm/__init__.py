@@ -103,8 +103,8 @@ class BaseServer(object):
         cls = obj.__class__
         import types
         # disable closing of socket while we're still on it (ugly, I know..)
-        obj.finish_request= types.MethodType(BaseServer.finish_request,obj, cls)
-        obj.close_request = types.MethodType(BaseServer.close_request, obj, cls)
+        obj.finish_request = types.MethodType(BaseServer.finish_request,obj,cls)
+        obj.close_request  = types.MethodType(BaseServer.close_request, obj,cls)
         LOG.debug('overriden finish_request and close_request')
 
 
@@ -123,6 +123,7 @@ class BaseComm:
     def read_once(self, timeout=0):
         """Non-blocking call for processing client commands (see __init__).
         No check for self.running.
+        Return: False on error
         """
         r, w, e = select.select([self.request], [], [self.request], timeout)
         if not r: #and not self.handle_timeout():
@@ -225,20 +226,30 @@ class BaseComm:
     cmd_EOF = cmd_bye
         
 
-# BaseComm can't inherit from object: SocketServer.BaseRequestHandler.__init__ 
-#  has parameters
-class RequestHandler(BaseComm, SocketServer.BaseRequestHandler):
+# SocketServer.BaseRequestHandler is just a pain. As it's rather small, we have 
+#  our own version inspired from it.
+class RequestHandler(BaseComm):
     """Instancied on successful connection to the server: a remote client.
 
     Reads data from self.request and adds default functions :
      cmd_shutdown, cmd_clients and cmd_verb.
-    Define your own protocol handler overriding BaseComm.process .
+    If needed, define your own protocol handler overriding BaseComm.process.
     """
 
     def __init__(self, request, client_address, server):
         BaseComm.__init__(self)
-        SocketServer.BaseRequestHandler.__init__(self, request, client_address,
-                                                 server)
+        self.request = request
+        self.client_address = client_address
+        self.server = server
+
+    def run(self):
+        try:
+            self.setup()
+            self.handle()
+            self.finish()
+        finally:
+            import sys
+            sys.exc_traceback = None    # Help garbage collection
 
     def setup(self):
         """Overrides SocketServer"""
@@ -429,9 +440,10 @@ def create_requestHandler_class(handler_class):
     def requestHandler_init(self, request, client_addr, server):
         """Call all subclasses initializers"""
         LOG.debug('initializing compound request handler %s', self.__class__)
-        # most of this mess because I have fun doing it
+        # most of this mess because it can be done and I have fun doing it
         RequestHandler.__init__(self, request, client_addr, server)
         handler_class.__init__(self)
+        self.run()
 
     return type(handler_class.__name__+'RequestHandler',
                 (handler_class, RequestHandler),
