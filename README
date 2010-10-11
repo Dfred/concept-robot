@@ -14,7 +14,6 @@ In the meantime, you are welcomed to try the software and submit bugfixes.
 More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
 
 
-
 Requirements (In this order):
 =============
 
@@ -22,14 +21,14 @@ Requirements (In this order):
 - blender 2.49b
 - for Windows, readline (if you want to use the readline client, http://newcenturycomputers.net/projects/download.cgi/Readline-1.7.win32-py2.6.exe)
 
+
 Running the software:
 =====================
 
 Windows:
 -------
-YOU HAVE TO CUSTOMIZE start.bat to match YOUR OWN path.
-Try to achieve step 3) for open people (target file is in HRI/face/blender/)
-Then run start.bat
+Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/ .
+Then run start_face.bat
 
 
 Open people would just:
@@ -37,19 +36,22 @@ Open people would just:
 
 1) Open a shell and change into the directory containing this file.
 
-2) you can load environment variables (supposedly for development):
+2) Setting environment variables...
 
-  $ source ./env.sh
+  2.1) you can load environment variables (supposedly for development):
 
-  2.1) open the blend file to generate a standalone version for your platform:
+       $ ./set_env.sh
 
-  $ edit_face
+  2.2) open the blend file to generate a standalone version for your platform:
 
-  Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
+       $ edit_face
+
+       Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
 
 3) start the facial animation system with:
  
-$ ./face.sh
+   $ ./start_face.sh
+
 
 Now you can connect and start setting Action Units according to the protocol definition.
 
