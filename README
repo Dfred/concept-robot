@@ -40,7 +40,7 @@ Open people would just:
 
   2.1) you can load environment variables (supposedly for development):
 
-       $ ./set_env.sh
+       $ ./source_me_to_set_env.sh
 
   2.2) open the blend file to generate a standalone version for your platform:
 
