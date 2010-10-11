@@ -1,11 +1,26 @@
 #
-# This script sets various environment variables required or optional to the system.
+# This script:
+#  * checks folders
+#  * checks which configuration file is loadable
+#
+#  * sets the PYTHONPATH environment variable
+#  * sets the LIGHTHEAD_CONF environment variable
+#  * sets the edit_face alias
+#
+# !!! DO NOT SOURCE IT AS IT USES exit BUILTIN FUNCTION !!!
 #
 
 if test -z "$CONCEPT_DIR"; then
     echo '$CONCEPT_DIR' not set, assuming '$PWD' "($PWD)"
     CONCEPT_DIR=$PWD
 fi
+if ! test -d "$CONCEPT_DIR/common"; then
+	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
+	exit 1
+fi
+PYTHONPATH=$PYTHONPATH:$CONCEPT_DIR/common/:$CONCEPT_DIR/HRI/
+export PYTHONPATH
+
 
 source $CONCEPT_DIR/common/source_me.sh
 CONF_BASENAME='lightHead.conf'
@@ -31,8 +46,5 @@ fi
 if ! test -r "$LIGHTHEAD_CONF"; then
 	echo "WARNING: $CONF_BASENAME could not be found or is not readable. Check your LIGHTHEAD_CONF variable."
 fi
-
-PYTHONPATH=$PYTHONPATH:$CONCEPT_DIR/common/:$CONCEPT_DIR/HRI/
-export PYTHONPATH
 
 alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lighthead.blend"
