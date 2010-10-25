@@ -161,6 +161,11 @@ class BaseComm:
         """
         LOG.debug("function %s not found in %s [args: '%s']", cmd, self, args)
 
+    def handle_error(self, e):
+        """Callback for connection error.
+        """
+        LOG.warning("Connection error :%s", e)
+
     def parse_cmd(self, cmdline):
         cmd_tokens = cmdline.split(None,1) # keep 1
         cmd, args = self.CMD_PREFIX+cmd_tokens.pop(0),\
@@ -364,12 +369,6 @@ class BaseClient(BaseComm):
         """Callback for timeout on waiting for input
         Returning False would skip recv()
         """
-        pass
-
-    def handle_error(self, e):
-        """Callback for connection error.
-        """
-        raise e
         pass
 
     def handle_disconnect(self):
