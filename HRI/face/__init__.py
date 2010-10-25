@@ -83,8 +83,7 @@ class FaceComm(object):
             try:
                 self.server.set_AU(au, target, attack)
             except KeyError, e:
-                raise FaceError("[AU] bad argument line:'%s', AU %s not found",
-                                au+" %f %f" % (target, attack), e)
+                LOG.warning("AU %s not found. Ignored." % au)
         self.fifo.clear()
 
     # def cmd_start(self, argline):
