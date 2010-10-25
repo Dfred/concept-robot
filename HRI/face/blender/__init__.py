@@ -51,9 +51,14 @@ RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 def shutdown(cont):
     """Shutdown server and other clean-ups"""
     cont.activate(cont.actuators["- QUITTER"])
-    G.server.set_hooks(G.server, True, timeout=0)
-    if G.server.clients:
-        G.server.clients[0].finish()
+    #We check if there is a valid "server" object because its possible that 
+    #we were unable to create it, and therefore we are shutting down
+    if hasattr(G, "server"):
+      G.server.set_hooks(G.server, True, timeout=0)
+      if G.server.clients:
+          G.server.clients[0].finish()
+    else:
+      sys.exit(1)
     sys.exit(0)
 
 
