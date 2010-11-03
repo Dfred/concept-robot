@@ -29,10 +29,15 @@ import robot_control, communication
 #variables
 class Params():
     def __init__(self):
+        self.use_gui = True
         self.command = '0'
         self.show = True
-        self.face_d = False
-        self.face_detected = False
+        self.face_d = True
+        self.follow_face = False
+        self.detect_threshold = 35
+        self.follow_face_gaze = True
+        self.follow_face_neck = False
+        self.search_for_face = False
         self.eye_d = False
         self.edge_d = False
         self.edge_d_non_vision = True
@@ -46,11 +51,6 @@ class Params():
         self.check = True
         self.size = False
         self.game_coors = "10.0, 50.0, 0.0"
-        self.follow_face = False
-        self.detect_threshold = 35
-        self.follow_face_gaze = False
-        self.follow_face_neck = False
-        self.search_for_face = False
         self.x_search = -0.5
         self.print_d = False
         self.cam_shift = False

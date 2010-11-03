@@ -1,8 +1,7 @@
 # robot_control.py
 
 import sys, os, threading, time, random, math
-import vision, agent, inout
-
+import vision, agent, inout, voice_command
 
 
 class RobotControl(threading.Thread):
@@ -199,8 +198,6 @@ class RobotControl(threading.Thread):
         self.go = False
         
         
-        
-        
 class RobotRecord():
     """ records of all behaviour and movements during one session
     """
@@ -223,6 +220,8 @@ class RobotRecord():
         
         
 if __name__ == "__main__":
-    rb = RobotControl()
+    params = voice_command.Params()
+    #comm = voice_command.communication.CommBase(params, '141.163.190.3', 4242)
+    rb = RobotControl(params, None)
     rb.start()
         

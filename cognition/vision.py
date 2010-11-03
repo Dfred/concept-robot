@@ -31,14 +31,12 @@ class CaptureVideo(threading.Thread):
         self.face_detector = CascadeDetector(cascade_name="haarcascade_frontalface_alt.xml",image_scale=0.5)
         self.webcam = Webcam()
         
-        # create windows
-        cv.NamedWindow('Camera', cv.CV_WINDOW_AUTOSIZE)
-        
-        # create the trackbar
-        cv.CreateTrackbar ('edge threshold', 'Camera', 50, 100, self.change_value1)
-        cv.CreateTrackbar ('circle threshold', 'Camera', 90, 100, self.change_value2)
-        cv.CreateTrackbar ('gaussian blur', 'Camera', 11, 50, self.change_value3)
-        cv.CreateTrackbar ('hue', 'Camera', 0, 100, self.change_value4)
+        if self.p.use_gui: # create windows            
+            cv.NamedWindow('Camera', cv.CV_WINDOW_AUTOSIZE)
+            cv.CreateTrackbar ('edge threshold', 'Camera', 50, 100, self.change_value1)
+            cv.CreateTrackbar ('circle threshold', 'Camera', 90, 100, self.change_value2)
+            cv.CreateTrackbar ('gaussian blur', 'Camera', 11, 50, self.change_value3)
+            cv.CreateTrackbar ('hue', 'Camera', 0, 100, self.change_value4)
 
 
     def run(self):
@@ -62,15 +60,16 @@ class CaptureVideo(threading.Thread):
                 if p.eye_d:                             # draw point on eyes
                     img.annotatePoint(leye,color='blue')
                     img.annotatePoint(reye,color='blue')
-            p.face_detected = True
                     
             if p.follow_face_gaze:
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(p, relative_x, relative_y, close_face_rect.w)
-                if self.comm.last_ack != "wait" and gaze:
-                    self.comm.set_neck_gaze(gaze)
-                    self.comm.last_ack = "wait"
+                print gaze
+                if self.comm is not None:
+                    if self.comm.last_ack != "wait" and gaze:
+                        self.comm.set_neck_gaze(gaze)
+                        self.comm.last_ack = "wait"
             
                     
                     
@@ -102,8 +101,7 @@ class CaptureVideo(threading.Thread):
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
         x_dist = ((p.face_x/1400.6666)*face_distance)/-100
         y_dist = ((p.face_y/700.6666)*face_distance)/100
-        if self.comm:
-            return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
+        return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
             
             
     def follow_face_with_neck(self, p, x, y, width):
@@ -412,11 +410,11 @@ class CaptureVideo(threading.Thread):
                 print "error capturing frame"
                 break
      
-            if p.show:
-                cv.ShowImage('Camera', frame) # display webcam image
-                
-            else:
-                cv.ShowImage('Camera', empty)
+            if self.p.use_gui:
+                if p.show:
+                    cv.ShowImage('Camera', frame) # display webcam image
+                else:
+                    cv.ShowImage('Camera', empty)
     
     
 if __name__ == "__main__":
