@@ -6,7 +6,7 @@ pv.disableCommercialUseWarnings()
 from pyvision.face.CascadeDetector import CascadeDetector,AVE_LEFT_EYE,AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
 from pyvision.edge.canny import canny
-import voice_command, auks
+import voice_command
 import robot_control as rc
 
 edge_threshold1 = 50
