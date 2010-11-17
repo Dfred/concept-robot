@@ -1,13 +1,14 @@
 import sys, threading, math, time
 import cv
 import numpy, pylab
+
 import pyvision as pv
 pv.disableCommercialUseWarnings()
 from pyvision.face.CascadeDetector import CascadeDetector,AVE_LEFT_EYE,AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
 from pyvision.edge.canny import canny
-import voice_command, auks
-import robot_control as rc
+
+import config
 
 edge_threshold1 = 50
 edge_threshold2 = 90
@@ -27,7 +28,7 @@ class CaptureVideo(threading.Thread):
         self.p = params
         self.current_colour = None
 
-        self.face_detector = CascadeDetector(cascade_name="haarcascade_frontalface_alt.xml",min_size=(50,50), image_scale=0.5)
+        self.face_detector = CascadeDetector(cascade_name=self.p.haar_casc,min_size=(50,50), image_scale=0.5)
         self.webcam = Webcam()
         
         if self.p.use_gui: # create windows            
@@ -409,6 +410,6 @@ class CaptureVideo(threading.Thread):
     
     
 if __name__ == "__main__":
-    cap = CaptureVideo(voice_command.Params())
+    cap = CaptureVideo(config.Params())
     cap.start()
 
