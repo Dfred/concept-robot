@@ -6,9 +6,9 @@ import comm
     
 class CommBase(comm.BaseClient):
     
-    def __init__(self, params, server='localhost', port= 4242 ):
+    def __init__(self, params):
         self.params = params
-        comm.BaseClient.__init__(self, (server, port))
+        comm.BaseClient.__init__(self, (self.params.server, self.params.port))
         comm.LOG.setLevel(logging.DEBUG)
         t_client = threading.Thread(target=self.connect_and_run)
         t_client.start()
@@ -36,7 +36,7 @@ class CommBase(comm.BaseClient):
     
     
     def set_gaze(self, coordinates="0.0, 0.5, 0.0"):
-        if (time.time() - self.time_last_gaze) > 0.2:
+        if (time.time() - self.time_last_gaze) > 0.03:
             self.send_msg(";;;;" + coordinates + ";;tag_GAZE")
             self.time_last_gaze = time.time()
             

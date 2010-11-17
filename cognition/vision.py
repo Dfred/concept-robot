@@ -1,14 +1,13 @@
 import sys, threading, math, time
 import cv
 import numpy, pylab
-import voice_command, auks
-import robot_control as rc
 import pyvision as pv
 pv.disableCommercialUseWarnings()
 from pyvision.face.CascadeDetector import CascadeDetector,AVE_LEFT_EYE,AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
 from pyvision.edge.canny import canny
-
+import voice_command, auks
+import robot_control as rc
 
 edge_threshold1 = 50
 edge_threshold2 = 90
@@ -28,7 +27,7 @@ class CaptureVideo(threading.Thread):
         self.p = params
         self.current_colour = None
 
-        self.face_detector = CascadeDetector(cascade_name="haarcascade_frontalface_alt.xml",image_scale=0.5)
+        self.face_detector = CascadeDetector(cascade_name="haarcascade_frontalface_alt.xml",min_size=(50,50), image_scale=0.5)
         self.webcam = Webcam()
         
         if self.p.use_gui: # create windows            
@@ -65,7 +64,7 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(p, relative_x, relative_y, close_face_rect.w)
-                print gaze
+                #print gaze
                 if self.comm is not None:
                     if self.comm.last_ack != "wait" and gaze:
                         self.comm.set_neck_gaze(gaze)
@@ -99,7 +98,7 @@ class CaptureVideo(threading.Thread):
             p.face_y = y
             
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
-        x_dist = ((p.face_x/1400.6666)*face_distance)/-100
+        x_dist = ((p.face_x/1400.6666)*face_distance)/100
         y_dist = ((p.face_y/700.6666)*face_distance)/100
         return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
             
@@ -348,12 +347,6 @@ class CaptureVideo(threading.Thread):
                 if p.show == False:
                     p.show = True
                     print "showing video"
-                    
-            if key == 'g' or p.command == 'g':
-                if p.follow_face == False:
-                    p.follow_face = True
-                else:
-                    p.follow_face = False
 
             if key == 'b' or p.command == 'b':
                 if p.game_coors == "10.0, 50.0, 0.0":
@@ -382,8 +375,6 @@ class CaptureVideo(threading.Thread):
             if p.edge_d:    # edge detection
                 im = self.detect_edge(im)
                 
-
-    
             if p.colour_s:
                 self.find_colour(frame, 10, p)
             
@@ -394,7 +385,7 @@ class CaptureVideo(threading.Thread):
                 print 'Camera closed'
                 break
             
-            pil = im.asAnnotated()                      # get image as PIL              
+            pil = im.asAnnotated()                                          # get image as PIL              
             rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)        # create IPL image
             cv.SetData(rgb, pil.tostring())                                 
             frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)      # convert to bgr

@@ -30,10 +30,12 @@ import robot_control, communication
 class Params():
     def __init__(self):
         self.use_gui = True
+        self.use_comm = False           # communicate with expression server
+        self.server = '141.163.186.5'   # server address
+        self.port = 4242                # server port
         self.command = '0'
         self.show = True
         self.face_d = True
-        self.follow_face = False
         self.detect_threshold = 35
         self.follow_face_gaze = True
         self.follow_face_neck = False
@@ -144,7 +146,7 @@ class VoiceCommand:
     def __init__(self, file_object):
         
         self.params = Params()
-        self.comm = communication.CommBase(self.params, '141.163.190.3', 4242) 
+        self.comm = communication.CommBase(self.params) 
         
         self.rc = robot_control.RobotControl(self.params, self.comm)
         self.rc.start()

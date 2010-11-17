@@ -1,7 +1,7 @@
 # robot_control.py
 
 import sys, os, threading, time, random, math
-import vision, agent, inout, voice_command
+import vision, agent, voice_command, inout
 
 
 class RobotControl(threading.Thread):
@@ -221,7 +221,10 @@ class RobotRecord():
         
 if __name__ == "__main__":
     params = voice_command.Params()
-    #comm = voice_command.communication.CommBase(params, '141.163.190.3', 4242)
-    rb = RobotControl(params, None)
+    if params.use_comm:
+        comm = voice_command.communication.CommBase(params)
+    else:
+        comm = None
+    rb = RobotControl(params, comm)
     rb.start()
         
