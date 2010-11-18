@@ -36,6 +36,8 @@ For visualisation:
 To run:
 =======
 
-- to run using voice commands, type 'python main.py' in a console.
-- to run using voice commands, type 'julius -quiet -input mic -C julian.jconf 2>/dev/null | ./voice_command.py' in a console.
+Open a console/terminal and 'cd' to the directory containing this file.
+
+- without voice commands, type 'start.sh'
+- using voice commands, type 'start.sh voice'
 
