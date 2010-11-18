@@ -23,7 +23,6 @@ For main modules:
 	- pyvision 0.9.0 (http://sourceforge.net/projects/pyvision/)
 		- including pylab
 	
-	
 For voice commands:
 	- Julius 4.1.4 (http://julius.sourceforge.jp/en_index.php)
 	- julius-voxforge 0.1.1 (acoustic models for Julius English)

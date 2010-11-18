@@ -1,6 +1,6 @@
 import sys, threading, math, time
 import cv
-import numpy, pylab
+import numpy
 
 import pyvision as pv
 pv.disableCommercialUseWarnings()
@@ -410,6 +410,8 @@ class CaptureVideo(threading.Thread):
     
     
 if __name__ == "__main__":
-    cap = CaptureVideo(config.Params())
+    params = config.Params()
+    params.haar_casc = "haarcascade_frontalface_alt.xml"        # change path for compatibility
+    cap = CaptureVideo(params)
     cap.start()
 

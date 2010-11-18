@@ -23,7 +23,7 @@
 
 
 import sys, os, threading, time
-import robot_control, communication, config
+import main, communication, config
 
 
 class Parser:

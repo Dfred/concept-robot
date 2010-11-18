@@ -3,7 +3,6 @@ from os import path
 
 # TODO: use os.path functions
 ROOT_PATH=path.realpath(sys.path[0])+'/../'
-print ROOT_PATH
 
 # TODO: remove class, use as a singleton
 class Params():
