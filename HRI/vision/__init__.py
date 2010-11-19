@@ -124,7 +124,10 @@ class CaptureVideo(threading.Thread):
                 
     
     def detect_edge(self, image):
-        return canny(image)
+        grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
+        cv.CvtColor(image, grayscale, cv.CV_BGR2GRAY)
+        cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
+        return grayscale
         
         
     def detect_circle(self, image, image_org, params):
@@ -134,21 +137,22 @@ class CaptureVideo(threading.Thread):
         if params.edge_d_non_vision:
             cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
         cv.Smooth(grayscale, grayscale_smooth, cv.CV_GAUSSIAN, edge_threshold3)
-        #storage = cv.CreateMemStorage()
-        storage = cv.CreateMat(480, 640, cv.CV_8UC1)
-        circles = cv.HoughCircles(grayscale_smooth, storage, cv.CV_HOUGH_GRADIENT, 2, 50, 200, (edge_threshold2 + 150) )
+        mat = cv.CreateMat(100, 1, cv.CV_32FC3 )
+        cv.SetZero(mat)
+        cv.HoughCircles(grayscale_smooth, mat, cv.CV_HOUGH_GRADIENT, 2, 50, 200, (edge_threshold2 + 150) )
         circles_simple = []
         gazing = None
-        for i in range(0, circles.total):
-            c = circles[i]
-            point = cvPoint(int(c[0]), int(c[1]))
-            radius = int(c[2])
-            cvCircle(image, point, radius, cvScalar(0, 0, 255))
-            if params.detect_colour:
-                self.get_colour(image, image_org, [int(c[0]), int(c[1])], radius)
-                params.detect_colour = False
-            colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
-            circles_simple.append([point, radius, colour])
+        if mat.rows != 0:
+            for i in xrange(0, mat.rows):
+                c = mat[i,0]
+                point = (int(c[0]), int(c[1]))
+                radius = int(c[2])
+                cv.Circle(image, point, radius, (0, 0, 255))
+                if params.detect_colour:
+                    self.get_colour(image, image_org, [int(c[0]), int(c[1])], radius)
+                    params.detect_colour = False
+                    colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
+                    circles_simple.append([point, radius, colour])
             
         if params.follow_ball_gaze and circles_simple:
             x_adjust = 320 - circles_simple[0][0].x
@@ -173,8 +177,6 @@ class CaptureVideo(threading.Thread):
                     self.comm.last_ack = "wait"
         
 
-            
-            
         if params.colour_to_find and circles_simple:
             dist = []
             for i in circles_simple:
@@ -373,9 +375,6 @@ class CaptureVideo(threading.Thread):
             if p.face_d:    # face detection
                 self.detect_face(im, p)
                 
-            if p.edge_d:    # edge detection
-                im = self.detect_edge(im)
-                
             if p.colour_s:
                 self.find_colour(frame, 10, p)
             
@@ -397,6 +396,11 @@ class CaptureVideo(threading.Thread):
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
                 self.detect_circle(frame, frame_org, p)
+                
+            if p.edge_d:    # edge detection
+                frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
+                cv.Copy(frame, frame_org)
+                frame = self.detect_edge(frame)
 
             if frame is None:
                 print "error capturing frame"
