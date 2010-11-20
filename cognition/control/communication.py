@@ -1,6 +1,6 @@
 # communication.py
 
-import threading, logging, time
+import threading, logging, time, socket
 import comm
     
     
@@ -8,21 +8,26 @@ class CommBase(comm.BaseClient):
     
     def __init__(self, params):
         self.params = params
+        self.connected_to_server = False
+        #comm.LOG.setLevel(logging.DEBUG)
         comm.BaseClient.__init__(self, (self.params.server, self.params.port))
-        comm.LOG.setLevel(logging.DEBUG)
         t_client = threading.Thread(target=self.connect_and_run)
         t_client.start()
         self.time_last_gaze = 0
         self.last_ack = None
         self.last_nack = None
         time.sleep(0.1)
-        self.set_neck_orientation("(0,0,0)")  # to init communication and set robot on origin
-        self.set_gaze(str(params.gaze_pos[0]) + "," + str(params.gaze_pos[1]) + "," + str(params.gaze_pos[2]))
+        try:
+            self.set_neck_orientation("(0,0,0)")  # to init communication and set robot on origin
+            self.set_gaze(str(params.gaze_pos[0]) + "," + str(params.gaze_pos[1]) + "," + str(params.gaze_pos[2]))
+            self.connected_to_server = True
+        except socket.error:
+            print "Connection error, server not found"
+            self.connected_to_server = False
 
-
+        
     def cmd_ACK(self, argline):
         self.last_ack = argline
-    
     
     def cmd_NACK(self, argline):
         self.last_nack = argline

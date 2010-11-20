@@ -22,7 +22,7 @@
 
 
 import sys, os, threading, time, random, math
-import vision, agent, inout, config
+import communication, vision, agent, inout, config
 
 
 class RobotControl(threading.Thread):
@@ -50,6 +50,7 @@ class RobotControl(threading.Thread):
         
     def run(self):
 
+        #TODO: set checks for missing comm
         while self.go:  # main behaviour
             if self.behaviour == "idle":
                 if self.behaviour_change:
@@ -243,7 +244,9 @@ class RobotRecord():
 if __name__ == "__main__":
     params = config.Params()
     if params.use_comm:
-        comm = voice_command.communication.CommBase(params)
+        comm = communication.CommBase(params)
+        if comm.connected_to_server == False:
+            comm = None
     else:
         comm = None
     rb = RobotControl(params, comm)

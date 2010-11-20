@@ -3,9 +3,9 @@
 Abstract:
 =========
 
-This software is part of the CONCEPT project from the University of Plymouth, under supervision of Dr Tony Belpaeme.
+This software is part of the CONCEPT project from the University of Plymouth.
 
-This part holds modules for cognition. It allows for running a camera with face tracking, which submits relevant
+This part consists of modules for cognition. It allows for running a camera with face tracking, which submits relevant
 movements to the expression server controlling a robot head. Optionally this can be controlled by voice commands. 
 Furthermore, it allows for the simulation of concept learning through language game interaction between a teaching 
 and a learning agent.

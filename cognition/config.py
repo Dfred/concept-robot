@@ -9,7 +9,7 @@ class Params():
     def __init__(self):
         self.haar_casc = ROOT_PATH+"HRI/vision/haarcascade_frontalface_alt.xml"
         self.use_gui = True
-        self.use_comm = False           # communicate with expression server
+        self.use_comm = True           # communicate with expression server
         self.server = '141.163.186.5'   # server address
         self.port = 4242                # server port
         self.command = '0'
