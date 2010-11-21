@@ -1,14 +1,14 @@
 import sys, threading, math, time
 import cv
-import numpy, pylab
-import voice_command, auks
-import robot_control as rc
+import numpy
+
 import pyvision as pv
 pv.disableCommercialUseWarnings()
 from pyvision.face.CascadeDetector import CascadeDetector,AVE_LEFT_EYE,AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
 from pyvision.edge.canny import canny
 
+import config
 
 edge_threshold1 = 50
 edge_threshold2 = 90
@@ -28,7 +28,7 @@ class CaptureVideo(threading.Thread):
         self.p = params
         self.current_colour = None
 
-        self.face_detector = CascadeDetector(cascade_name="haarcascade_frontalface_alt.xml",image_scale=0.5)
+        self.face_detector = CascadeDetector(cascade_name=self.p.haar_casc,min_size=(50,50), image_scale=0.5)
         self.webcam = Webcam()
         
         if self.p.use_gui: # create windows            
@@ -65,7 +65,7 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(p, relative_x, relative_y, close_face_rect.w)
-                print gaze
+                #print gaze
                 if self.comm is not None:
                     if self.comm.last_ack != "wait" and gaze:
                         self.comm.set_neck_gaze(gaze)
@@ -99,7 +99,7 @@ class CaptureVideo(threading.Thread):
             p.face_y = y
             
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
-        x_dist = ((p.face_x/1400.6666)*face_distance)/-100
+        x_dist = ((p.face_x/1400.6666)*face_distance)/100
         y_dist = ((p.face_y/700.6666)*face_distance)/100
         return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
             
@@ -124,7 +124,10 @@ class CaptureVideo(threading.Thread):
                 
     
     def detect_edge(self, image):
-        return canny(image)
+        grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
+        cv.CvtColor(image, grayscale, cv.CV_BGR2GRAY)
+        cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
+        return grayscale
         
         
     def detect_circle(self, image, image_org, params):
@@ -134,21 +137,22 @@ class CaptureVideo(threading.Thread):
         if params.edge_d_non_vision:
             cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
         cv.Smooth(grayscale, grayscale_smooth, cv.CV_GAUSSIAN, edge_threshold3)
-        #storage = cv.CreateMemStorage()
-        storage = cv.CreateMat(480, 640, cv.CV_8UC1)
-        circles = cv.HoughCircles(grayscale_smooth, storage, cv.CV_HOUGH_GRADIENT, 2, 50, 200, (edge_threshold2 + 150) )
+        mat = cv.CreateMat(100, 1, cv.CV_32FC3 )
+        cv.SetZero(mat)
+        cv.HoughCircles(grayscale_smooth, mat, cv.CV_HOUGH_GRADIENT, 2, 50, 200, (edge_threshold2 + 150) )
         circles_simple = []
         gazing = None
-        for i in range(0, circles.total):
-            c = circles[i]
-            point = cvPoint(int(c[0]), int(c[1]))
-            radius = int(c[2])
-            cvCircle(image, point, radius, cvScalar(0, 0, 255))
-            if params.detect_colour:
-                self.get_colour(image, image_org, [int(c[0]), int(c[1])], radius)
-                params.detect_colour = False
-            colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
-            circles_simple.append([point, radius, colour])
+        if mat.rows != 0:
+            for i in xrange(0, mat.rows):
+                c = mat[i,0]
+                point = (int(c[0]), int(c[1]))
+                radius = int(c[2])
+                cv.Circle(image, point, radius, (0, 0, 255))
+                if params.detect_colour:
+                    self.get_colour(image, image_org, [int(c[0]), int(c[1])], radius)
+                    params.detect_colour = False
+                    colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
+                    circles_simple.append([point, radius, colour])
             
         if params.follow_ball_gaze and circles_simple:
             x_adjust = 320 - circles_simple[0][0].x
@@ -173,8 +177,6 @@ class CaptureVideo(threading.Thread):
                     self.comm.last_ack = "wait"
         
 
-            
-            
         if params.colour_to_find and circles_simple:
             dist = []
             for i in circles_simple:
@@ -348,12 +350,6 @@ class CaptureVideo(threading.Thread):
                 if p.show == False:
                     p.show = True
                     print "showing video"
-                    
-            if key == 'g' or p.command == 'g':
-                if p.follow_face == False:
-                    p.follow_face = True
-                else:
-                    p.follow_face = False
 
             if key == 'b' or p.command == 'b':
                 if p.game_coors == "10.0, 50.0, 0.0":
@@ -379,11 +375,6 @@ class CaptureVideo(threading.Thread):
             if p.face_d:    # face detection
                 self.detect_face(im, p)
                 
-            if p.edge_d:    # edge detection
-                im = self.detect_edge(im)
-                
-
-    
             if p.colour_s:
                 self.find_colour(frame, 10, p)
             
@@ -394,7 +385,7 @@ class CaptureVideo(threading.Thread):
                 print 'Camera closed'
                 break
             
-            pil = im.asAnnotated()                      # get image as PIL              
+            pil = im.asAnnotated()                                          # get image as PIL              
             rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)        # create IPL image
             cv.SetData(rgb, pil.tostring())                                 
             frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)      # convert to bgr
@@ -405,6 +396,11 @@ class CaptureVideo(threading.Thread):
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
                 self.detect_circle(frame, frame_org, p)
+                
+            if p.edge_d:    # edge detection
+                frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
+                cv.Copy(frame, frame_org)
+                frame = self.detect_edge(frame)
 
             if frame is None:
                 print "error capturing frame"
@@ -418,6 +414,8 @@ class CaptureVideo(threading.Thread):
     
     
 if __name__ == "__main__":
-    cap = CaptureVideo(voice_command.Params())
+    params = config.Params()
+    params.haar_casc = "haarcascade_frontalface_alt.xml"        # change path for compatibility
+    cap = CaptureVideo(params)
     cap.start()
 

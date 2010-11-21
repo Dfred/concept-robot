@@ -1,28 +1,33 @@
 # communication.py
 
-import threading, logging, time
+import threading, logging, time, socket
 import comm
     
     
 class CommBase(comm.BaseClient):
     
-    def __init__(self, params, server='localhost', port= 4242 ):
+    def __init__(self, params):
         self.params = params
-        comm.BaseClient.__init__(self, (server, port))
-        comm.LOG.setLevel(logging.DEBUG)
+        self.connected_to_server = False
+        #comm.LOG.setLevel(logging.DEBUG)
+        comm.BaseClient.__init__(self, (self.params.server, self.params.port))
         t_client = threading.Thread(target=self.connect_and_run)
         t_client.start()
         self.time_last_gaze = 0
         self.last_ack = None
         self.last_nack = None
         time.sleep(0.1)
-        self.set_neck_orientation("(0,0,0)")  # to init communication and set robot on origin
-        self.set_gaze(str(params.gaze_pos[0]) + "," + str(params.gaze_pos[1]) + "," + str(params.gaze_pos[2]))
+        try:
+            self.set_neck_orientation("(0,0,0)")  # to init communication and set robot on origin
+            self.set_gaze(str(params.gaze_pos[0]) + "," + str(params.gaze_pos[1]) + "," + str(params.gaze_pos[2]))
+            self.connected_to_server = True
+        except socket.error:
+            print "Connection error, server not found"
+            self.connected_to_server = False
 
-
+        
     def cmd_ACK(self, argline):
         self.last_ack = argline
-    
     
     def cmd_NACK(self, argline):
         self.last_nack = argline
@@ -36,7 +41,7 @@ class CommBase(comm.BaseClient):
     
     
     def set_gaze(self, coordinates="0.0, 0.5, 0.0"):
-        if (time.time() - self.time_last_gaze) > 0.2:
+        if (time.time() - self.time_last_gaze) > 0.03:
             self.send_msg(";;;;" + coordinates + ";;tag_GAZE")
             self.time_last_gaze = time.time()
             

@@ -4,7 +4,6 @@ from __future__ import division
 import auks, cs, lexicon, sa_network, cfg, matrix
 
 
-
 class Agent():
     """ Agent consisting of SA_network, conceptual space and lexicon
     """

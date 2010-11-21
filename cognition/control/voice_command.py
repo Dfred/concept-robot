@@ -23,49 +23,12 @@
 
 
 import sys, os, threading, time
-import robot_control, communication
+import main, communication, config
 
 
-#variables
-class Params():
-    def __init__(self):
-        self.use_gui = True
-        self.command = '0'
-        self.show = True
-        self.face_d = True
-        self.follow_face = False
-        self.detect_threshold = 35
-        self.follow_face_gaze = True
-        self.follow_face_neck = False
-        self.search_for_face = False
-        self.eye_d = False
-        self.edge_d = False
-        self.edge_d_non_vision = True
-        self.circle_d = False
-        self.detect_colour = False
-        self.colour_to_find = None
-        self.colour_s = False
-        self.save_video = False
-        self.kalm = False
-        self.quit = False
-        self.check = True
-        self.size = False
-        self.game_coors = "10.0, 50.0, 0.0"
-        self.x_search = -0.5
-        self.print_d = False
-        self.cam_shift = False
-        self.slow_adjust = True
-        self.face_x = None
-        self.face_y = None
-        self.gain = 0.2
-        self.neck_pos = [0.0, 0.0, 0.0]
-        self.gaze_pos = [0.0, 0.5, 0.0]
-        self.idle_go = True
-        self.follow_ball_neck = True
-        self.follow_ball_gaze = False
-        
-        
 class Parser:
+    """
+    """
     
     def __init__(self, robot_control, comm):
         self.rc = robot_control
@@ -143,10 +106,10 @@ class VoiceCommand:
     
     def __init__(self, file_object):
         
-        self.params = Params()
-        self.comm = communication.CommBase(self.params, '141.163.190.3', 4242) 
+        self.params = config.Params()
+        self.comm = communication.CommBase(self.params) 
         
-        self.rc = robot_control.RobotControl(self.params, self.comm)
+        self.rc = main.RobotControl(self.params, self.comm)
         self.rc.start()
         self.parser = Parser(self.rc, self.comm)
 
