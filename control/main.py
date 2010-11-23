@@ -25,6 +25,38 @@ import sys, os, threading, time, random, math
 import vision, agent, inout, config
 
 
+def main(argv):
+    """ main
+        optional arguments are --julius/--keyboard/--network and --gui
+    """
+    control= None
+    gui = False
+    
+    for i in argv:
+        if i == "--julius":
+            control = 'j'
+        elif i == "--keyboard":
+            control = 'c'
+        elif i == "--network":
+            control = 'n'
+        elif i == "--gui":
+            gui = True
+        else:
+            print "Please specify proper arguments.\n"\
+                      "Options are: \t'--julius', '--keyboard' or '--network' for control\n"\
+                      "\t\t'--gui' to run with a GUI"
+            sys.exit()
+        
+    params = config.Params()
+    params.use_gui = gui
+    if params.use_comm:
+        comm = voice_command.communication.CommBase(params)
+    else:
+        comm = None
+    rb = RobotControl(params, comm)
+    rb.start()
+
+
 class RobotControl(threading.Thread):
     """ main robot control
     """
@@ -240,12 +272,6 @@ class RobotRecord():
             self.follow_face_counter += 1
         
         
+
 if __name__ == "__main__":
-    params = config.Params()
-    if params.use_comm:
-        comm = voice_command.communication.CommBase(params)
-    else:
-        comm = None
-    rb = RobotControl(params, comm)
-    rb.start()
-        
+    main(sys.argv[1:])
