@@ -1,13 +1,18 @@
 import sys
 from os import path
 
-# TODO: use os.path functions
-ROOT_PATH=path.realpath(sys.path[0])+'/../'
+def get_RootPath():
+    this_path = [ p for p in sys.path if p.endswith("control") \
+                      and p.find('control') == p.rfind('control') ][0]
+    return path.realpath(this_path+'/../')
+
+ROOT_PATH=get_RootPath()
 
 # TODO: remove class, use as a singleton
 class Params():
     def __init__(self):
-        self.haar_casc = ROOT_PATH+"HRI/vision/haarcascade_frontalface_alt.xml"
+
+        self.haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
         self.use_gui = True
         self.use_comm = True           # communicate with expression server
         self.server = '141.163.186.5'   # server address
@@ -44,3 +49,13 @@ class Params():
         self.idle_go = True
         self.follow_ball_neck = True
         self.follow_ball_gaze = False
+
+        if len(sys.argv) > 1:
+            try:
+                self.server, self.port = sys.argv[1].split(':')
+                self.port = int(self.port)
+            except Exception, e:
+                print 'Exception parsing arguments:', e
+                print 'Usage: %s [interface:port]' % sys.argv[0]
+                exit(1)
+
