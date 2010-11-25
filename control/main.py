@@ -50,7 +50,7 @@ def main(argv):
     params = config.Params()
     params.use_gui = gui
     if params.use_comm:
-        comm = voice_command.communication.CommBase(params)
+        comm = communication.CommBase(params)
     else:
         comm = None
     rb = RobotControl(params, comm)
@@ -152,6 +152,8 @@ class RobotControl(threading.Thread):
                 
             else:
                 #self.end()
+                
+                # preview of keyboard input_control...
 		import select
 		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
 		    if sys.stdin.read(1) == 'f':
