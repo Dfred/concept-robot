@@ -38,6 +38,6 @@ To run:
 
 Open a console/terminal and 'cd' to the directory containing this file.
 
-- without voice commands, type 'start.sh'
-- using voice commands, type 'start.sh voice'
+- without voice commands, type './start.sh'
+- using voice commands, type './start.sh voice'
 
