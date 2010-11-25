@@ -316,7 +316,7 @@ class CaptureVideo(threading.Thread):
 
             # handle events
             key = cv.WaitKey(10)
-            if key != -1:
+            if key != -1 and key < 256:
                 key = chr(key)
                 
             if key == '1' or p.command == '1':
