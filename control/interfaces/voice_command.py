@@ -109,7 +109,7 @@ class VoiceCommand:
         self.params = config.Params()
         self.comm = communication.CommBase(self.params) 
         
-        self.rc = robot_control.RobotControl(self.params, self.comm)
+        self.rc = main.RobotControl(self.params, self.comm)
         self.rc.start()
         self.parser = Parser(self.rc, self.comm)
 
