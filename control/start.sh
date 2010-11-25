@@ -1,9 +1,13 @@
-#!/bin/sh
-export PYTHONPATH=../common/:../HRI/:../HRI/vision/pyvision_0.9.0/src/:control/:learning/:
+#!/bin/bash
+export PYTHONPATH=../common/:../HRI/:../HRI/vision/pyvision_0.9.0/src/:control/:learning/:interfaces/
+
+declare -a ARGS=("$@")
+unset ARGS[0]
 
 case $1 in
 	voice)
-		julius -quiet -input mic -C julian.jconf 2>/dev/null | ./control/voice_command.py;;
+		PYTHONPATH=$PYTHONPATH:`dirname $0`
+		julius -quiet -input mic -C julian.jconf 2>/dev/null | python ./interfaces/voice_command.py ${ARGS[@]};;
 	*)
-		./main.py;;
+		./main.py $@;;
 esac

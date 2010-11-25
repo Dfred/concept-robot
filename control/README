@@ -1,5 +1,3 @@
-
-
 Abstract:
 =========
 
@@ -41,3 +39,4 @@ Open a console/terminal and 'cd' to the directory containing this file.
 - without voice commands, type './start.sh'
 - using voice commands, type './start.sh voice'
 
+You can specify server and port for both adding extra arguments in the form server_address:server_port (eg: 192.168.1.1:31337 )
