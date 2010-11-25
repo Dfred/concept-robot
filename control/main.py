@@ -120,6 +120,10 @@ class RobotControl(threading.Thread):
                 
             else:
                 #self.end()
+		import select
+		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+		    if sys.stdin.read(1) == 'f':
+		        self.find_face()
                 time.sleep(1)
                 print "waiting"
 
@@ -244,6 +248,13 @@ class RobotRecord():
 if __name__ == "__main__":
     params = config.Params()
     if params.use_comm:
+        if len(sys.argv) > 1:
+            try:
+                params.server, params.port = sys.argv[1].split(':')
+                params.port = int(params.port)
+            except Exception, e:
+                print 'Usage: %s [interface:port]' % sys.argv[0], e
+                exit(1)
         comm = communication.CommBase(params)
         if comm.connected_to_server == False:
             comm = None
