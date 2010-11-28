@@ -13,8 +13,9 @@ class Params():
     def __init__(self):
 
         self.haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
+        self.control_options = ["keyboard", "voice_command", "network"]
         self.use_gui = True
-        self.use_comm = True           # communicate with expression server
+        self.use_comm = False           # communicate with expression server
         self.server = '141.163.186.5'   # server address
         self.port = 4242                # server port
         self.command = '0'
@@ -50,12 +51,12 @@ class Params():
         self.follow_ball_neck = True
         self.follow_ball_gaze = False
 
-        if len(sys.argv) > 1:
-            try:
-                self.server, self.port = sys.argv[1].split(':')
-                self.port = int(self.port)
-            except Exception, e:
-                print 'Exception parsing arguments:', e
-                print 'Usage: %s [interface:port]' % sys.argv[0]
-                exit(1)
+#        if len(sys.argv) > 1:
+#            try:
+#                self.server, self.port = sys.argv[1].split(':')
+#                self.port = int(self.port)
+#            except Exception, e:
+#                print 'Exception parsing arguments:', e
+#                print 'Usage: %s [interface:port]' % sys.argv[0]
+#                exit(1)
 
