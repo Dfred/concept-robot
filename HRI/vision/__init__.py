@@ -1,6 +1,7 @@
 import sys, threading, math, time
 import cv
 import numpy
+import config
 
 import pyvision as pv
 pv.disableCommercialUseWarnings()
@@ -20,18 +21,17 @@ class CaptureVideo(threading.Thread):
     """ captures video stream from camera and performs various detections (face, edge, circle)
     """
     
-    def __init__(self, params, comm = None):
+    def __init__(self, comm = None):
         """ initiate variables"""
         
         threading.Thread.__init__(self)
         self.comm = comm
-        self.p = params
         self.current_colour = None
 
-        self.face_detector = CascadeDetector(cascade_name=self.p.haar_casc,min_size=(50,50), image_scale=0.5)
+        self.face_detector = CascadeDetector(cascade_name=config.haar_casc,min_size=(50,50), image_scale=0.5)
         self.webcam = Webcam()
         
-        if self.p.use_gui: # create windows            
+        if config.use_gui: # create windows            
             cv.NamedWindow('Camera', cv.CV_WINDOW_AUTOSIZE)
             cv.CreateTrackbar ('edge threshold', 'Camera', 50, 100, self.change_value1)
             cv.CreateTrackbar ('circle threshold', 'Camera', 90, 100, self.change_value2)
@@ -40,10 +40,10 @@ class CaptureVideo(threading.Thread):
 
 
     def run(self):
-        self.main_loop(self.p)
+        self.main_loop()
     
 
-    def detect_face(self, img, p):
+    def detect_face(self, img):
         """ detect faces in the given video stream
         """
         
@@ -57,14 +57,14 @@ class CaptureVideo(threading.Thread):
                 if rect.w > close_face_w:               # get closest face coordinates
                     close_face_w = rect.w
                     close_face_rect = rect
-                if p.eye_d:                             # draw point on eyes
+                if config.eye_d:                             # draw point on eyes
                     img.annotatePoint(leye,color='blue')
                     img.annotatePoint(reye,color='blue')
                     
-            if p.follow_face_gaze:
+            if config.follow_face_gaze:
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
-                gaze = self.follow_face_with_gaze(p, relative_x, relative_y, close_face_rect.w)
+                gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
                 #print gaze
                 if self.comm is not None:
                     if self.comm.last_ack != "wait" and gaze:
@@ -88,23 +88,24 @@ class CaptureVideo(threading.Thread):
         return faces
     
     
-    def follow_face_with_gaze(self, p, x, y, width):
+    def follow_face_with_gaze(self, x, y, width):
         """adjust coordinates of detected faces to mask
         """
-        if p.slow_adjust and (p.face_x is not None and p.face_y is not None):
-            p.face_x += (x - p.face_x) * p.gain
-            p.face_y += (y - p.face_y) * p.gain
+        #TODO: change coordinates that are kept in config into something local
+        if config.slow_adjust and (config.face_x is not None and config.face_y is not None):
+            config.face_x += (x - config.face_x) * config.gain
+            config.face_y += (y - config.face_y) * config.gain
         else:
-            p.face_x = x
-            p.face_y = y
+            config.face_x = x
+            config.face_y = y
             
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
-        x_dist = ((p.face_x/1400.6666)*face_distance)/100
-        y_dist = ((p.face_y/700.6666)*face_distance)/100
+        x_dist = ((config.face_x/1400.6666)*face_distance)/100
+        y_dist = ((config.face_y/700.6666)*face_distance)/100
         return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
             
             
-    def follow_face_with_neck(self, p, x, y, width):
+    def follow_face_with_neck(self, x, y, width):
         """adjust coordinates of detected faces to neck movement
         """
         move = False
@@ -130,11 +131,11 @@ class CaptureVideo(threading.Thread):
         return grayscale
         
         
-    def detect_circle(self, image, image_org, params):
+    def detect_circle(self, image, image_org):
         grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
         grayscale_smooth = cv.CreateImage(cv.GetSize(image), 8, 1)
         cv.CvtColor(image, grayscale, cv.CV_BGR2GRAY)
-        if params.edge_d_non_vision:
+        if config.edge_d_non_vision:
             cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
         cv.Smooth(grayscale, grayscale_smooth, cv.CV_GAUSSIAN, edge_threshold3)
         mat = cv.CreateMat(100, 1, cv.CV_32FC3 )
@@ -148,18 +149,18 @@ class CaptureVideo(threading.Thread):
                 point = (int(c[0]), int(c[1]))
                 radius = int(c[2])
                 cv.Circle(image, point, radius, (0, 0, 255))
-                if params.detect_colour:
+                if config.detect_colour:
                     self.get_colour(image, image_org, [int(c[0]), int(c[1])], radius)
-                    params.detect_colour = False
+                    config.detect_colour = False
                     colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
                     circles_simple.append([point, radius, colour])
             
-        if params.follow_ball_gaze and circles_simple:
+        if config.follow_ball_gaze and circles_simple:
             x_adjust = 320 - circles_simple[0][0].x
             y_adjust = 240 - circles_simple[0][0].y
-            gazing = self.follow_ball_with_gaze(params, x_adjust, y_adjust)
+            gazing = self.follow_ball_with_gaze(x_adjust, y_adjust)
         
-        if params.follow_ball_neck and circles_simple:
+        if config.follow_ball_neck and circles_simple:
             #self.comm.send_msg("recognizing;*;1;;;;tag_SPEECH")
             x_adjust = 320 - circles_simple[0][0].x
             y_adjust = 240 - circles_simple[0][0].y
@@ -169,25 +170,25 @@ class CaptureVideo(threading.Thread):
                 distance_y = (y_adjust/-480.0) * 0.2 * math.pi
             if self.comm.last_ack != "wait":
                     if gazing:
-                        self.comm.set_neck_gaze(gazing, "(" + str(params.neck_pos[0] + distance_y) + ",0," + str(params.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                        self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
                     else:
-                        self.comm.set_neck_orientation( "(" + str(params.neck_pos[0] + distance_y) + ",0," + str(params.neck_pos[2] + distance_x) + ")", "TRACKING")
-                    params.neck_pos[2] += distance_x
-                    params.neck_pos[0] += distance_y
+                        self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
+                    config.neck_pos[2] += distance_x
+                    config.neck_pos[0] += distance_y
                     self.comm.last_ack = "wait"
         
 
-        if params.colour_to_find and circles_simple:
+        if config.colour_to_find and circles_simple:
             dist = []
             for i in circles_simple:
                 if i[2]:
                     #dist.append(auks.calculate_distance_hsv(params.colour_to_find, i[2]))
-                    dist.append(auks.calculate_distance(params.colour_to_find, i[2]))
+                    dist.append(auks.calculate_distance(config.colour_to_find, i[2]))
                 else:
                     dist.append(999999)
             index = auks.posMin(dist)
             #print dist
-            if dist[index] < params.detect_threshold:
+            if dist[index] < config.detect_threshold:
                 #self.comm.send_msg("recognizing;*;1;;;;tag_SPEECH")
                 cv.Circle(image, circles_simple[index][0], 2, cvScalar(0, 100, 255), 2)
                 x_adjust = 320 - circles_simple[index][0].x
@@ -198,20 +199,20 @@ class CaptureVideo(threading.Thread):
                     distance_y = (y_adjust/-480.0) * 0.2 * math.pi
                 if self.comm.last_ack != "wait":
 #                        print "x_dist:", distance_x, " y_dist:", distance_y
-#                        print "x_neck:", str(params.neck_pos[2]), "   y_neck:", str(params.neck_pos[0])
-#                        print "x:", str(params.neck_pos[2] + distance_x), "   y:", str(params.neck_pos[0] + distance_y)
+#                        print "x_neck:", str(config.neck_pos[2]), "   y_neck:", str(config.neck_pos[0])
+#                        print "x:", str(config.neck_pos[2] + distance_x), "   y:", str(config.neck_pos[0] + distance_y)
                         if gazing:
-                            self.comm.set_neck_gaze(gazing, "(" + str(params.neck_pos[0] + distance_y) + ",0," + str(params.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                            self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
                         else:
-                            self.comm.set_neck_orientation( "(" + str(params.neck_pos[0] + distance_y) + ",0," + str(params.neck_pos[2] + distance_x) + ")", "TRACKING")
-                        params.neck_pos[2] += distance_x
-                        params.neck_pos[0] += distance_y
+                            self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
+                        config.neck_pos[2] += distance_x
+                        config.neck_pos[0] += distance_y
                         self.comm.last_ack = "wait"
                               
         return circles_simple
                  
                  
-    def follow_ball_with_gaze(self, p, x, y):
+    def follow_ball_with_gaze(self, x, y):
         """adjust coordinates of detected faces to mask
         """
             
@@ -263,7 +264,7 @@ class CaptureVideo(threading.Thread):
 
 
 
-    def find_colour(self, image, colour, p):
+    def find_colour(self, image, colour):
         """ searches for the given colour in the image
             colour is in hsv
         """
@@ -307,9 +308,9 @@ class CaptureVideo(threading.Thread):
         edge_threshold4 = new_value
     
         
-    def main_loop(self, p):
+    def main_loop(self):
         
-        #writer = cvCreateVideoWriter("out.avi",CV_FOURCC('P','I','M','1'), 30,cvSize(640,480),1)
+        #writer = cv.CreateVideoWriter("out.avi", cv.CV_FOURCC('P','I','M','1'), 30, (640,480),1)
         
         while 1:
             im = self.webcam.query()
@@ -319,69 +320,69 @@ class CaptureVideo(threading.Thread):
             if key != -1 and key < 256:
                 key = chr(key)
                 
-            if key == '1' or p.command == '1':
-                if p.face_d == False:
-                    p.face_d = True
+            if key == '1' or config.command == '1':
+                if config.face_d == False:
+                    config.face_d = True
                     print "looking for faces"
                     
-            if key == '2' or p.command == 'edge':
-                if p.edge_d == False:
-                    p.edge_d = True
+            if key == '2' or config.command == 'edge':
+                if config.edge_d == False:
+                    config.edge_d = True
                     print "detecting edges"
                     
-            if key == '3' or p.command == '3':
-                if p.save_video == False:
-                    p.save_video = True
+            if key == '3' or config.command == '3':
+                if config.save_video == False:
+                    config.save_video = True
                     print "saving video"
                     
-            if key  == '4' or p.command == '4':
-                if p.circle_d == False:
-                    p.circle_d = True
+            if key  == '4' or config.command == '4':
+                if config.circle_d == False:
+                    config.circle_d = True
                     print "detecting circles"
                     
-            if key  == '5' or p.command == '5':
-                if p.edge_d_non_vision == False:
-                    p.edge_d_non_vision = True
+            if key  == '5' or config.command == '5':
+                if config.edge_d_non_vision == False:
+                    config.edge_d_non_vision = True
                     print "detecting circles using edge detection"
                 else:
-                    p.edge_d_non_vision = False
+                    config.edge_d_non_vision = False
                     
-            if key == 's' or p.command == 's':
-                if p.show == False:
-                    p.show = True
+            if key == 's' or config.command == 's':
+                if config.show == False:
+                    config.show = True
                     print "showing video"
 
-            if key == 'b' or p.command == 'b':
-                if p.game_coors == "10.0, 50.0, 0.0":
+            if key == 'b' or config.command == 'b':
+                if config.game_coors == "10.0, 50.0, 0.0":
                     self.commr.set_gaze("10.0, 50.0, 0.0")
-                    p.game_coors = "0.0, 50.0, 0.0"
+                    config.game_coors = "0.0, 50.0, 0.0"
                 else:
                     self.commr.set_gaze("0.0, 50.0, 0.0")
-                    p.game_coors = "10.0, 50.0, 0.0"
+                    config.game_coors = "10.0, 50.0, 0.0"
                     
-            if key == 'e' or p.command == 'e':
-                p.face_d = False
-                p.edge_d = False
-                p.circle_d = False
-                p.save_video = False
-                p.colour_s = False
+            if key == 'e' or config.command == 'e':
+                config.face_d = False
+                config.edge_d = False
+                config.circle_d = False
+                config.save_video = False
+                config.colour_s = False
                 print "stop tracking"
                     
-            if key == 'q' or p.command == 'q':
-                p.quit = True
+            if key == 'q' or config.command == 'q':
+                config.quit = True
                 
-            p.command = '0'
+            config.command = '0'
               
-            if p.face_d:    # face detection
-                self.detect_face(im, p)
+            if config.face_d:    # face detection
+                self.detect_face(im)
                 
-            if p.colour_s:
-                self.find_colour(frame, 10, p)
+            if config.colour_s:
+                self.find_colour(frame, 10)
             
-            if p.save_video:    # save
+            if config.save_video:    # save
                 cv.WriteFrame(writer,frame)
                 
-            if p.quit:  # quit
+            if config.quit:  # quit
                 print 'Camera closed'
                 break
             
@@ -392,12 +393,12 @@ class CaptureVideo(threading.Thread):
             cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)                          
             cv.Flip(frame, None, 1)                                         # mirror
             
-            if p.circle_d: # circle detection
+            if config.circle_d: # circle detection
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
-                self.detect_circle(frame, frame_org, p)
+                self.detect_circle(frame, frame_org)
                 
-            if p.edge_d:    # edge detection
+            if config.edge_d:    # edge detection
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
                 frame = self.detect_edge(frame)
@@ -406,16 +407,15 @@ class CaptureVideo(threading.Thread):
                 print "error capturing frame"
                 break
      
-            if self.p.use_gui:
-                if p.show:
+            if config.use_gui:
+                if config.show:
                     cv.ShowImage('Camera', frame) # display webcam image
                 else:
                     cv.ShowImage('Camera', empty)
     
     
 if __name__ == "__main__":
-    params = config.Params()
-    params.haar_casc = "haarcascade_frontalface_alt.xml"        # change path for compatibility
-    cap = CaptureVideo(params)
+    config.haar_casc = "haarcascade_frontalface_alt.xml"        # change path for compatibility
+    cap = CaptureVideo()
     cap.start()
 

@@ -8,48 +8,45 @@ def get_RootPath():
 
 ROOT_PATH=get_RootPath()
 
-# TODO: remove class, use as a singleton
-class Params():
-    def __init__(self):
 
-        self.haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
-        self.control_options = ["keyboard", "voice_command", "network"]
-        self.use_gui = True
-        self.use_comm = False           # communicate with expression server
-        self.server = '141.163.186.5'   # server address
-        self.port = 4242                # server port
-        self.command = '0'
-        self.show = True
-        self.face_d = True
-        self.detect_threshold = 35
-        self.follow_face_gaze = True
-        self.follow_face_neck = False
-        self.search_for_face = False
-        self.eye_d = False
-        self.edge_d = False
-        self.edge_d_non_vision = True
-        self.circle_d = False
-        self.detect_colour = False
-        self.colour_to_find = None
-        self.colour_s = False
-        self.save_video = False
-        self.kalm = False
-        self.quit = False
-        self.check = True
-        self.size = False
-        self.game_coors = "10.0, 50.0, 0.0"
-        self.x_search = -0.5
-        self.print_d = False
-        self.cam_shift = False
-        self.slow_adjust = True
-        self.face_x = None
-        self.face_y = None
-        self.gain = 0.2
-        self.neck_pos = [0.0, 0.0, 0.0]
-        self.gaze_pos = [0.0, 0.5, 0.0]
-        self.idle_go = True
-        self.follow_ball_neck = True
-        self.follow_ball_gaze = False
+haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
+control_options = ["keyboard", "voice_command", "network"]
+use_gui = True
+use_comm = True           # communicate with expression server
+server = '141.163.186.5'   # server address
+port = 4242                # server port
+command = '0'
+show = True
+face_d = True
+detect_threshold = 35
+follow_face_gaze = True
+follow_face_neck = False
+search_for_face = False
+eye_d = False
+edge_d = False
+edge_d_non_vision = True
+circle_d = False
+detect_colour = False
+colour_to_find = None
+colour_s = False
+save_video = False
+kalm = False
+quit = False
+check = True
+size = False
+game_coors = "10.0, 50.0, 0.0"
+x_search = -0.5
+print_d = False
+cam_shift = False
+slow_adjust = True
+face_x = None
+face_y = None
+gain = 0.2
+neck_pos = [0.0, 0.0, 0.0]
+gaze_pos = [0.0, 0.5, 0.0]
+idle_go = True
+follow_ball_neck = True
+follow_ball_gaze = False
 
 #        if len(sys.argv) > 1:
 #            try:

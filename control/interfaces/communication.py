@@ -1,16 +1,15 @@
 # communication.py
 
 import threading, logging, time, socket
-import comm
+import comm, config
     
     
 class CommBase(comm.BaseClient):
     
-    def __init__(self, params):
-        self.params = params
+    def __init__(self):
         self.connected_to_server = False
         #comm.LOG.setLevel(logging.DEBUG)
-        comm.BaseClient.__init__(self, (self.params.server, self.params.port))
+        comm.BaseClient.__init__(self, (config.server, config.port))
         t_client = threading.Thread(target=self.connect_and_run)
         t_client.start()
         self.time_last_gaze = 0
@@ -19,10 +18,10 @@ class CommBase(comm.BaseClient):
         time.sleep(0.1)
         try:
             self.set_neck_orientation("(0,0,0)")  # to init communication and set robot on origin
-            self.set_gaze(str(params.gaze_pos[0]) + "," + str(params.gaze_pos[1]) + "," + str(params.gaze_pos[2]))
+            self.set_gaze(str(config.gaze_pos[0]) + "," + str(config.gaze_pos[1]) + "," + str(config.gaze_pos[2]))
             self.connected_to_server = True
         except socket.error:
-            print "Connection error, server %s (port %i) not found" % (self.params.server, self.params.port)
+            print "Connection error, server %s (port %i) not found" % (config.server, config.port)
             self.connected_to_server = False
 
         

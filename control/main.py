@@ -28,30 +28,31 @@ import communication, vision, agent, inout, config
 def main():
     """ main
     """
-    params = config.Params()    # load parameters
     
     parser = optparse.OptionParser()
     parser.add_option("-c", "--control", dest="control",
                       default="keyboard", type="string",
-                      help="specifies type of control. Options are: " + str(params.control_options)  )
+                      help="specifies type of control. Options are: " + str(config.control_options)  )
     parser.add_option("-g", "--gui",
-                      action="store_true", dest="gui", default=False,
+                      action="store_true", dest="gui", default=True,
                       help="specifies if a GUI is used")
 
     (options, args) = parser.parse_args()
-    if options.control in params.control_options:
-        params.control = options.control
+    if options.control in config.control_options:
+        config.control = options.control
     else:
         print "Please specify a valid control option. \n"\
-              "Options are: " + str(params.control_options)
+              "Options are: " + str(config.control_options)
         exit(1)
-    params.use_gui = options.gui
+    config.use_gui = options.gui
 
-    if params.use_comm:
-        comm = communication.CommBase(params)
+    if config.use_comm:
+        comm = communication.CommBase()
+        if not comm.connected_to_server:
+            comm = None
     else:
         comm = None
-    rb = RobotControl(params, comm)
+    rb = RobotControl(comm)
     rb.start()
 
 
@@ -59,12 +60,11 @@ class RobotControl(threading.Thread):
     """ main robot control
     """
     
-    def __init__(self, params, comm):
+    def __init__(self, comm):
         
-        threading.Thread.__init__(self)       
-        self.p = params
+        threading.Thread.__init__(self)
         self.comm = comm
-        self.camera = vision.CaptureVideo(self.p, self.comm)
+        self.camera = vision.CaptureVideo(self.comm)
         self.camera.start()
         self.camera_ball = None
         self.learning_agent = agent.Agent("agent", "learner")
@@ -87,9 +87,9 @@ class RobotControl(threading.Thread):
                     print "behaviour is idle"
                     self.record.behaviour_transition("idle")
                     self.behaviour_change = False                
-                self.p.idle_go = True
-                self.camera.p.cam_shift = False
-                self.camera.p.follow_face_neck = False
+                config.idle_go = True
+                config.cam_shift = False
+                config.follow_face_neck = False
                 self.run_idle()
                 
             elif self.behaviour == "thanks":
@@ -102,13 +102,13 @@ class RobotControl(threading.Thread):
                     self.comm.set_neck_orientation("(0.15,0,0)")
                     time.sleep(0.01)
                     self.comm.set_neck_orientation("(0,0,0)")
-                    self.comm.set_gaze(str(self.p.gaze_pos[0]) + "," + str(self.p.gaze_pos[1]) + "," + str(self.p.gaze_pos[2]))
-                self.camera.p.cam_shift = False
-                self.camera.p.follow_face_gaze = False
-                self.camera.p.follow_face_neck = False
-                self.camera.p.follow_ball_neck = False
-                self.camera.p.follow_ball_gaze = False
-                self.camera.p.colour_to_find = None
+                    self.comm.set_gaze(str(config.gaze_pos[0]) + "," + str(config.gaze_pos[1]) + "," + str(config.gaze_pos[2]))
+                config.cam_shift = False
+                config.follow_face_gaze = False
+                config.follow_face_neck = False
+                config.follow_ball_neck = False
+                config.follow_ball_gaze = False
+                config.colour_to_find = None
                 self.behaviour_change = False
                 self.comm.set_expression("neutral", "*", 0.5)
                 self.behaviour = None
@@ -119,14 +119,14 @@ class RobotControl(threading.Thread):
                     print "behaviour is follow_face"
                     self.record.behaviour_transition("follow_face")
                     self.behaviour_change = False
-                self.camera.p.cam_shift = True
-                self.camera.p.follow_face_gaze = True
-                self.camera.p.follow_face_neck = True
+                config.cam_shift = True
+                config.follow_face_gaze = True
+                config.follow_face_neck = True
 
 
             elif self.behaviour == "find_face":
                 print "behaviour is find_face"
-                self.camera.p.face_d = True
+                config.face_d = True
                 if self.behaviour_change:
                     self.record.behaviour_transition("find_face")
                     self.behaviour_change = False
@@ -135,17 +135,17 @@ class RobotControl(threading.Thread):
                 if self.behaviour_change:
                     self.comm.set_expression("staring", "happy", 0.5)
                     print "behaviour is find_ball"
-                    self.camera.p.follow_ball_neck = True
-                    self.camera.p.follow_ball_gaze = True
+                    config.follow_ball_neck = True
+                    config.follow_ball_gaze = True
                     #self.comm.set_neck_orientation("(0.7, 0, 0)", "LB")
-                    #self.p.neck_pos[0] += 0.7    # keep track of position
+                    #config.neck_pos[0] += 0.7    # keep track of position
                     self.record.behaviour_transition("find_ball")
                     self.behaviour_change = False
-                    #self.camera.p.command = 'q'
+                    #config.command = 'q'
                     #time.sleep(1)
-                    #self.camera_ball = vision.CaptureVideo(self.p, self.comm)
+                    #self.camera_ball = vision.CaptureVideo(config, self.comm)
                     #self.camera.start()
-                self.camera.p.circle_d = True
+                config.circle_d = True
 
                 
             else:
@@ -164,7 +164,7 @@ class RobotControl(threading.Thread):
         
     def run_idle(self):
         counter = 0
-        while self.p.idle_go:
+        while config.idle_go:
             time.sleep( random.randrange(0, 500, 1)/500.0 )
             counter += 1
             sequence = []
@@ -199,12 +199,12 @@ class RobotControl(threading.Thread):
         
     def find_face(self):
         self.behaviour = "find_face"
-        self.p.idle_go = False
+        config.idle_go = False
         
         
     def learn_colour(self, word3):
-        self.camera.p.detect_colour = True
-        self.p.idle_go = False
+        config.detect_colour = True
+        config.idle_go = False
         time.sleep(0.1)
         percept_data = self.camera.return_colour()
         if percept_data:
@@ -218,14 +218,14 @@ class RobotControl(threading.Thread):
         
         
     def show_colour(self, word2):
-        self.p.idle_go = False
+        config.idle_go = False
         percept = self.learning_agent.get_percept([word2])
         if percept == "no_known_words":
             print "I don't know " + word2
         else:
             self.behaviour = "find_ball"
-            self.camera.p.follow_ball_neck = False
-            self.camera.p.colour_to_find = percept.get_data()
+            config.follow_ball_neck = False
+            config.colour_to_find = percept.get_data()
             
     def forget(self):
         print "I have forgotten everything"
@@ -234,24 +234,24 @@ class RobotControl(threading.Thread):
             
             
     def end(self):
-        self.p.idle_go = False
+        config.idle_go = False
         self.behaviour = None
         print "ending"
-        self.camera.p.circle_d = False
-        self.camera.p.face_d = False
-        self.camera.p.edge_d = False
-        self.camera.p.detect_colour = False
-        self.camera.p.colour_to_find = None
-        self.camera.p.colour_s = False
-        self.camera.p.save_video = False
-        self.camera.p.follow_face = False
-        self.camera.p.follow_ball_neck = False
-        if self.camera.p.circle_d:
-            self.camera.p.circle_d = False
+        config.circle_d = False
+        config.face_d = False
+        config.edge_d = False
+        config.detect_colour = False
+        config.colour_to_find = None
+        config.colour_s = False
+        config.save_video = False
+        config.follow_face = False
+        config.follow_ball_neck = False
+        if config.circle_d:
+            config.circle_d = False
         
     def close(self):
-        self.p.idle_go = False
-        self.camera.p.command = 'q'
+        config.idle_go = False
+        config.command = 'q'
         self.comm.close()
         self.go = False
         
