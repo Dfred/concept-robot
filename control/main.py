@@ -21,34 +21,32 @@
 
 
 
-import sys, os, threading, time, random, math
+import sys, os, threading, time, random, math, optparse
 import communication, vision, agent, inout, config
 
 
-def main(argv):
+def main():
     """ main
-        optional arguments are --julius/--keyboard/--network and --gui
     """
-    control= None
-    gui = False
+    params = config.Params()    # load parameters
     
-    for i in argv:
-        if i == "--julius":
-            control = 'j'
-        elif i == "--keyboard":
-            control = 'c'
-        elif i == "--network":
-            control = 'n'
-        elif i == "--gui":
-            gui = True
-        else:
-            print "Please specify proper arguments.\n"\
-                      "Options are: \t'--julius', '--keyboard' or '--network' for control\n"\
-                      "\t\t'--gui' to run with a GUI"
-            sys.exit()
-        
-    params = config.Params()
-    params.use_gui = gui
+    parser = optparse.OptionParser()
+    parser.add_option("-c", "--control", dest="control",
+                      default="keyboard", type="string",
+                      help="specifies type of control. Options are: " + str(params.control_options)  )
+    parser.add_option("-g", "--gui",
+                      action="store_true", dest="gui", default=False,
+                      help="specifies if a GUI is used")
+
+    (options, args) = parser.parse_args()
+    if options.control in params.control_options:
+        params.control = options.control
+    else:
+        print "Please specify a valid control option. \n"\
+              "Options are: " + str(params.control_options)
+        exit(1)
+    params.use_gui = options.gui
+
     if params.use_comm:
         comm = communication.CommBase(params)
     else:
@@ -281,4 +279,4 @@ class RobotRecord():
         
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
