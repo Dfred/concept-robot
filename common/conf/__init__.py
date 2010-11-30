@@ -39,11 +39,9 @@ This software package shall come with a default configuration file.
 
 import os, sys
 
-
 MODULE=sys.modules[__name__]
 
 NAME=None       # this is the one-file-takes-all approach to configuration
-REQUIRED=['conn_gaze', 'conn_face']
 
 ERR_UNAVAILABLE="""No configuration file was found. Aborting!
  You can define %s system variable for complete filepath definition."""
@@ -52,6 +50,7 @@ LOADED_FILE=False
 
 class LoadException(Exception):
     pass
+
 
 # TODO: this should just be in the configuration file itself.
 def get_unix_sockets(print_flag=False):
@@ -71,7 +70,19 @@ def check_missing():
     """check for missing mandatory configuration entries.
     Returns: [missing_definitions]
     """
+    global NAME
+    if not NAME:
+        raise LoadException('unset','conf.NAME has not been set')
+    required_file = 'conf_required_'+NAME[:-5]
+    try:
+        exec 'from %s import REQUIRED' % required_file
+    except ImportError,e:
+        raise LoadException(os.path.abspath(required_file)+'.py',
+                            'missing definition: '+str(e))
+    if not REQUIRED:
+        return []
     return [ i for i in REQUIRED if i not in dir(MODULE) ]
+
 
 def build_env():
     """Builds a string from the value of NAME using:
@@ -81,6 +92,7 @@ def build_env():
     """
     global NAME
     return os.path.basename(NAME).upper().replace('.','_')
+
 
 def build_paths():
     """Builds paths where conf file could be.
@@ -101,12 +113,13 @@ def build_paths():
             conf_files.append(os.environ[build_env()])
         except (OSError,KeyError):
             pass
-
     return conf_files
+
 
 def load(raise_exception=True, reload=False):
     """Try to load 1st available configuration file, ignoring Subsequent calls
     unless reload is set to True.
+    required_names: iterable of strings specifying variable names to be found.
 
     Returns: see check_missing()
     """
