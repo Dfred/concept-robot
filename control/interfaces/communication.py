@@ -1,15 +1,14 @@
 # communication.py
 
-import threading, logging, time, socket
+import threading, time, socket
 import comm, config
     
     
 class CommBase(comm.BaseClient):
     
-    def __init__(self):
+    def __init__(self, server, port):
         self.connected_to_server = False
-        #comm.LOG.setLevel(logging.DEBUG)
-        comm.BaseClient.__init__(self, (config.server, config.port))
+        comm.BaseClient.__init__(self, (server, port))
         t_client = threading.Thread(target=self.connect_and_run)
         t_client.start()
         self.time_last_gaze = 0
@@ -40,7 +39,7 @@ class CommBase(comm.BaseClient):
     
     
     def set_gaze(self, coordinates="0.0, 0.5, 0.0"):
-        if (time.time() - self.time_last_gaze) > 0.03:
+        if (time.time() - self.time_last_gaze) > config.gaze_timer:
             self.send_msg(";;;;" + coordinates + ";;tag_GAZE")
             self.time_last_gaze = time.time()
             
@@ -50,7 +49,10 @@ class CommBase(comm.BaseClient):
         
         
     def set_neck_gaze(self, gaze = "0.0, 0.5, 0.0", orientation = "(0,0,0)", tag = "0"):
-        self.send_msg(";;;;" + gaze + ";" + orientation + ";tag_NECK_GAZE_" + tag)
+        if (time.time() - self.time_last_gaze) > config.gaze_timer:
+            self.send_msg(";;;;" + gaze + ";" + orientation + ";tag_NECK_GAZE_" + tag)
+            #print gaze
+            self.time_last_gaze = time.time()
             
             
     def set_expression(self, expression = "neutral", mode = "*", intensety = 0.5, tag = "0"):

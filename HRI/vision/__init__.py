@@ -102,7 +102,7 @@ class CaptureVideo(threading.Thread):
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
         x_dist = ((config.face_x/1400.6666)*face_distance)/100
         y_dist = ((config.face_y/700.6666)*face_distance)/100
-        return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
+        return str(-x_dist) + "," + str(face_distance/100) + "," + str(y_dist)  # x is inverted for compatibility
             
             
     def follow_face_with_neck(self, x, y, width):
@@ -390,9 +390,9 @@ class CaptureVideo(threading.Thread):
             rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)        # create IPL image
             cv.SetData(rgb, pil.tostring())                                 
             frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)      # convert to bgr
-            cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)                          
-            cv.Flip(frame, None, 1)                                         # mirror
-            
+            cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)    
+            cv.Flip(frame, None, 1)                                         # mirror                    
+
             if config.circle_d: # circle detection
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
@@ -402,6 +402,8 @@ class CaptureVideo(threading.Thread):
                 frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
                 cv.Copy(frame, frame_org)
                 frame = self.detect_edge(frame)
+                
+
 
             if frame is None:
                 print "error capturing frame"

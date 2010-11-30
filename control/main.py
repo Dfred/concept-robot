@@ -46,13 +46,24 @@ def main():
         exit(1)
     config.use_gui = options.gui
 
-    if config.use_comm:
-        comm = communication.CommBase()
-        if not comm.connected_to_server:
-            comm = None
+    # create connections
+    if config.use_comm_expression:
+        comm_expression = communication.CommBase(config.expression_server, config.expression_port)
+        if not comm_expression.connected_to_server:
+            comm_expression = None
     else:
-        comm = None
-    rb = RobotControl(comm)
+        comm_expression = None
+        
+    if config.use_comm_features:
+        comm_features = communication.CommBase(config.features_server, config.features_port)
+        if not comm_features.connected_to_server:
+            comm_features = None
+    else:
+        comm_features = None
+    
+    print comm_features
+        
+    rb = RobotControl(comm_expression)
     rb.start()
 
 
@@ -152,12 +163,12 @@ class RobotControl(threading.Thread):
                 #self.end()
                 
                 # preview of keyboard input_control...
-		import select
-		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-		    if sys.stdin.read(1) == 'f':
-		        self.find_face()
-                time.sleep(1)
-                print "waiting"
+        		import select
+        		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+        		    if sys.stdin.read(1) == 'f':
+        		        self.find_face()
+                #time.sleep(1)
+                #print "waiting"
 
         print "RobotControl closed"
         
