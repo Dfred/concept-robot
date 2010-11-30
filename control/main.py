@@ -28,7 +28,7 @@ import communication, vision, agent, inout, config
 def main():
     """ main
     """
-    
+    # parse arguments
     parser = optparse.OptionParser()
     parser.add_option("-c", "--control", dest="control",
                       default="keyboard", type="string",
@@ -45,8 +45,21 @@ def main():
               "Options are: " + str(config.control_options)
         exit(1)
     config.use_gui = options.gui
+    
+    # create appropriate connections
+    connections = connect()                 
+    
+    # create robot control        
+    rb = RobotControl(connections[0])       
+    rb.start()
+    
+    #print connections[1].get_snapshot()
 
-    # create connections
+
+
+def connect():
+    """ connect to the appropriate sources
+    """
     if config.use_comm_expression:
         comm_expression = communication.CommBase(config.expression_server, config.expression_port)
         if not comm_expression.connected_to_server:
@@ -60,11 +73,9 @@ def main():
             comm_features = None
     else:
         comm_features = None
-    
-    print comm_features
         
-    rb = RobotControl(comm_expression)
-    rb.start()
+    return (comm_expression, comm_features)
+
 
 
 class RobotControl(threading.Thread):
