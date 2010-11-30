@@ -6,13 +6,10 @@ conf.NAME="'$1'"
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "Last tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
  exit(1)
 print conf.LOADED_FILE
-if missing:
- exit(1)
 exit(0)'
-[ $? = 0 ]
 }
 
 # checks if there's missing definitions in the conf file
@@ -23,7 +20,7 @@ conf.NAME="'$1'"
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "Last tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
  exit(1)
 if missing:
  print "missing definitions", missing
