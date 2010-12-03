@@ -33,7 +33,7 @@
 #        - planner (..eventually)
 #
 
-import sys, random, time
+import sys, random, time, thread
 import collections
 import asyncore
 import logging
@@ -44,6 +44,20 @@ LOG.setLevel(logging.DEBUG)
 
 import comm
 import conf
+
+# This module handles more than just facial expressions, so sort things a bit by
+#  specifying where each AU is.
+AREAS = { 'face' : ('01L', '01R', '02L', '02R', '04L', '04R', '05L', '05R',
+                    '06L', '06R', '07L', '07R', '08L', '08R', '09L', '09R',
+                    '10L', '10R', '11L', '11R', '12L', '12R', '13L', '13R',
+                    '14L', '14R', '15L', '15R', '16L', '16R', '17L', '17R',
+                    '18L', '18R', '20L', '20R', '21L', '21R', '22L', '22R',
+                    '23L', '23R', '24L', '24R', '25', '28L', '28R', '31L',
+                    '31R', '32L', '32R', '33L', '33R', '38L', '38R', '39L',
+                    '39R'),
+          'gaze' : ('61.5L', '61.5R', '63.5'),
+          'lips' : ()
+          }
 
 class FaceProtocolError(comm.ProtocolError):
     pass
@@ -79,11 +93,10 @@ class FaceComm(object):
 
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        for au, target, attack in self.fifo:
-            try:
-                self.server.set_AU(au, target, attack)
-            except KeyError, e:
-                LOG.warning("AU %s not found. Ignored." % au)
+        try:
+            self.server.set_AUs(self.fifo)
+        except KeyError, e:
+            LOG.warning(e)
         self.fifo.clear()
 
     # def cmd_start(self, argline):
@@ -113,6 +126,16 @@ class Face(object):
 
     def __init__(self):
         self.AUs = {}
+        self.thread_id = thread.get_ident()
+
+    # TODO: it maybe slightly quicker if each area would have its own dict.
+    def get_features(self, origin):
+        """To get features for the cognition part.
+         origin: part of interest for servers managing more than 1 feature type.
+        """
+        if not origin:
+            return self.AUs
+        return [(k,v[-1]) for k,v in self.AUs.iteritems() if k in AREAS[origin]]
 
     def get_all_AU(self):
         return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
@@ -129,24 +152,27 @@ class Face(object):
             self.AUs[name] = [(0,0) , .0 , .0, .0]
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
 
-    def set_AU(self, name, target_value, duration):
+    def set_AUs(self, iterable):
         """Set targets for a specific AU, giving priority to specific inputs.
-         name: AU name
-         target_value: normalized value
-         duration: time in seconds
+        iterable: array of (AU name, normalized target value, duration in sec.)
         """
-        duration = max(duration, .001)
-        if self.AUs.has_key(name):
-            self.AUs[name][:3] = (
-                ((target_value-self.AUs[name][3])/duration, self.AUs[name][3]),
-                duration, 0)
-        else:
-            self.AUs[name+'R'][:3] = (
-                ((target_value-self.AUs[name+'R'][3])/duration,
-                 self.AUs[name+'R'][3]), duration, 0)
-            self.AUs[name+'L'][:3] = (
-                ((target_value-self.AUs[name+'L'][3])/duration,
-                 self.AUs[name+'L'][3]), duration, 0)
+        if self.thread_id != thread.get_ident():
+            self.threadsafe_start()
+        for name, target_value, duration in iterable:
+            duration = max(duration, .001)
+            if self.AUs.has_key(name):
+                self.AUs[name][:3] = (
+                    ((target_value-self.AUs[name][3])/duration,
+                     self.AUs[name][3]), duration, 0)
+            else:
+                self.AUs[name+'R'][:3] = (
+                    ((target_value-self.AUs[name+'R'][3])/duration,
+                     self.AUs[name+'R'][3]), duration, 0)
+                self.AUs[name+'L'][:3] = (
+                    ((target_value-self.AUs[name+'L'][3])/duration,
+                     self.AUs[name+'L'][3]), duration, 0)
+        if self.thread_id != thread.get_ident():
+            self.threadsafe_stop()
 
     def solve(self):
         """Here we can set additional checks (eg. AU1 vs AU4, ...)
@@ -156,9 +182,11 @@ class Face(object):
         """Update AU values. This function shall be called for each frame.
          time_step: time in seconds elapsed since last call.
         """
+        if self.thread_id != thread.get_ident():
+            self.threadsafe_start()
         #TODO: motion dynamics
         to_update = collections.deque()
-        for id,info in self.AUs.iteritems():
+        for id, info in self.AUs.iteritems():
             coeffs, duration, elapsed, value = info
             target = coeffs[0] * duration + coeffs[1]
             elapsed += time_step
@@ -171,6 +199,8 @@ class Face(object):
             up_value = coeffs[0] * elapsed + coeffs[1]
             self.AUs[id][2:] = elapsed, up_value
             to_update.append((id, up_value))
+        if self.thread_id != thread.get_ident():
+            self.threadsafe_start()
         return to_update
 
 

@@ -1,0 +1,30 @@
+0	[<s>]	sil
+1	[</s>]	sil
+2	[SYSTEM]	s ih s t ax m
+3	[LOOK]	l uh k
+3	[FIND]	f ay n d
+3	[TRACK]	t r ae k
+3	[GET]	g eh t
+4	[DO]	d uw
+5	[SHOW]	sh ow
+6	[LEARN]	l er n
+7	[FORGET]	f ax g eh t
+8	[QUIT]	k w ih t
+8	[END]	eh n d
+9	[HUMAN]	hh y uw m ax n
+9	[FACE]	f ey s
+9	[HEAD]	hh eh d
+10	[BALL]	b ao l
+11	[RED]	r eh d
+11	[BLUE]	b l uw
+11	[GREEN]	g r iy n
+11	[WHITE]	w ay t
+11	[BLACK]	b l ae k
+12	[COLOUR]	k ah l ax
+13	[IS]	ih z
+14	[IDLE]	ay d l
+15	[BYE]	b ay
+16	[THANK]	th ae ng k
+17	[YOU]	y ax
+18	[FREE]	f r iy
+19	[TIME]	t ay m
