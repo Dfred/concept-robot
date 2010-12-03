@@ -719,6 +719,7 @@ class RequestHandler(BaseComm):
     """
 
     def __init__(self, server, sock, addr_port):
+        BaseComm.__init__(self)
         self.server = server
         self.socket = sock
         self.addr_port = addr_port
