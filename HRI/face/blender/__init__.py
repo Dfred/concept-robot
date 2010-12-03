@@ -38,6 +38,7 @@ from math import cos, sin, pi
 import GameLogic as G
 
 DEBUG_MODE = True
+MAX_FPS = 50
 
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
@@ -142,7 +143,7 @@ def initialize():
     # ok, startup
     G.initialized = True	
     G.setMaxLogicFrame(1)       # relative to rendering
-    G.setLogicTicRate(32.0)
+    G.setLogicTicRate(MAX_FPS)
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
     Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
@@ -204,7 +205,7 @@ def main():
     if not hasattr(G, "initialized"):
         try:
             initialize()
-            G.server.set_listen_timeout(0.01)
+            G.server.set_listen_timeout(0.001)
             G.server.start()
         except Exception, e:
             fatal(e)
