@@ -27,6 +27,7 @@ Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
 """
 A fully functional template server and associated client talking ASCII:
 Provides async socket-based communication layer for modules + logging support.
+Also allows user classes to inherit from nothing (see create_server() )
 Look at exemple.py for an overview.
 
 recognized module communication arguments:
@@ -68,24 +69,29 @@ class ClassError(Exception):
 
 class BaseServer(object):
     """Allows using a single threaded approach, inspired from SocketServer.
-    See set_manual()'s docstring for how to use it.
-    Also allows user classes not to inherit from anything (see create_server() )
+    Unfortunately SocketServer is an old-style class and has a rigid design.
     """
-    def __init__(self, threaded=False):
-        self.handler_looping = True     # default looping behaviour for RequestHandler
-        self.handler_timeout = 0
-        self.listen_timeout = 0.5
-        self.__threaded = threaded
+    def __init__(self):
         self.__running = False
-        if threaded:
-            self.__is_shut_down = threading.Event()
-        self.clients = {}       # { fd : handler object }
-        self.polling_sockets = None  # array of sockets polled in this thread
+        self.__threaded = False
+        self.listen_timeout = 0.5
+        self.handler_timeout = 0.01     # aim for 100 select() per second
+        self.handler_looping = True     # default looping behaviour for RequestHandler
+        self.clients = {}               # { fd : handler object }
+        self.polling_sockets = None     # array of sockets polled in this thread
+
+    def set_threaded(self):
+        """Enable the server to start() its own thread.
+        Sets handler_timeout so select is blocking."""
+        self.__threaded = True
+        self.__is_shut_down = threading.Event()
+        self.__threading_lock = threading.Lock()
+        self.handler_timeout = None     # blocking select() in thread
 
     def set_addrPort(self, addrPort):
         self.addr_port = addrPort
 
-    def set_requestHandlerClass(self, ClientHandlerClass):
+    def set_RequestHandlerClass(self, ClientHandlerClass):
         self.RequestHandlerClass = ClientHandlerClass
 
     def set_listen_timeout(self, listen_timeout):
@@ -122,6 +128,7 @@ class BaseServer(object):
             self.thread.start()
         LOG.info("server started in %s-thread mode",
                  self.__threaded and 'multi' or 'single')
+        return self.__threaded and self.thread or None
 
     def shutdown(self):
         """Stops the server."""
@@ -176,14 +183,14 @@ class BaseServer(object):
         assumption: socket is readable, get_request() is non-blocking.
         """
         try:
-            socket, client_address = self.get_request()
+            socket, client_addrPort = self.get_request()
         except socket.error:
-            return self.handle_error(socket, client_address)
-        if self.verify_request(socket, client_address):
+            return self.handle_error(socket, client_addrPort)
+        if self.verify_request(socket, client_addrPort):
             try:
-                self.process_request(socket, client_address)
+                self.process_request(socket, client_addrPort)
             except:
-                self.handle_error(socket, client_address)
+                self.handle_error(socket, client_addrPort)
                 self.close_request(socket)
 
     def handle_error(self, sock, client_addr):
@@ -197,7 +204,7 @@ class BaseServer(object):
             traceback.print_exc()
             pdb.post_mortem()
 
-    def verify_request(self, request, client_address):
+    def verify_request(self, request, client_addrPort):
         """Verify the request.  May be overridden.
         Return True if we should proceed with this request."""
         return True
@@ -205,16 +212,14 @@ class BaseServer(object):
     def finish_request(self, sock, client_addr):
         """Instanciates the RequestHandler and set its connection timeout."""
         LOG.debug('new connection request from %s (%s)', client_addr, sock)
-        handler = self.RequestHandlerClass()
-        handler.set_server(self)
-        handler.set_channel(sock, client_addr)
+        handler = self.RequestHandlerClass(self, sock, client_addr)
         sock.settimeout(self.handler_timeout)
         return handler
 
-    def process_request(self, sock, client_address):
+    def process_request(self, sock, client_addrPort):
         """Creates a new client. Overridden by ForkingMixIn and ThreadingMixIn.
         """
-        handler = self.finish_request(sock, client_address)
+        handler = self.finish_request(sock, client_addrPort)
         self.polling_sockets.append(sock)
         self.update_poll_timeout()
         self.clients[sock.fileno()] = handler
@@ -257,31 +262,31 @@ class BaseServer(object):
     def threadsafe_start(self):
         """Transparent threading support."""
         """When handlers are threaded, it's good to have a way to sync them."""
-        pass
+        self.__threading_lock.acquire()
 
     def threadsafe_stop(self):
         """Transparent threading support."""
-        pass
+        self.__threading_lock.release()
 
 
 class TCPServer(BaseServer):
-    """Base class for various socket-based server classes. Inspired from SocketServer.
-    Defaults to synchronous IP stream (i.e., TCP).
+    """Base class for various socket-based server classes.
+    Inspired from SocketServer. Defaults to synchronous IP stream (i.e., TCP).
 
     Methods that may be overridden:
 
     - server_bind()
     - server_activate()
-    - get_request() -> request, client_address
+    - get_request() -> request, client_addrPort
     - handle_timeout()
-    - verify_request(request, client_address)
-    - process_request(request, client_address)
+    - verify_request(request, client_addrPort)
+    - process_request(request, client_addrPort)
     - close_request(request)
     - handle_error()
 
     Methods for derived classes:
 
-    - finish_request(request, client_address)
+    - finish_request(request, client_addrPort)
 
     Class variables that may be overridden by derived classes or
     instances:
@@ -318,7 +323,8 @@ class TCPServer(BaseServer):
         return self.socket.fileno()
 
     def get_request(self):
-        """Get the request and client address from the socket. May be overridden."""
+        """Get the request and client address from the socket.
+        May be overridden."""
         return self.socket.accept()
 
     def close_request(self, socket):
@@ -382,8 +388,8 @@ class ForkingMixIn:
             try:
                 self.active_children.remove(pid)
             except ValueError, e:
-                raise ValueError('%s. x=%d and list=%r' % (e.message, pid,
-                                                           self.active_children))
+                raise ValueError('%s. x=%d and list=%r' %(e.message, pid,
+                                                          self.active_children))
 
     def handle_timeout(self):
         """Wait for zombies after self.timeout seconds of inactivity.
@@ -392,7 +398,7 @@ class ForkingMixIn:
         """
         self.collect_children()
 
-    def process_request(self, socket, client_address):
+    def process_request(self, socket, client_addrPort):
         """Fork a new subprocess to process the request."""
         self.collect_children()
         pid = os.fork()
@@ -407,11 +413,11 @@ class ForkingMixIn:
             # Child process.
             # This must never return, hence os._exit()!
             try:
-                self.finish_request(socket, client_address)
+                self.finish_request(socket, client_addrPort)
                 os._exit(0)
             except:
                 try:
-                    self.handle_error(socket, client_address)
+                    self.handle_error(socket, client_addrPort)
                 finally:
                     os._exit(1)
 
@@ -422,21 +428,21 @@ class ThreadingMixIn:
     # main process
     daemon_threads = False
 
-    def process_request_thread(self, socket, client_address):
+    def process_request_thread(self, socket, client_addrPort):
         """Same as in BaseServer but as a thread.
         In addition, exception handling is done here.
         """
         try:
-            self.finish_request(socket, client_address)
+            self.finish_request(socket, client_addrPort)
             self.close_request(socket)
         except:
-            self.handle_error(socket, client_address)
+            self.handle_error(socket, client_addrPort)
             self.close_request(socket)
 
-    def process_request(self, socket, client_address):
+    def process_request(self, socket, client_addrPort):
         """Start a new thread to process the request."""
         t = threading.Thread(target = self.process_request_thread,
-                             args = (socket, client_address))
+                             args = (socket, client_addrPort))
         if self.daemon_threads:
             t.setDaemon (1)
         t.start()
@@ -470,6 +476,116 @@ if hasattr(socket, 'AF_UNIX'):
     SERVER_CLASSES[type('')] = { '':{ True : ThreadingUnixStreamServer,
                                       False: UnixStreamServer } }
 
+def getBaseServerClass(addr_port, threaded):
+    """Returns the appropriate base class for server according to addr_port"""
+    """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
+     port field (eg. 'udp:4242'). Default is udp."""
+    D_PROTO = 'tcp'
+    addr, port = addr_port
+    if type(port) == type(''):
+        proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
+        if port.isdigit():
+            port = int(port)
+            addr_port = (addr, port)
+    else:
+        proto = D_PROTO
+    try:
+        srv_class = SERVER_CLASSES[type(port)][proto][threaded]
+        if type(port) == '' and \
+           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
+            addr_port = addr_port[1]
+        LOG.debug('address-port: %s, selected server class: %s',
+                  addr_port, srv_class)
+        return addr_port, srv_class
+    except KeyError:
+        raise Exception('No suitable server class from addr_port. Check conf.')
+
+
+def create_RequestHandlerClass(handler_class, threaded=False):
+    """Creates a new (compound) type of RequestHandler suitable for inclusion to
+    a compound server. Users can simply ignore networking in the class code.
+    """
+    if not issubclass(handler_class, object):
+        raise ClassError('class %s must inherit from object' % handler_class)
+    if handler_class == RequestHandler:
+        raise ClassError("handler_class (%s) must be your own class" %
+                         handler_class)
+        
+    def handler_init(self, server, sock, client_addr):
+        """Transparently call super(self.__class, self).__init__"""
+#       super(self.__class__, self).__init__()
+        RequestHandler.__init__(self, server, sock, client_addr)
+        # add runtime support for threading (sending clients)
+        if threaded:
+            self._threading_lock = Lock()
+            def th_send_msg(self, msg):
+                self._threading_lock.acquire()
+                BaseComm.send_msg(self, msg)
+                self._threading_lock.release()
+        handler_class.__init__(self)
+
+    return type(handler_class.__name__+'RequestHandler',
+                (handler_class, RequestHandler),{'__init__':handler_init})
+
+
+def create_server(ext_class, handler_class, addr_port, thread_info):
+    if not issubclass(ext_class, object):
+        raise ClassError("class %s must inherit from object" % ext_class)
+    if ext_class in [ cls for proto, cls in SERVER_CLASSES.items() ]:
+        raise ClassError("ext_class (%s) must be your own class" % ext_class)
+
+    addr_port, base_class = getBaseServerClass(addr_port, thread_info[0])
+    mixed_handler_class = create_RequestHandlerClass(handler_class,
+                                                     thread_info[1])
+    def init_server(self):
+        """Transparently call super(self.__class, self).__init__
+        Also save users some calls."""
+#       super(self.__class__, self).__init__()
+        base_class.__init__(self)
+        self.set_RequestHandlerClass(mixed_handler_class)
+        self.set_addrPort(addr_port)
+        ext_class.__init__(self)
+
+    return type(ext_class.__name__+base_class.__name__, 
+                (ext_class, base_class),{'__init__':init_server})()
+
+# def create_server(ext_class, handler_class, addr_port, thread_info):
+#     """Creates a new (compound) type of server according to addr_port, also
+#      creates a new type of RequestHandler so users don't inherit from anything.
+
+#         ext_class: extension class to be a base of the new type.
+#         handler_class: class to be instancied on accepted connection.
+#         addr_port: (address, port). port type is relevant, see conf module.
+#     """
+#     if not issubclass(ext_class, object):
+#         raise ClassError('class %s must inherit from object' % ext_class)
+
+#     addr_port, base_class = getBaseServerClass(addr_port, thread_info[0])
+#     mixed_handler_class = create_requestHandler_class(handler_class,
+#                                                       thread_info[1])
+#     def server_init(self, addr_port, handler_class):
+#         """Call all subtypes initializers and add support for threading locks"""
+#         # add runtime support for threading (accessing server)
+#         if thread_info[0]:
+#             self._threading_lock = threading.Lock()
+#             def threadsafe_start(self):
+#                 self._threading_lock.acquire()
+#             def threadsafe_stop(self):
+#                 self._threading_lock.release()
+#         LOG.debug('initializing compound server %s', self.__class__)
+#         # most of this mess because of parameters in SocketServer.__init__
+#         base_class.__init__(self, addr_port, handler_class)
+#         BaseServer.__init__(self)
+#         ext_class.__init__(self)
+
+#     if ext_class != BaseServer:
+#         bases = (ext_class, BaseServer)
+#     else:
+#         bases = (BaseServer,)
+#     return type(ext_class.__name__+base_class.__name__, bases,
+#                 {"__init__":server_init})(addr_port, mixed_handler_class)
+
+
        
 class BaseComm(object):
     """Basic protocol handling and command-to-function resolver. This is the
@@ -489,7 +605,7 @@ class BaseComm(object):
         self.running = False
         return False
 
-    def read_once(self, timeout=0.05):
+    def read_once(self, timeout=0.01):
         """Non-blocking call for processing client commands (see __init__).
         Replaces handle()
         No check for self.running.
@@ -602,12 +718,10 @@ class RequestHandler(BaseComm):
     If needed, define your own protocol handler overriding BaseComm.process.
     """
 
-    def set_channel(self, socket, addr_port):
-        self.socket = socket
-        self.addr_port = addr_port
-
-    def set_server(self, server):
+    def __init__(self, server, sock, addr_port):
         self.server = server
+        self.socket = sock
+        self.addr_port = addr_port
 
     def run(self):
         try:
@@ -743,112 +857,17 @@ def get_conn_infos(addr_port):
     return socket.AF_INET, addr_port
 
 
-def getBaseServerClass(addr_port, threaded):
-    """Returns the appropriate base class for server according to addr_port"""
-    """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
-     port field (eg. 'udp:4242'). Default is udp."""
-    D_PROTO = 'tcp'
-    addr, port = addr_port
-    if type(port) == type(''):
-        proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
-        if port.isdigit():
-            port = int(port)
-            addr_port = (addr, port)
-    else:
-        proto = D_PROTO
-    try:
-        srv_class = SERVER_CLASSES[type(port)][proto][threaded]
-        if type(port) == '' and \
-           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
-            addr_port = addr_port[1]
-        LOG.debug('address-port: %s, selected server class: %s',
-                  addr_port, srv_class)
-        return addr_port, srv_class
-    except KeyError:
-        raise Exception('No suitable server class from addr_port. Check conf.')
-
-
-def create_requestHandler_class(handler_class, threaded=False):
-    """Creates a new (compound) type of RequestHandler suitable for inclusion to
-    a compound server. Users can simply ignore networking in the class code.
-    """
-    if not issubclass(handler_class, object):
-        raise ClassError('class %s must inherit from object' % handler_class)
-
-    def requestHandler_init(self, socket, client_addr, server):
-        """Call all subclasses initializers"""
-        LOG.debug('initializing compound request handler %s', self.__class__)
-        # add runtime support for threading (sending clients)
-        if threaded:
-            self._threading_lock = Lock()
-            def th_send_msg(self, msg):
-                self._threading_lock.acquire()
-                BaseComm.send_msg(self, msg)
-                self._threading_lock.release()
-        # most of this mess because it can be done and I have fun doing it
-        RequestHandler.__init__(self, socket, client_addr, server)
-        handler_class.__init__(self)
-        self.run()
-
-    if handler_class != RequestHandler:
-        bases = (handler_class, RequestHandler)
-    else:
-        bases = (RequestHandler,)
-    return type(handler_class.__name__+'RequestHandler', bases,
-                {"__init__":requestHandler_init})
-
-def create_server(ext_class, handler_class, addr_port, thread_info):
-    """Creates a new (compound) type of server according to addr_port, also
-     creates a new type of RequestHandler so users don't inherit from anything.
-
-        ext_class: extension class to be a base of the new type.
-        handler_class: class to be instancied on accepted connection.
-        addr_port: (address, port). port type is relevant, see conf module.
-    """
-    if not issubclass(ext_class, object):
-        raise ClassError('class %s must inherit from object' % ext_class)
-
-    addr_port, base_class = getBaseServerClass(addr_port, thread_info[0])
-    mixed_handler_class = create_requestHandler_class(handler_class,
-                                                      thread_info[1])
-    def server_init(self, addr_port, handler_class):
-        """Call all subtypes initializers and add support for threading locks"""
-        # add runtime support for threading (accessing server)
-        if thread_info[0]:
-            self._threading_lock = threading.Lock()
-            def threadsafe_start(self):
-                self._threading_lock.acquire()
-            def threadsafe_stop(self):
-                self._threading_lock.release()
-        LOG.debug('initializing compound server %s', self.__class__)
-        # most of this mess because of parameters in SocketServer.__init__
-        base_class.__init__(self, addr_port, handler_class)
-        BaseServer.__init__(self)
-        ext_class.__init__(self)
-
-    if ext_class != BaseServer:
-        bases = (ext_class, BaseServer)
-    else:
-        bases = (BaseServer,)
-    return type(ext_class.__name__+base_class.__name__, bases,
-                {"__init__":server_init})(addr_port, mixed_handler_class)
-
-
 if __name__ == '__main__':
     THREADED_SERVER  = False 
     THREADED_CLIENTS = False
     THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 
-#    server = create_server(THREAD_INFO)
-    server = TCPServer()
-    server.set_requestHandlerClass(RequestHandler)
-    server.set_addrPort(('localhost',4242))
-
     set_default_logging(debug=True)
-#    import pdb; pdb.set_trace()
 
-    # set timeout for checking incoming connections
-    server.set_listen_timeout(0.5)
+    class TestS(object): pass
+    class TestH(object): pass
+
+    server = create_server(TestS, TestH, ('localhost',4242), THREAD_INFO)
     server.start()
     if not THREADED_SERVER:
         while server.serve_once():
