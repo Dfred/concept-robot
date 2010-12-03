@@ -45,6 +45,20 @@ LOG.setLevel(logging.DEBUG)
 import comm
 import conf
 
+# This module handles more than just facial expressions, so sort things a bit by
+#  specifying where each AU is.
+AREAS = { 'face' : ('01L', '01R', '02L', '02R', '04L', '04R', '05L', '05R',
+                    '06L', '06R', '07L', '07R', '08L', '08R', '09L', '09R',
+                    '10L', '10R', '11L', '11R', '12L', '12R', '13L', '13R',
+                    '14L', '14R', '15L', '15R', '16L', '16R', '17L', '17R',
+                    '18L', '18R', '20L', '20R', '21L', '21R', '22L', '22R',
+                    '23L', '23R', '24L', '24R', '25', '28L', '28R', '31L',
+                    '31R', '32L', '32R', '33L', '33R', '38L', '38R', '39L',
+                    '39R'),
+          'gaze' : ('61.5L', '61.5R', '63.5'),
+          'lips' : ()
+          }
+
 class FaceProtocolError(comm.ProtocolError):
     pass
 
@@ -114,6 +128,15 @@ class Face(object):
     def __init__(self):
         self.AUs = {}
 
+    # TODO: it maybe slightly quicker if each area would have its own dict.
+    def get_features(self, origin):
+        """To get features for the cognition part.
+         origin: part of interest for servers managing more than 1 feature type.
+        """
+        if not origin:
+            return self.AUs
+        return [(k,v[-1]) for k,v in self.AUs.iteritems() if k in AREAS[origin]]
+
     def get_all_AU(self):
         return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
 
@@ -128,6 +151,7 @@ class Face(object):
             # target_coeffs, duration, elapsed, value
             self.AUs[name] = [(0,0) , .0 , .0, .0]
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
+#        missing = 
 
     def set_AU(self, name, target_value, duration):
         """Set targets for a specific AU, giving priority to specific inputs.

@@ -47,5 +47,5 @@ else
 	    echo "WARNING: $CONF_BASENAME could not be found or is not readable. Check your LIGHTHEAD_CONF variable."
 	fi
     fi
-    alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lighthead.blend"
+    alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"
 fi
