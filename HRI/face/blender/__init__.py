@@ -155,6 +155,8 @@ def initialize():
 def update(faceServer, eyes, time_diff):
     """
     """
+    global INFO_PERIOD
+
     cont = G.getCurrentController()
     eyes_done = False
 
@@ -202,14 +204,16 @@ def main():
     if not hasattr(G, "initialized"):
         try:
             initialize()
-            # set a lower timeout in case of single-threaded mode
+            G.server.set_listen_timeout(0.01)
             G.server.start()
         except Exception, e:
             fatal(e)
     else:
         if not THREADED_SERVER:
             # server handles channels explicitly
-            G.server.handle_request(not THREADED_SERVER and 0.01 or 0.5)
+            if not G.server.serve_once():
+                print 'server returned an error'
+                G.server.shutdown()
         # update blender with fresh face data
         update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
         G.last_update_time = time.time()
