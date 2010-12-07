@@ -44,7 +44,8 @@ class SpineComm(object):
 
     def __init__(self):
         self.map = ('53.5', '55.5', '51.5') 
-        self.xyz = [0,0,0]
+        self.xyz = [('.0', '0'),('.0','0'),('.0','0')]
+        self.server.switch_auto()
 
     def cmd_switch(self, argline):
         args = argline.split()
@@ -92,7 +93,7 @@ class SpineComm(object):
 
     def cmd_commit(self, argline):
         """from expr2"""
-        self.cmd_rotate('neck '+' '.join([ value for value, time in self.xyz ]))
+        self.cmd_rotate('neck '+' '.join([value for time, value in self.xyz]))
 
 
 class SpineBase(object):
@@ -178,12 +179,17 @@ __all__ = ['Spine', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 
 if __name__ == '__main__':
-    conf.name = sys.argv[-1]
-    conf.load()
+    import sys
+    import conf
+    conf.NAME = sys.argv[-1]
     try:
-        server = comm.create_server(SpineServer, SpineClient, conf.conn_spine)
-    except UserWarning, err:
+        comm.set_default_logging(debug=True)
+        conf.load()
+        server = comm.create_server(Spine, SpineComm, conf.conn_spine,
+                                    (False,False))
+    except (conf.LoadException, UserWarning), err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
+    server.start()
     server.serve_forever()
     LOG.debug("Spine server done")
