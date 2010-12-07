@@ -81,7 +81,10 @@ class lightHeadHandler(MetaRequestHandler):
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
-            self.set_current_subhandler(self.handlers[argline])
+            try:
+                self.set_current_subhandler(self.handlers[argline])
+            except KeyError:
+                LOG.warning('unknown origin: %s', argline)
         else:
             self.send_msg("origin is %s" % self.curr_handler)
 
@@ -148,7 +151,7 @@ class lightHeadServer(MetaServer):
         self.register(server, FaceComm, 'lips')
 
         import conf
-        if not hasattr(conf, 'conn_head'):
+        if not hasattr(conf, 'conn_spine'):
             return
         try:
             from spine import Spine, SpineComm, SpineError
