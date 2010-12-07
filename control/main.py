@@ -26,6 +26,7 @@ import communication, vision, agent, inout, config, conf
 
 LOG = communication.comm.LOG
 
+
 def main():
     """ main
     """
@@ -148,7 +149,7 @@ class RobotControl(threading.Thread):
                 
             elif self.behaviour == "find_ball":
                 if self.behaviour_change:
-                    self.comm.set_expression("staring", "happy", 0.5)
+                    self.comm.set_expression(TAG_FEXPRESS,"staring","happy",.5)
                     print "behaviour is find_ball"
                     config.follow_ball_neck = True
                     config.follow_ball_gaze = True
