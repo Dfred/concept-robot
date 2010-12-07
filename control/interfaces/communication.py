@@ -26,7 +26,7 @@ class CommBase(comm.BaseClient):
             self.set_gaze(str(config.gaze_pos[0]) + "," + str(config.gaze_pos[1]) + "," + str(config.gaze_pos[2]))
             self.connected_to_server = True
         except socket.error:
-            print "Connection error, server %s (port %i) not found" % (config.server, config.port)
+            print "Connection error, server %s (port %i) not found" % (server, port)
             self.connected_to_server = False
 
         
