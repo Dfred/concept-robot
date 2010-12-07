@@ -68,6 +68,9 @@ def get_unix_sockets(print_flag=False):
 
 def check_missing():
     """check for missing mandatory configuration entries.
+    conf_required+NAME[:-5] (eg: conf_required_lighthead.py) is a module where
+     required definitions are set. ie: if you need to make sure a specific entry
+     is present in your config file.
     Returns: [missing_definitions]
     """
     global NAME
@@ -77,8 +80,7 @@ def check_missing():
     try:
         exec 'from %s import REQUIRED' % required_file
     except ImportError,e:
-        raise LoadException(os.path.abspath(required_file)+'.py',
-                            'missing definition: '+str(e))
+        LOG.debug('could not find module %s => not enforcing any config entry')
     if not REQUIRED:
         return []
     return [ i for i in REQUIRED if i not in dir(MODULE) ]
