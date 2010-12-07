@@ -72,8 +72,8 @@ class BaseServer(object):
     Unfortunately SocketServer is an old-style class and has a rigid design.
     """
     def __init__(self):
-        self.__running = False
-        self.__threaded = False
+        self.running = False
+        self.threaded = False
         self.listen_timeout = 0.5
         self.handler_timeout = 0.01     # aim for 100 select() per second
         self.handler_looping = True     # default looping behaviour for RequestHandler
@@ -83,7 +83,7 @@ class BaseServer(object):
     def set_threaded(self):
         """Enable the server to start() its own thread.
         Sets handler_timeout so select is blocking."""
-        self.__threaded = True
+        self.threaded = True
         self.__is_shut_down = threading.Event()
         self.__threading_lock = threading.Lock()
         self.handler_timeout = None     # blocking select() in thread
@@ -97,7 +97,7 @@ class BaseServer(object):
     def set_listen_timeout(self, listen_timeout):
         """Sets socket timeout for incoming connections."""
         self.listen_timeout = listen_timeout
-        if self.__running:
+        if self.running:
             self.socket.settimeout(listen_timeout)
             self.update_poll_timeout()
 
@@ -119,22 +119,22 @@ class BaseServer(object):
 
     def start(self):
         """Starts the server (listen to connections)"""
-        self.__running = True
+        self.running = True
         self.activate()
         self.polling_sockets = [self.socket]
         self.update_poll_timeout()
-        if self.__threaded:
+        if self.threaded:
             self.thread = Thread(target=G.server.serve_forever, name='server')
             self.thread.start()
         LOG.info("server started in %s-thread mode",
-                 self.__threaded and 'multi' or 'single')
-        return self.__threaded and self.thread or None
+                 self.threaded and 'multi' or 'single')
+        return self.threaded and self.thread or None
 
     def shutdown(self):
         """Stops the server."""
         LOG.info("%s> stopping server", self.socket.fileno())
-        self.__running = False
-        if self.__threaded:
+        self.running = False
+        if self.threaded:
             self.__is_shut_down.wait()
             self.thread.join()
         else:
@@ -168,14 +168,14 @@ class BaseServer(object):
     def serve_forever(self):
         """Blocking call. Inspired from SocketServer.
         """
-        if self.__threaded:
+        if self.threaded:
             self.__is_shut_down.clear()
         try:
-            while self.__running and self.serve_once():
+            while self.running and self.serve_once():
                 pass
         finally:
-            self.__running = True
-            if self.__threaded:
+            self.running = True
+            if self.threaded:
                 self.__is_shut_down.set()
 
     def _handle_request_noblock(self):
@@ -195,11 +195,12 @@ class BaseServer(object):
 
     def handle_error(self, sock, client_addr):
         """Installs an interactive pdb session if logger is at DEBUG level"""
+        import traceback
         LOG.error('Exception raised with %s (%s)', sock, client_addr)
         if LOG.getEffectiveLevel() != logging.DEBUG:
             print 'use debug mode to spawn post-mortem analysis with pdb'
         else:
-            import pdb, traceback
+            import pdb
             print '===EXCEPTION CAUGHT'+'='*60
             traceback.print_exc()
             pdb.post_mortem()
@@ -226,8 +227,6 @@ class BaseServer(object):
 
     def close_request(self, sock):
         """Cleans up an individual request. Extend but don't override."""
-        LOG.debug('closing connection with %s (%s)',
-                  self.clients[sock.fileno()].addr_port, sock)
         del self.polling_sockets[self.polling_sockets.index(sock)]
         del self.clients[sock.fileno()]
         self.update_poll_timeout()
@@ -327,10 +326,12 @@ class TCPServer(BaseServer):
         May be overridden."""
         return self.socket.accept()
 
-    def close_request(self, socket):
+    def close_request(self, sock):
         """Called to clean up an individual request."""
-        BaseServer.close_request(self, socket)
-        socket.close()
+        LOG.debug('closing TCP connection with %s (%s)',
+                  self.clients[sock.fileno()].addr_port, sock)
+        BaseServer.close_request(self, sock)
+        sock.close()
 
 
 class UDPServer(TCPServer):
@@ -350,7 +351,7 @@ class UDPServer(TCPServer):
 
     def close_request(self, socket):
         # No need to close anything.
-        pass
+        BaseServer.close_request(self, socket)
 
 class ForkingMixIn:
     """Mix-in class to handle each request in a new process."""
@@ -749,7 +750,7 @@ class RequestHandler(BaseComm):
         """Overrides SocketServer"""
 #        if not self.server.handler_looping:
 #            return
-        LOG.info("%i> connection terminated : %s on "+str(self.addr_port[1]),
+        LOG.info("%i> connection terminating : %s on "+str(self.addr_port[1]),
                  self.socket.fileno(), self.addr_port[0])
 
     def cmd_shutdown(self, args):
@@ -868,7 +869,7 @@ if __name__ == '__main__':
     class TestS(object): pass
     class TestH(object): pass
 
-    server = create_server(TestS, TestH, ('localhost',4242), THREAD_INFO)
+    server = create_server(TestS, TestH, ('localhost',2121), THREAD_INFO)
     server.start()
     if not THREADED_SERVER:
         while server.serve_once():
