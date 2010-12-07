@@ -22,23 +22,17 @@ class CommBase(comm.BaseClient):
         self.face_info = None
 
     def handle_connect(self):
-        """Callback for sucessful connection"""
-        LOG.info("Connected to server %s:%i", 
-                 self.target_addr[0], self.target_addr[1])
-        try:
-            # to init communication and set robot on origin
-            self.set_neck_orientation((0,0,0))
-            self.set_gaze(config.gaze_pos)
-        except socket.error:
-            self.handle_disconnect()
+        """Callback for sucessful connection.
+        Inits communication and set robot on origin"""
+        LOG.info("Connected to server {0[0]}:{0[1]}".format(self.target_addr))
 
     def handle_disconnect(self):
-        """Callback for sucessful disconnection"""
-        LOG.error("Disconnected from server %s:%i",
-                  self.target_addr[0], self.target_addr[1])
+        """Callback for sucessful disconnection. Info log level."""
+        LOG.info("Disconnected from server {0[0]}:{0[1]}".format(self.target_addr))
 
     def send_msg(self, msg):
         if self.connected:
+            import pdb; pdb.set_trace()
             LOG.debug("sending to %s: '%s'", self.target_addr, msg)
             return comm.BaseClient.send_msg(self, msg)
         LOG.debug("*NOT* sending to %s: '%s'", self.target_addr, msg)
@@ -66,12 +60,19 @@ class CommBase(comm.BaseClient):
         """Formats and sends a gaze and/or neck packet to expression server."""
         # TODO: remove time check, replace with logic based on reply from expr.
         if (time.time() - self.time_last_gaze) > config.gaze_timer:
-            self.send_msg(";;;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
-            self.time_last_gaze = time.time()
+            try:
+                self.send_msg(";;;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1],
+                                                           neck))
+                self.time_last_gaze = time.time()
+            except socket.error:
+                self.handle_disconnect()
 
     def set_expression(self, expression="neutral", mode="*", intensity=0):
-        self.send_msg("%s;%s;%s;;;;tag_FEXPRESSION" % (expression, mode,
-                                                       intensity))
+        try:
+            self.send_msg("%s;%s;%s;;;;tag_FEXPRESSION" % (expression, mode,
+                                                           intensity))
+        except socket.error:
+            self.handle_disconnect()
 
     def get_snapshot(self):
         self.send_msg("get_snapshot")
