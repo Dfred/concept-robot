@@ -7,6 +7,7 @@ def get_RootPath():
     return path.realpath(this_path+'/../')
 
 ROOT_PATH=get_RootPath()
+print 'ROOT_PATH is', ROOT_PATH
 DEBUG=True
 
 # system config

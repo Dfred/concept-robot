@@ -17,8 +17,8 @@ class MetaRequestHandler(object):
         Basically we emulate the basics of SocketServer.BaseRequestHandler and 
         """
         subhandler = subhandler_class()
-        subhandler.request = self.request
-        subhandler.client_address = self.client_address
+        subhandler.socket = self.socket
+        subhandler.addr_port = self.addr_port
         subhandler.server = srv
         subhandler.send_msg = types.MethodType(comm.BaseComm.send_msg,
                                                subhandler, subhandler_class)

@@ -19,7 +19,6 @@ except ImportError:
 from spine import SpineError, SpineBase
 
 
-
 def showTPos(tpos):
     print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
         '- position: (X:{0.X}, Y:{0.Y}, Z:{0.Z})'.format(tpos)

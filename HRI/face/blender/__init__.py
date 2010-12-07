@@ -37,8 +37,21 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
-DEBUG_MODE = True
-SINGLE_THREAD = True # False (requires locking)
+DEBUG_MODE = False #True
+MAX_FPS = 50
+
+# A word on threading:
+# The server can run in its thread, handlers (connected clients) can also run in
+#  their own. With standard python VM, no threading is supposedly faster.
+# NOW READ THIS CAREFULLY:
+# ------------------------
+# If THREADED_CLIENTS is True, you need to use locking facilities properly (see
+#  comm.BaseServer.threadsafe_start/stop).
+# If THREADED_CLIENTS is False and THREADED_SERVER is True, ONLY ONE CLIENT can
+#  connect and its handler will indeed run in the server thread.
+THREADED_SERVER  = False
+THREADED_CLIENTS = False
+THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 
 FACE = 'face'
 
@@ -47,20 +60,7 @@ CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
-
-def shutdown(cont):
-    """Shutdown server and other clean-ups"""
-    cont.activate(cont.actuators["- QUITTER"])
-    #We check if there is a valid "server" object because its possible that 
-    #we were unable to create it, and therefore we are shutting down
-    if hasattr(G, "server"):
-      G.server.set_hooks(G.server, True, timeout=0)
-      if G.server.clients:
-          G.server.clients[0].finish()
-    else:
-      sys.exit(1)
-    sys.exit(0)
-
+INFO_PERIOD = 0
 
 def fatal(error):
     print '*** Fatal Error ***'
@@ -81,7 +81,19 @@ def check_defects(owner, acts):
     return False
 
 
-def initialize(threading=True):
+def shutdown(cont):
+    """Shutdown server and other clean-ups"""
+    cont.activate(cont.actuators["- QUITTER"])
+    #We check if there is a valid "server" object because its possible that 
+    #we were unable to create it, and therefore we are shutting down
+    if hasattr(G, "server"):
+      G.server.shutdown()
+    else:
+      sys.exit(1)
+    sys.exit(0)
+
+
+def initialize():
     """Initialize connections and configures facial subsystem"""
     import sys
 
@@ -105,7 +117,7 @@ def initialize(threading=True):
 
     from lightHead_server import lightHeadServer, lightHeadHandler
     G.server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                  conf.conn_face, threading)
+                                  conf.conn_face, THREAD_INFO)
     G.server.create_protocol_handlers()
 
     # for eye orientation.
@@ -131,16 +143,10 @@ def initialize(threading=True):
     # ok, startup
     G.initialized = True	
     G.setMaxLogicFrame(1)       # relative to rendering
-    G.setLogicTicRate(32.0)
-    print "BGE logic running at", G.getLogicTicRate(), "fps."
-    print "BGE physics running at", G.getPhysicsTicRate(), "fps."
-    print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
+    G.setLogicTicRate(MAX_FPS)
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
     Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
-    print "GLSL shaders are",
-    # yeah.. weird:
-    print ['enabled', 'disabled'][Rasterizer.getGLSLMaterialSetting("shaders")]
     print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
 
     cont.activate(cont.actuators["- wakeUp -"])
@@ -148,8 +154,14 @@ def initialize(threading=True):
 
 
 def update(faceServer, eyes, time_diff):
+    """
+    """
+    global INFO_PERIOD
+
     cont = G.getCurrentController()
     eyes_done = False
+
+    # threaded server is thread-safe
     for au, value in faceServer.update(time_diff):
         if au[0] == '6':        # yes, 6 is an eye prefix !
             if eyes_done:
@@ -175,6 +187,13 @@ def update(faceServer, eyes, time_diff):
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
 
+    INFO_PERIOD += time_diff
+    if INFO_PERIOD > 5:
+        print "--- RENDERING INFO ---"
+        print "BGE logic running at", G.getLogicTicRate(), "fps."
+#        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
+        print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
+        INFO_PERIOD = 0
 
 
 #
@@ -185,26 +204,17 @@ import select
 def main():
     if not hasattr(G, "initialized"):
         try:
-            initialize(not SINGLE_THREAD)
-            if not SINGLE_THREAD:
-                from threading import Thread
-                Thread(target=G.server.serve_forever,name='server').start()
-                print 'multi-thread mode: started server thread'
+            initialize()
+            G.server.set_listen_timeout(0.001)
+            G.server.start()
         except Exception, e:
             fatal(e)
     else:
-        if SINGLE_THREAD:       # actively check connection channel
-            if not G.server.clients:
-                # we don't want to block in FaceClient.__init__
-                # we also don't want to block waiting for data
-                G.server.set_hooks(G.server, looping=False, timeout=0)
-                print 'single-thread mode: waiting for a connection on', \
-                    G.server.server_address
-                G.server.handle_request()
-            else:
-                if not G.server.clients[0].read_once(): # handle disconnections
-                    G.server.set_hooks(G.server, looping=True, timeout=0)
-                    G.server.clients[0].finish()
+        if not THREADED_SERVER:
+            # server handles channels explicitly
+            if not G.server.serve_once():
+                print 'server returned an error'
+                G.server.shutdown()
         # update blender with fresh face data
         update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
         G.last_update_time = time.time()

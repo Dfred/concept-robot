@@ -81,7 +81,10 @@ class lightHeadHandler(MetaRequestHandler):
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
-            self.set_current_subhandler(self.handlers[argline])
+            try:
+                self.set_current_subhandler(self.handlers[argline])
+            except KeyError:
+                LOG.warning('unknown origin: %s', argline)
         else:
             self.send_msg("origin is %s" % self.curr_handler)
 
@@ -154,7 +157,7 @@ class lightHeadServer(MetaServer):
         try:
             from spine import Spine, SpineComm, SpineError
         except ImportError, e:
-            print '!!! spine backend not available. spine not included !!!'
+            LOG.warn('!!! spine backend not available. spine not included !!!')
             return
         try:
             server = self.create_subserver(Spine)
