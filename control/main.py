@@ -49,10 +49,12 @@ def main():
     config.use_gui = options.gui
     
     # create appropriate connections
-    connections = connect()                 
-    
+    comm_express, comm_features = connect()
+    if comm_express.connected:
+        comm_express.set_neck_gaze(gaze=config.gaze_pos, neck=(0,0,0))
+
     # create robot control        
-    rb = RobotControl(connections[0])       
+    rb = RobotControl(comm_express)
     rb.start()
     
     #print connections[1].get_snapshot()
@@ -65,10 +67,8 @@ def connect():
     conf.NAME = 'lightHead.conf'
     conf.load()
     # Will ignore send_msg if not connected
-    comm_expression = communication.CommBase(conf.expression_server)
-    comm_features = communication.CommBase(conf.lightHead_server)
-    comm_expression.send_msg('switch auto')
-    return (comm_expression, comm_features)
+    return (communication.CommBase(conf.expression_server),
+            communication.CommBase(conf.lightHead_server) )
 
 
 
@@ -76,10 +76,9 @@ class RobotControl(threading.Thread):
     """ main robot control
     """
     
-    def __init__(self, comm):
-        
+    def __init__(self, expression_comm):
         threading.Thread.__init__(self)
-        self.comm = comm
+        self.comm = expression_comm
         self.camera = vision.CaptureVideo(self.comm)
         self.camera.start()
         self.camera_ball = None
