@@ -343,9 +343,10 @@ class BaseClient(BaseComm):
         try:
             self.request.connect(self.target_addr)
         except socket.error, e:
-            self.handle_error(e)
+            self.handle_error('%s with %s:%i' % (
+                    e, self.target_addr[0], self.target_addr[1]))
             self.request.close()
-            return
+            return False
         self.connected = True
         self.handle_connect()
 
@@ -357,6 +358,7 @@ class BaseClient(BaseComm):
             self.request.close()
             self.connected = False
             self.handle_disconnect()
+        return True
 
     def abort(self):
         """For read_while_running"""
@@ -380,10 +382,11 @@ class BaseClient(BaseComm):
         LOG.debug('client disconnected from remote server %s', self.target_addr)
 
 
-def set_default_logging():
+def set_default_logging(debug=False):
     """This function does nothing if the root logger already has
     handlers configured."""
-    logging.basicConfig(level=logging.INFO, format=LOGFORMAT)
+    logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
+                        format=LOGFORMAT)
 
 
 def get_conn_infos(addr_port):
