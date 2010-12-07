@@ -22,8 +22,9 @@
 
 
 import sys, os, threading, time, random, math, optparse
-import communication, vision, agent, inout, config
+import communication, vision, agent, inout, config, conf
 
+LOG = communication.comm.LOG
 
 def main():
     """ main
@@ -60,20 +61,12 @@ def main():
 def connect():
     """ connect to the appropriate sources
     """
-    if config.use_comm_expression:
-        comm_expression = communication.CommBase(config.expression_server, config.expression_port)
-        if not comm_expression.connected_to_server:
-            comm_expression = None
-    else:
-        comm_expression = None
-        
-    if config.use_comm_features:
-        comm_features = communication.CommBase(config.features_server, config.features_port)
-        if not comm_features.connected_to_server:
-            comm_features = None
-    else:
-        comm_features = None
-        
+    conf.NAME = 'lightHead.conf'
+    conf.load()
+    # Will ignore send_msg if not connected
+    comm_expression = communication.CommBase(conf.expression_server)
+    comm_features = communication.CommBase(conf.lightHead_server)
+    comm_expression.send_msg('switch auto')
     return (comm_expression, comm_features)
 
 
