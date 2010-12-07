@@ -137,6 +137,15 @@ class Face(object):
             return self.AUs
         return [(k,v[-1]) for k,v in self.AUs.iteritems() if k in AREAS[origin]]
 
+    # TODO: it maybe slightly quicker if each area would have its own dict.
+    def get_features(self, origin):
+        """To get features for the cognition part.
+         origin: part of interest for servers managing more than 1 feature type.
+        """
+        if not origin:
+            return self.AUs
+        return [(k,v[-1]) for k,v in self.AUs.iteritems() if k in AREAS[origin]]
+
     def get_all_AU(self):
         return [(item[0],item[1][0],item[1][1])for item in self.AUs.iteritems()]
 
@@ -151,6 +160,7 @@ class Face(object):
             # target_coeffs, duration, elapsed, value
             self.AUs[name] = [(0,0) , .0 , .0, .0]
         LOG.info("Available AUs: %s" % sorted(self.AUs.keys()))
+#        missing = 
 
     def set_AUs(self, iterable):
         """Set targets for a specific AU, giving priority to specific inputs.
