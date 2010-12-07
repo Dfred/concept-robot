@@ -37,7 +37,7 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
-DEBUG_MODE = False #True
+DEBUG_MODE = True
 MAX_FPS = 50
 
 # A word on threading:
@@ -93,7 +93,7 @@ def shutdown(cont):
     sys.exit(0)
 
 
-def initialize():
+def initialize(server_addrPort):
     """Initialize connections and configures facial subsystem"""
     import sys
 
@@ -103,10 +103,6 @@ def initialize():
 
     # look for and load a file called lightHead.conf
     # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
-    import conf
-    conf.NAME='lightHead.conf'
-    missing = conf.load()
-
     import comm
     if DEBUG_MODE:
         print 'setting debug mode'
@@ -117,7 +113,7 @@ def initialize():
 
     from lightHead_server import lightHeadServer, lightHeadHandler
     G.server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                  conf.conn_face, THREAD_INFO)
+                                  server_addrPort, THREAD_INFO)
     G.server.create_protocol_handlers()
 
     # for eye orientation.
@@ -199,12 +195,14 @@ def update(faceServer, eyes, time_diff):
 #
 # Main loop
 #
-import select
+import conf
+conf.NAME='lightHead.conf'
+missing = conf.load()
 
-def main():
+def main(addr_port):
     if not hasattr(G, "initialized"):
         try:
-            initialize()
+            initialize(conf.lightHead_server)
             G.server.set_listen_timeout(0.001)
             G.server.start()
         except Exception, e:
