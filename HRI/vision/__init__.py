@@ -65,21 +65,12 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
+                neck = self.follow_face_with_neck(relative_x, relative_y, close_face_rect.w)
                 #print gaze
                 if self.comm is not None:
                     if self.comm.last_ack != "wait" and gaze:
-                        self.comm.set_neck_gaze(gaze)
+                        self.comm.set_neck_gaze(gaze, "("+str(neck[1]) + ", 0," + str(neck[0]))
                         self.comm.last_ack = "wait"
-                        
-            if config.follow_face_neck:
-                relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
-                relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
-                neck = self.follow_face_with_neck(relative_x, relative_y, close_face_rect.w)
-                if self.comm is not None:
-                    if self.comm.last_ack != "wait" and neck:
-                        self.comm.set_neck_gaze("0.0, 0.5, 0.0", "("+str(neck[1]) + ", 0," + str(neck[0]))
-                        self.comm.last_ack = "wait"
-            
                     
                     
     def findFaces(self, im):
