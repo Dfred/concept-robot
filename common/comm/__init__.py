@@ -77,7 +77,7 @@ class BaseServer(object):
         self.listen_timeout = 0.5
         self.handler_timeout = 0.01     # aim for 100 select() per second
         self.handler_looping = True     # default looping behaviour for RequestHandler
-        self.clients = {}               # { fd : handler object }
+        self.clients = {}               # { sock : handler object }
         self.polling_sockets = None     # array of sockets polled in this thread
 
     def set_threaded(self):
@@ -159,7 +159,7 @@ class BaseServer(object):
             for sock in r:
                 if sock == self.socket:
                     self._handle_request_noblock()
-                elif not self.clients[sock.fileno()].read_socket():
+                elif not self.clients[sock].read_socket():
                     self.close_request(sock)
         except Exception, err:
             return self.handle_error(self.polling_sockets, None)
@@ -223,12 +223,12 @@ class BaseServer(object):
         handler = self.finish_request(sock, client_addrPort)
         self.polling_sockets.append(sock)
         self.update_poll_timeout()
-        self.clients[sock.fileno()] = handler
+        self.clients[sock] = handler
 
     def close_request(self, sock):
         """Cleans up an individual request. Extend but don't override."""
         del self.polling_sockets[self.polling_sockets.index(sock)]
-        del self.clients[sock.fileno()]
+        del self.clients[sock]
         self.update_poll_timeout()
 
     def set_auto(self):
@@ -329,7 +329,7 @@ class TCPServer(BaseServer):
     def close_request(self, sock):
         """Called to clean up an individual request."""
         LOG.debug('closing TCP connection with %s (%s)',
-                  self.clients[sock.fileno()].addr_port, sock)
+                  self.clients[sock].addr_port, sock)
         BaseServer.close_request(self, sock)
         sock.close()
 
@@ -606,7 +606,6 @@ class BaseComm(object):
 
     def abort(self):
         """For read_while_running"""
-        LOG.debug("communication has been interrupted")
         if self.socket:
             self.socket.close()
         self.connected = False
@@ -750,7 +749,7 @@ class RequestHandler(BaseComm):
         self.addr_port = type(self.addr_port) == type("") and \
             ("localhost", "UNIX Socket") or self.addr_port
         LOG.info("%i> connection accepted from %s on %s. Client is %slooping",
-                 self.socket.fileno(), self.addr_port[0], str(self.addr_port[1]),
+                 self.socket.fileno(),self.addr_port[0],str(self.addr_port[1]),
                  self.work == self.read_once and '*NOT* ' or '')
 
     def finish(self):
@@ -772,10 +771,10 @@ class RequestHandler(BaseComm):
         LOG.info("%s> listing %i clients.",
                  self.socket.fileno(), len(self.server.clients))
         clients_infos = []
-        for fd, cl in self.server.clients.iteritems():
-            clients_infos.append( type(cl.addr_port) == type("") and
-                                  (fd, "UNIX", "localhost") or
-                                  (fd, cl.addr_port[1], cl.addr_port[0]) )
+        for sock, cl in self.server.clients.iteritems():
+            clients_infos.append(type(cl.addr_port) == type("") and
+                                 (sock.fileno(), "UNIX", "localhost") or
+                                 (sock.fileno(), cl.addr_port[1], cl.addr_port[0]))
         clients_infos.sort()
         obuffer = "clients: %i connected: (ID, PORT, ADDR)"%(len(clients_infos))
         for client_info in clients_infos:
