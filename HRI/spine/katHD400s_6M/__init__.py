@@ -18,6 +18,9 @@ except ImportError:
                       ' be built from source.')
 from spine import SpineError, SpineBase
 
+ARM_ADDR = '192.168.168.232'#'192.168.168.232'
+
+
 def showTPos(tpos):
     print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
         '- position: (X:{0.X}, Y:{0.Y}, Z:{0.Z})'.format(tpos)
@@ -197,7 +200,7 @@ def init_arm():
     # Just initializes the arm
     import os.path
     KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
-    if KNI.initKatana(KatHD400s_6m, "192.168.1.1") == -1:
+    if KNI.initKatana(KatHD400s_6m, ARM_ADDR) == -1:
         raise SpineError('configuration file not found or'
                          ' failed to connect to hardware', KatHD400s_6m)
     else:

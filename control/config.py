@@ -7,16 +7,16 @@ def get_RootPath():
     return path.realpath(this_path+'/../')
 
 ROOT_PATH=get_RootPath()
-
+print 'ROOT_PATH is', ROOT_PATH
 
 # system config
 haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
 control_options = ["keyboard", "voice_command", "network"]
 use_comm_expression = True           # communicate with expression server
 use_comm_features = True             # communicate with lightHead server (feature pool)
-expression_server = '141.163.186.5'   # server address
+expression_server = 'localhost'   # server address
 expression_port = 4242                # server port
-features_server = '141.163.186.16'   # server address
+features_server = 'localhost'   # server address
 features_port = 4244                # server port
 command = '0'
 

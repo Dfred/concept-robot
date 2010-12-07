@@ -301,4 +301,5 @@ class RobotRecord():
         
 
 if __name__ == "__main__":
+    communication.comm.set_default_logging(debug=True)
     main()

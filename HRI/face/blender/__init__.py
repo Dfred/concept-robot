@@ -37,7 +37,7 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
-DEBUG_MODE = True
+DEBUG_MODE = False #True
 MAX_FPS = 50
 
 # A word on threading:

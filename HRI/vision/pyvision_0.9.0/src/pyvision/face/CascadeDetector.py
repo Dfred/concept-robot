@@ -96,8 +96,14 @@ class CascadeDetector:
                 orig_size = (orig_size[0],orig_size[1])
             
             self.cascade_data = open(cascade_name).read()
-            self.cascade = cv.Load( cascade_name )
-            self.storage = cv.CreateMemStorage(0)
+            try:
+                self.cascade = cv.Load( cascade_name )
+            except AttributeError:
+                self.cascade = cv.cvLoad(cascade_name)
+            try:
+                self.storage = cv.CreateMemStorage(0)
+            except AttributeError:
+                self.storage = cv.cvCreateMemStorage(0)
             self.trained = True
         
         

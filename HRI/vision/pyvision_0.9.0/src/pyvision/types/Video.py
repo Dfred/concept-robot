@@ -48,8 +48,7 @@ from scipy import weave
 class Webcam:
     def __init__(self,camera_num=0,size=(640,480)):
 
-        self.cv_capture = cv.CreateCameraCapture( camera_num )        
-        
+        self.cv_capture = cv.CreateCameraCapture( camera_num )
         self.size = size
     
     def query(self):
