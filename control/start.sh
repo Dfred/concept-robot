@@ -1,5 +1,5 @@
 #!/bin/bash
-export PYTHONPATH=../common/:../HRI/:../HRI/vision/pyvision_0.9.0/src/:control/:learning/:interfaces/
+export PYTHONPATH=$PYTHONPATH:/usr/lib/pymodules/python2.6/:../common/:../HRI/:../HRI/vision/pyvision_0.9.0/src/:control/:learning/:interfaces/
 
 declare -a ARGS=("$@")
 unset ARGS[0]
