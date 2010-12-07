@@ -64,7 +64,7 @@ if ! test -z "$MISSING"; then
     exit 1
 fi
 
-ADDR_PORT=`grep face $CONF_FILE | cut -d '=' -f2`
+ADDR_PORT=`grep "$FACE_BIN"_server $CONF_FILE | cut -d '=' -f2`
 echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
 
 # remove old unix sockets if present
