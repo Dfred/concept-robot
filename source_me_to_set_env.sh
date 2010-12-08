@@ -4,8 +4,10 @@
 #  * checks folders
 #  * checks which configuration file is loadable
 #
+#  * relies on PROJECT_NAME environment variable
+#
 #  * sets the PYTHONPATH environment variable
-#  * sets the LIGHTHEAD_CONF environment variable
+#  * sets the CONF_FILE environment variable
 #  * sets the edit_face alias
 #
 
@@ -13,39 +15,53 @@ if test -z "$CONCEPT_DIR"; then
     echo '$CONCEPT_DIR' not set, assuming '$PWD' "($PWD)"
     CONCEPT_DIR=$PWD
 fi
+
+# test known errors 1st
 if ! test -d "$CONCEPT_DIR/common"; then
 	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
+elif test -z "$PROJECT_NAME"; then
+    echo '$PROJECT_NAME' not set, cannot continue.
 else
-    PYTHONPATH=$PYTHONPATH:$CONCEPT_DIR/common/:$CONCEPT_DIR/HRI/
+    # Platform dependent paths (handles the famous nagger thanks to minGW)
+    case `uname -s` in
+	MINGW*)
+	    MODULES_PATH="$CONCEPT_DIR/common;$CONCEPT_DIR/HRI;$CONCEPT_DIR/HRI/face"
+	    PYTHONPATH="$MODULES_PATH"
+	    ;;
+	*)
+	    MODULES_PATH="$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/HRI/face"
+            # The following depends on the BGE python version (necessary for blender 2.4x)
+            BGE_PYTHON_PATH="/usr/lib/python$BGE_PYTHON_VERS/:/usr/lib/python$BGE_PYTHON_VERS/lib-dynload"
+            PYTHONPATH="$PYTHONPATH:$BGE_PYTHON_PATH:$MODULES_PATH"
+	    ;;
+    esac
     export PYTHONPATH
 
-    source $CONCEPT_DIR/common/source_me.sh
-    CONF_BASENAME='lightHead.conf'
+    . $CONCEPT_DIR/common/source_me.sh
 
-    LIGHTHEAD_CONF=$(get_python_conf $CONF_BASENAME)
-    if test $? != 0 ; then 
-	echo "$LIGHTHEAD_CONF"
+    CONF_FILE=$(get_python_conf $PROJECT_NAME)
+    if test $? != 0 ; then
+	echo "$CONF_FILE"
+	unset CONF_FILE
     else
-	if ! test -z "$LIGHTHEAD_CONF"; then
-	    echo "found configuration file: " $LIGHTHEAD_CONF
-	    export LIGHTHEAD_CONF
+	if ! test -z "$CONF_FILE"; then
+	    echo "found configuration file: " $CONF_FILE
+	    export CONF_FILE
 	else
 	    echo -n "the conf module could not find any of these files: "
-	    echo `get_python_conf_candidates $CONF_BASENAME`
+	    echo `get_python_conf_candidates $PROJECT_NAME`
 	fi
 
-	MISSING= check_python_conf $CONF_BASENAME
+	MISSING= check_python_conf $PROJECT_NAME
 	if ! test -z "$MISSING"; then
 	    echo "missing entries in conf: $MISSING"
 	fi
 
-	if test -z "$LIGHTHEAD_CONF"; then
-	    export LIGHTHEAD_CONF=$CONCEPT_DIR/common/lightHead.conf
-	fi
-
-	if ! test -r "$LIGHTHEAD_CONF"; then
-	    echo "WARNING: $CONF_BASENAME could not be found or is not readable. Check your LIGHTHEAD_CONF variable."
+	if ! test -r "$CONF_FILE"; then
+	    echo "WARNING: $CONF_FILE could not be found or is not readable."
+	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
     fi
     alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"
 fi
+

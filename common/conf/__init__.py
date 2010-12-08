@@ -26,97 +26,126 @@ versions >= 2.5
 Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
 """
 """
-Global configuration system reading module. Reads file 'lightHead.conf'.
-This module reads the global configuration file and checks missing definitions.
-Configuration file search path order:
- 1) current user's home directory (posix systems: $HOME)
- 2) globlal system configuration file (posix: /etc/)
- 3) any path defined by the system variable $(LIGHTHEAD_CONF)
+Configuration file reading and setting module..
 
-Syntax is the python syntax.
-This software package shall come with a default configuration file.
+Main function is load() which relies on 2 ways to load a configuration file:
+- if load() is called without prior call to set_name(), it opens project_def.py (see below).
+- if using set_name(project_name) to set the name of the project, you can then call load().
+
+project_def.py:
+---------------
+This allows specifying the project's name and required configuration entries.
+If you have this file, you must define these variables:
+ NAME which defines the project name
+ REQUIRED which defines required entries (see below).
+
+The NAME variable:
+------------------
+NAME is a string identifying your project.
+That string is filtered by isalnum() for portability reasons. Filtered
+ characters are replaced with '_'.
+From this *filtered* NAME, the configuration file <NAME>.conf is searched.
+ Indeed, that file is a python script, declarations are expected to be in that
+ file's global namespace. In other words is just straightforward declarations.
+
+The REQUIRED variable:
+----------------------
+REQUIRED is an iterable (eg. array or tuple) of strings, defining the entries to
+ be found in your project configuration file. eg: REQUIRED = ('address', 'port')
+Indeed, you can define REQUIRED as an empty iterable. eg: REQUIRED=(,)
+
+Alternative to project_def.py:
+------------------------------
+If you don't want to set configuration requirements, you can also define NAME by
+ directly calling this module's set_name(). 
+ eg: import conf; conf.set_name('foo'); conf.load()
+
+Configuration file search path order:
+-------------------------------------
+ 1) any path defined by the system variable built from (filtered) NAME value:
+   $<NAME>_CONF 
+   eg: in project_def.py:      NAME='my_project'
+       in your environment:    MY_PROJECT_CONF='/opt/my_project/my_project.conf'
+
+ 2) current user's home directory:
+   for POSIX systems: $HOME/.<NAME>.conf
+
+ 3) globlal system configuration file:
+   for POSIX: /etc/<NAME>.conf
+
+
+Conclusions:
+============
+* there's only 1 NAME per python process (VM).
+* if you have no project_def.py and no requirements, use set_name()
 """
 
 import os, sys
 
-MODULE=sys.modules[__name__]
-
-NAME=None       # this is the one-file-takes-all approach to configuration
-
-ERR_UNAVAILABLE="""No configuration file was found. Aborting!
- You can define %s system variable for complete filepath definition."""
-
-LOADED_FILE=False
+NAME = None
+REQUIRED = None
+__LOADED_FILE = None
 
 class LoadException(Exception):
+    """Exception with 2 elements: filename and error_message. Use like:
+    import conf
+    try:
+      load()
+    except conf.LoadException, e:
+      print 'file {0[0]} : {0[1]}'.format(e)"""
     pass
 
+def set_name(project_name):
+    """Sets the project_name and returns the filtered version of it."""
+    global NAME
+    NAME = filter(lambda x: x.isalnum() and x or '_', project_name)
+    return NAME
 
-# TODO: this should just be in the configuration file itself.
-def get_unix_sockets(print_flag=False):
-    """Try to get unix sockets from the loaded configuration.
-    Returns: [ declared_unix_sockets ]
-    """
-    if not LOADED_FILE:
-        load()
-    entries=[getattr(MODULE,c) for c in dir(MODULE) if c.startswith('conn_')]
-    sockets=[port for host, port in entries if type(port) == type("")]
-    if print_flag:
-        print " ".join(sockets)
-    return sockets
-
+def get_name():
+    """Tries to fetch NAME and (optional) REQUIRED from project_def.py"""
+    global NAME
+    if NAME:
+        return NAME
+    try:
+        from project_def import NAME, REQUIRED
+    except ImportError, e:
+        import sys
+        raise LoadException('project_def.py',
+                            'The project name has not been set and I cannot '
+                            'import the project definition: project_def.py '
+                            'in PYTHONPATH: %s (%s)' % (sys.path,e) )
 
 def check_missing():
     """check for missing mandatory configuration entries.
-    conf_required+NAME[:-5] (eg: conf_required_lighthead.py) is a module where
-     required definitions are set. ie: if you need to make sure a specific entry
-     is present in your config file.
     Returns: [missing_definitions]
     """
-    global NAME
+    global NAME, REQUIRED
     if not NAME:
-        raise LoadException('unset','conf.NAME has not been set')
-    required_file = 'conf_required_'+NAME[:-5]
-    try:
-        exec 'from %s import REQUIRED' % required_file
-    except ImportError,e:
-        LOG.debug('could not find module %s => not enforcing any config entry')
+        get_name()
     if not REQUIRED:
         return []
-    return [ i for i in REQUIRED if i not in dir(MODULE) ]
+    return [ i for i in REQUIRED if i not in dir(sys.modules[__name__]) ]
 
-
-def build_env():
-    """Builds a string from the value of NAME using:
-    * NAME's basename
-    * upper case
-    * translation of dot ('.') to underscore ('_')
-    """
-    global NAME
-    return os.path.basename(NAME).upper().replace('.','_')
-
-
-def build_paths():
-    """Builds paths where conf file could be.
+def build_candidates():
+    """Creates locations where conf file could be.
     Checks for a environment variable, name being built from build_env()
     """
     global NAME
     if not NAME:
-        raise LoadException('unset','conf.NAME has not been set')
+        get_name()
 
-    conf_files=[]
+    locs=[]
     try:
-        conf_files.append(os.path.join(os.path.expanduser('~/'), '.'+NAME))
+        locs.append(os.environ[NAME])
+    except (OSError,KeyError):
+        pass
+    try:
+        locs.append( os.path.join(os.path.expanduser('~/'),'.'+NAME+'.conf') )
     except OSError, err:
-        raise LoadException(err, 'Cheesy OS error')
+        raise LoadException(None, 'Cheesy OS error: %s' % err)
     else:
-        conf_files.append(os.path.join('/etc', NAME))
-        try:
-            conf_files.append(os.environ[build_env()])
-        except (OSError,KeyError):
-            pass
-    return conf_files
-
+        locs.append(os.path.join('/etc', NAME+'.conf'))
+    return locs
 
 def load(raise_exception=True, reload=False):
     """Try to load 1st available configuration file, ignoring Subsequent calls
@@ -125,28 +154,36 @@ def load(raise_exception=True, reload=False):
 
     Returns: see check_missing()
     """
-    global LOADED_FILE
-    if reload:
-        raise LoadException(LOADED_FILE, "reload of conf not coded yet")
-    elif LOADED_FILE:
+    global NAME, __LOADED_FILE
+    if not NAME:
+        get_name()
+
+    def load_from_candidates():
+        global __LOADED_FILE
+        for conf_file in build_candidates():
+            if os.path.isfile(conf_file):
+                msg = None
+                try:
+                    execfile(conf_file, globals())
+                    __LOADED_FILE = conf_file
+                except SyntaxError, err:
+                    msg = "error line %i." % err.lineno
+                except Exception, e:
+                    msg = e
+                else:
+                    break
+                if msg and raise_exception:
+                    raise LoadException(conf_file, msg)
+
+    if __LOADED_FILE and not reload:
         return check_missing()
+    else:
+        load_from_candidates()
 
-    for conf_file in build_paths():
-        if os.path.isfile(conf_file):
-            msg = None
-            try:
-                execfile(conf_file, globals())
-                LOADED_FILE = conf_file
-            except SyntaxError, err:
-                msg = "error line %i." % err.lineno
-            except Exception, e:
-                msg = e
-            else:
-                break
-            if msg and raise_exception:
-                raise LoadException(conf_file, msg)
-                break
-
-    if LOADED_FILE == False and raise_exception:
-        raise LoadException(conf_file, ERR_UNAVAILABLE % build_env())
+    if __LOADED_FILE == False and raise_exception:
+        raise LoadException(conf_file,
+                            "No configuration file found for project {0}. "
+                            "Aborting!\nYou can define the environment variable"
+                            " '{0}' for complete filepath definition.".format(
+                NAME) )
     return check_missing()
