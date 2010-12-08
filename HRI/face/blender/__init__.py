@@ -37,7 +37,6 @@ import sys, time
 from math import cos, sin, pi
 import GameLogic as G
 
-DEBUG_MODE = True
 MAX_FPS = 50
 
 # A word on threading:
@@ -63,7 +62,7 @@ RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 INFO_PERIOD = 0
 
 def fatal(error):
-    print '*** Fatal Error ***'
+    print '*** Fatal Error ***', error
     import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
 
@@ -101,10 +100,8 @@ def initialize(server_addrPort):
     print "LIGHTHEAD Facial Animation System, python version:", sys.version
     print "loaded module from", __path__[0]
 
-    # look for and load a file called lightHead.conf
-    # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
-    import comm
-    if DEBUG_MODE:
+    import comm, conf
+    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
         print 'setting debug mode'
         # set system-wide logging level
         comm.logging.basicConfig(level=comm.logging.DEBUG,format=comm.LOGFORMAT)
@@ -128,10 +125,8 @@ def initialize(server_addrPort):
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    try:
-        check_defects(owner, acts)
-    except Exception, e:
-        fatal(e)
+
+    check_defects(owner, acts)
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
     G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
@@ -195,16 +190,18 @@ def update(faceServer, eyes, time_diff):
 #
 # Main loop
 #
-import conf
-conf.NAME='lightHead.conf'
-missing = conf.load()
 
 def main(addr_port):
     if not hasattr(G, "initialized"):
         try:
+            import conf; missing = conf.load()
+            if missing:
+                fatal('missing configuration entries: %s' % missing)
             initialize(conf.lightHead_server)
             G.server.set_listen_timeout(0.001)
             G.server.start()
+        except conf.LoadException, e:
+            fatal('in file {0[0]}: {0[1]}'.format(e)) 
         except Exception, e:
             fatal(e)
     else:
