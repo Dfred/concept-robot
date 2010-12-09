@@ -42,6 +42,7 @@ else
     esac
     export PYTHONPATH
 
+    # Load helper functions (calling python)
     . $CONCEPT_DIR/common/source_me.sh
 
     CONF_FILE=$(get_python_conf $PROJECT_NAME)
@@ -53,18 +54,14 @@ else
 	    echo "found configuration file: " $CONF_FILE
 	    export CONF_FILE
 	else
-	    echo -n "the conf module could not find any of these files: "
+	    echo -n "WARNING: unable to find any of these files: "
 	    echo `get_python_conf_candidates $PROJECT_NAME`
+	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
 
 	MISSING= check_python_conf $PROJECT_NAME
 	if ! test -z "$MISSING"; then
-	    echo "missing entries in conf: $MISSING"
-	fi
-
-	if ! test -r "$CONF_FILE"; then
-	    echo "WARNING: $CONF_FILE could not be found or is not readable."
-	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
+	    echo "missing required entries in conf: $MISSING"
 	fi
     fi
     alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"

@@ -6,7 +6,7 @@ conf.set_name("'$1'")
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "(file: %s)" % e[0]
  print "candidate files:", conf.build_candidates()
  exit(1)
 print conf.__LOADED_FILE
@@ -21,7 +21,7 @@ conf.set_name("'$1'")
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "(file: %s)" % e[0]
  print "candidate files:", conf.build_candidates()
  exit(1)
 if missing:
@@ -35,5 +35,5 @@ get_python_conf_candidates()
 {
 python -c 'import conf;
 conf.set_name("'$1'")
-print " ".join(conf.build_paths())'
+print " ".join(conf.build_candidates())'
 }

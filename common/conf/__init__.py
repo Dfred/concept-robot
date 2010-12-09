@@ -180,10 +180,10 @@ def load(raise_exception=True, reload=False):
     else:
         load_from_candidates()
 
-    if __LOADED_FILE == False and raise_exception:
-        raise LoadException(conf_file,
+    if not __LOADED_FILE and raise_exception:
+        raise LoadException(None,
                             "No configuration file found for project {0}. "
                             "Aborting!\nYou can define the environment variable"
-                            " '{0}' for complete filepath definition.".format(
-                NAME) )
+                            " '{0}' for complete configuration file path "
+                            "definition.".format(NAME) )
     return check_missing()
