@@ -10,18 +10,23 @@
 #  * sets the CONF_FILE environment variable
 #  * sets the edit_face alias
 #
-
 if test -z "$CONCEPT_DIR"; then
     echo '$CONCEPT_DIR' not set, assuming '$PWD' "($PWD)"
     CONCEPT_DIR=$PWD
+fi
+
+# override PROJECT_NAME if given an argument
+if ! test -z "$1"; then
+    PROJECT_NAME=$1
 fi
 
 # test known errors 1st
 if ! test -d "$CONCEPT_DIR/common"; then
 	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
 elif test -z "$PROJECT_NAME"; then
-    echo '$PROJECT_NAME' not set, cannot continue.
+	echo "missing argument or "'$PROJECT_NAME'" not set: cannot continue."
 else
+    echo "Setting environment for project: $PROJECT_NAME"
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
