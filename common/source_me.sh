@@ -2,13 +2,14 @@
 get_python_conf()
 {
 python -c 'import conf;
-conf.NAME="'$1'"
+conf.set_name("'$1'")
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "(file: %s)" % e[0]
+ print "candidate files:", conf.build_candidates()
  exit(1)
-print conf.LOADED_FILE
+print conf.__LOADED_FILE
 exit(0)'
 }
 
@@ -16,33 +17,23 @@ exit(0)'
 check_python_conf()
 {
 python -c 'import conf;
-conf.NAME="'$1'"
+conf.set_name("'$1'")
 try:
  missing = conf.load()
 except conf.LoadException, e:
- print "CONFIGURATION ERROR:", e[1], "\nLast tried file:", e[0]
+ print "CONFIGURATION ERROR:", e[1], "(file: %s)" % e[0]
+ print "candidate files:", conf.build_candidates()
  exit(1)
 if missing:
  print "missing definitions", missing
  exit(1)
 exit(0)'
-[ "$?" = "0" ]
 }
 
 # get search path and files checked for conf
 get_python_conf_candidates()
 {
 python -c 'import conf;
-conf.NAME="'$1'"
-print " ".join(conf.build_paths())'
-}
-
-# quick way to die on failure
-check_exiting()
-{
-  if ! $1; then
-	echo
-	echo $2
-	exit 1
-  fi
+conf.set_name("'$1'")
+print " ".join(conf.build_candidates())'
 }

@@ -25,50 +25,34 @@
 #
 
 BGE_PYTHON_VERS=2.6
-FACE_BIN="lightHead"
-CONF_BASENAME="lightHead.conf"
+PROJECT_NAME=lightHead
 
-. common/source_me.sh
-
-check_exiting "test -x ./$FACE_BIN" "Could not find executable file '$FACE_BIN' in this directory."
-check_exiting "python -c 'print'"  "python not found. Did you set your PATH ?"
-
-# Platform dependent paths (handles the famous nagger thanks to minGW)
-case `uname -s` in
-	MINGW*)
-	MODULES_PATH='common;HRI;HRI/face'
-	PYTHONPATH="$MODULES_PATH"
-	;;
-	*)
-	MODULES_PATH='common:HRI:HRI/face'
-        # The following depends on the BGE python version (necessary for blender 2.4x)
-        BGE_PYTHON_PATH="/usr/lib/python$BGE_PYTHON_VERS/:/usr/lib/python$BGE_PYTHON_VERS/lib-dynload"
-        PYTHONPATH="$PYTHONPATH:$BGE_PYTHON_PATH:$MODULES_PATH"
-;;
-esac
-export PYTHONPATH
-
-CONF_FILE=$(get_python_conf $CONF_BASENAME)
-# if command failed
-if test $? -eq 1; then
-    echo $CONF_FILE
-    FILES=$(get_python_conf_candidates $CONF_BASENAME)
-    echo '\t\t     files searched for: ' $FILES
+if ! python -c 'print'; then
+    echo "python not found. Did you set your PATH ?"
     exit 1
 fi
 
+. ./source_me_to_set_env.sh
 
-MISSING=$(check_python_conf $CONF_BASENAME)
-if ! test -z "$MISSING"; then
-    echo "missing entries in conf: $MISSING"
+if ! test -x ./$PROJECT_NAME; then
+    echo "Could not find executable file '$PROJECT_NAME' in this directory."
     exit 1
 fi
 
-ADDR_PORT=`grep "$FACE_BIN"_server $CONF_FILE | cut -d '=' -f2`
-echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
+if test -z "$CONF_FILE"; then
+    exit 1
+fi
+
+# the config file is a python script, let's use a function from it
+ADDR_PORT=`python -c "execfile('$CONF_FILE'); print "$PROJECT_NAME"_server"`
+if ( test $? != 0 ) || ( test -z "$ADDR_PORT" ); then
+    echo "!!! problem getting value for "$PROJECT_NAME"_server in $CONF_FILE"
+else
+    echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
+fi
 
 # remove old unix sockets if present
-SOCKETS=`python -c 'import conf; conf.NAME="'$CONF_BASENAME'"; conf.get_unix_sockets(1)'`
+SOCKETS=`python -c "execfile('$CONF_FILE'); get_unix_sockets(True)"`
 if test $? -ne 0; then
 	echo "ERROR: Failure to get socket list !"
 	exit 1
@@ -83,4 +67,4 @@ fi
 # Now launch
 echo -n "--- launching face "
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
-./$FACE_BIN $@ "$CONF_BASENAME"
+./$PROJECT_NAME $@ "$PROJECT_NAME"
