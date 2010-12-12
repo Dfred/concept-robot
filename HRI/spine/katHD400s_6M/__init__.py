@@ -63,6 +63,7 @@ class SpineHW(SpineBase):
         LOG.info('connecting to Katana400s-6m')
         init_arm()
         #TODO: set self.limits_
+        LOG.debug('motors: %s', self.check_motors())
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -130,14 +131,23 @@ class SpineHW(SpineBase):
         if KNI.calibrate(0) == -1:
             raise SpineError('failed to calibrate hardware')
 
+    def check_motors(self):
+        """Test each motor status"""
+        motors = [None]*len(self.AXIS_LIMITS)
+        for i in xrange(1, len(self.AXIS_LIMITS)):
+            LOG.debug('checking motor %i', i)
+            enc = KNI.getEncoder(i)
+            motors[i] = KNI.moveMot(i, enc, self._speed, self._accel) != -1
+        return motors
+
     def reach_pose(self, pose):
         """This pose is defined so that the hardware is safe to switch-off.
         """
         if not self._motors_on:
             return 0
-        move_settings = [self._speed, self._accel, self._tolerance]
         # no wait
-        if KNI.moveToPosEnc(*pose+move_settings+[False]) == -1:
+        if KNI.moveToPosEnc(*pose+[self._speed, self._accel, self._tolerance]+
+                             [False]) == -1:
             raise SpineError('failed to reach pose')
 
     def pose_rest(self):

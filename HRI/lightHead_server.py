@@ -150,10 +150,6 @@ class lightHeadServer(MetaServer):
         self.register(server, FaceComm, 'gaze')
         self.register(server, FaceComm, 'lips')
 
-        import conf
-        if not hasattr(conf, 'conn_spine'):
-	    LOG.info('no conn_spine in config file. ignoring spine!')
-            return
         try:
             from spine import Spine, SpineComm, SpineError
         except ImportError, e:

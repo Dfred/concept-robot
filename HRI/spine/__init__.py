@@ -45,7 +45,6 @@ class SpineComm(object):
     def __init__(self):
         self.map = ('53.5', '55.5', '51.5') 
         self.xyz = [('.0', '0'),('.0','0'),('.0','0')]
-        self.server.switch_auto()
 
     def cmd_switch(self, argline):
         args = argline.split()
@@ -65,10 +64,10 @@ class SpineComm(object):
         self.xyz[self.map.index(args[0])] = args[1:]
 
     def cmd_rotate(self, argline):
-        """relative rotation on 3 axis.\tsyntax is: neck|torso x y z [wait]'
-        """
+        """relative rotation on 3 axis.
+        Syntax is: neck|torso x y z [wait]"""
         if not argline:
-#            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
+            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
             return
         args = argline.split()
         if len(args) < 4:
@@ -79,7 +78,6 @@ class SpineComm(object):
             self.server.set_neck_orientation(xyz, wait)
         elif args[0] == 'torso':
             self.server.set_torso_orientation(xyz, wait)
-#        self.server.set_neck_rot_pos(rot_xyz=tuple(args))
         else:
             raise SpineProtocolError("invalid body-part %s", args[0])
 
@@ -165,30 +163,27 @@ class SpineBase(object):
         raise NotImplemented()
 
 try:
-    from spine.backend import SpineHW
+    from spine.backend import SpineHW as Spine
 except ImportError, e:
     print 
-    print '*** MISCONFIGURATION ***'
-    print 'Make sure the backend link points to your backend!'
+    print '*** SPINE MISCONFIGURATION ***'
+    print 'Make sure the SPINE backend link points to your backend!'
     print 'for your information:', e
     raise 
-else:
-    Spine = SpineHW
 
-__all__ = ['Spine', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
+__all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 
 if __name__ == '__main__':
     import sys
     import conf
-    conf.NAME = sys.argv[-1]
     try:
         comm.set_default_logging(debug=True)
         conf.load()
         server = comm.create_server(Spine, SpineComm, conf.conn_spine,
                                     (False,False))
     except (conf.LoadException, UserWarning), err:
-        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
+        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
         exit(-1)
     server.start()
     server.serve_forever()
