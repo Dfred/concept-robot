@@ -78,6 +78,7 @@ class BaseServer(object):
         self.handler_timeout = 0.01     # aim for 100 select() per second
         self.handler_looping = True     # default looping behaviour for RequestHandler
         self.clients = {}               # { sock : handler object }
+        self.socket = None
         self.polling_sockets = None     # array of sockets polled in this thread
 
     def set_threaded(self):
@@ -132,6 +133,8 @@ class BaseServer(object):
 
     def shutdown(self):
         """Stops the server."""
+        if not self.socket:
+            return
         LOG.info("%s> stopping server", self.socket.fileno())
         self.running = False
         if self.threaded:
