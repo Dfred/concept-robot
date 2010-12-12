@@ -32,7 +32,7 @@ if ! python -c 'print'; then
     exit 1
 fi
 
-. ./source_me_to_set_env.sh 
+. ./source_me_to_set_env.sh
 
 if ! test -x ./$PROJECT_NAME; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."

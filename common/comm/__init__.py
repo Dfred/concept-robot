@@ -128,8 +128,8 @@ class BaseServer(object):
         if self.threaded:
             self.thread = Thread(target=G.server.serve_forever, name='server')
             self.thread.start()
-        LOG.debug("server started in %s-thread mode",
-                  self.threaded and 'multi' or 'single')
+        LOG.info("server started in %s-thread mode",
+                 self.threaded and 'multi' or 'single')
         return self.threaded and self.thread or None
 
     def pre_shutdown(self):
