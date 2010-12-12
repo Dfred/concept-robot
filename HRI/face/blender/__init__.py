@@ -63,7 +63,9 @@ INFO_PERIOD = 0
 
 def fatal(error):
     print '*** Fatal Error ***', error
-    import traceback; traceback.print_exc()
+    import conf; conf.load()
+    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
+        import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
 
 
@@ -113,20 +115,25 @@ def initialize(server_addrPort):
                                   server_addrPort, THREAD_INFO)
     G.server.create_protocol_handlers()
 
-    # for eye orientation.
+    # get driven objects
     objs = G.getCurrentScene().objects
-    G.eyes = (objs[OBJ_PREFIX+"eye-R"], objs[OBJ_PREFIX+"eye-L"])
-
-    # for jaw opening
-    G.jaw = objs[OBJ_PREFIX+"jaw"]
+    for obj_name in ('eye_L', 'eye_R', 'jaw', 'tongue'):
+        try:
+            setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
+        except KeyError:
+            try:
+# WARNING: at least in python 2.6 capitalize and title docstrings are confused!
+                setattr(G, obj_name, objs[OBJ_PREFIX+obj_name.title()])
+            except KeyError, e:
+                raise Exception('no object "%s" in blender file' % e[0][16:-18])
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-
     check_defects(owner, acts)
+
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
     G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
@@ -144,7 +151,7 @@ def initialize(server_addrPort):
     G.last_update_time = time.time()    
 
 
-def update(faceServer, eyes, time_diff):
+def update(faceServer, time_diff):
     """
     """
     global INFO_PERIOD
@@ -154,7 +161,7 @@ def update(faceServer, eyes, time_diff):
 
     # threaded server is thread-safe
     for au, value in faceServer.update(time_diff):
-        if au[0] == '6':        # yes, 6 is an eye prefix !
+        if au[0] == '6':        # XXX: yes, 6 is an eye prefix (do better ?)
             if eyes_done:
                 continue
             # The model is supposed to look towards negative Y values
@@ -162,18 +169,21 @@ def update(faceServer, eyes, time_diff):
             ax  = -faceServer.get_AU('63.5')[3]
             az0 = faceServer.get_AU('61.5R')[3]
             az1 = faceServer.get_AU('61.5L')[3]
-            eyes[0].localOrientation = [
+            # No ACTION for eyes
+            G.eye_L.localOrientation = [
                 [cos(az0),        -sin(az0),         0],
                 [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
                 [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)] ]
-            eyes[1].localOrientation = [
+            G.eye_R.localOrientation = [
                 [cos(az1),        -sin(az1),          0],
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
         elif au == '26':
             # TODO: try with G.setChannel
-            G.jaw['p26'] = SH_ACT_LEN*value    # see always sensor in .blend
+            G.jaw['p26'] = SH_ACT_LEN * value    # see always sensor in .blend
+        elif au[0] == '9':      # XXX: yes, 6 is a tongue prefix (do better ?)
+            G.tongue[au] = SH_ACT_LEN * value
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
@@ -211,5 +221,5 @@ def main(addr_port):
                 print 'server returned an error'
                 G.server.shutdown()
         # update blender with fresh face data
-        update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
+        update(G.server[FACE], time.time() - G.last_update_time)
         G.last_update_time = time.time()

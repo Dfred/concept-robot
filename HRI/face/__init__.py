@@ -214,6 +214,15 @@ class Face(object):
         return to_update
 
 
+try:
+    from face.backend import main
+except ImportError, e:
+    print 
+    print '*** FACE MISCONFIGURATION ***'
+    print 'Make sure the FACE backend link points to your backend!'
+    print 'for your information:', e
+    raise 
+
 
 if __name__ == '__main__':
     conf.name = sys.argv[-1]
