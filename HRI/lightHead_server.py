@@ -90,9 +90,10 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        for key in ORIGINS:
-            if self.handlers.has_key(key):
-                self.handlers[key].cmd_commit(argline)
+        self.curr_handler.cmd_commit(argline)
+#        for key in ORIGINS:
+#            if self.handlers.has_key(key):
+#                self.handlers[key].cmd_commit(argline)
 
     def cmd_reload(self, argline):
         """Reload subserver modules"""
