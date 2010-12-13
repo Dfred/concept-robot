@@ -38,7 +38,6 @@ class CommBase(comm.BaseClient):
         LOG.debug("*NOT* sending to %s: '%s'", self.target_addr, msg)
 
     def cmd_ACK(self, argline):
-        print argline
         self.last_ack = argline
     
     def cmd_NACK(self, argline):
@@ -60,6 +59,8 @@ class CommBase(comm.BaseClient):
         """Formats and sends a gaze and/or neck packet to expression server."""
         # TODO: remove time check, replace with logic based on reply from expr.
         if (time.time() - self.time_last_gaze) > config.gaze_timer:
+            if not neck:
+                neck = ''
             try:
                 self.send_msg(";;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
                 self.time_last_gaze = time.time()
