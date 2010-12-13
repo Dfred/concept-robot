@@ -63,8 +63,8 @@ class SpineHW(SpineBase):
         LOG.info('connecting to Katana400s-6m')
         init_arm()
         #TODO: set self.limits_
-        motors = self.check_motors()
-        LOG.debug('motors: %s', motors)
+        LOG.debug('motors: %s', self.check_motors())
+        self.switch_on()
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
