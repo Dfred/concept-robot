@@ -63,7 +63,8 @@ class SpineHW(SpineBase):
         LOG.info('connecting to Katana400s-6m')
         init_arm()
         #TODO: set self.limits_
-        LOG.debug('motors: %s', self.check_motors())
+        motors = self.check_motors()
+        LOG.debug('motors: %s', motors)
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -100,8 +101,7 @@ class SpineHW(SpineBase):
         """Mandatory 1st call after hardware is switched on.
         Starts calibration if needed.
         """
-        # KNI.getEncoder returns -1 if KNI is initialized but not calibrated
-        if KNI.moveMot(1, KNI.getEncoder(1), 1, 1) == -1:
+        if False in self.check_motors():
             self.calibrate()
         self.switch_auto()
         self.set_neck_orientation((0,0,0))
