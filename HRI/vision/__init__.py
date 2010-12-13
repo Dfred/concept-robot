@@ -120,7 +120,7 @@ class CaptureVideo(threading.Thread):
         else:
             distance_y = 0.0
         if move:
-            return (distance_y, 0, distance_x)
+            return (distance_y, 0, -distance_x)
         
                 
     
