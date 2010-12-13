@@ -64,11 +64,10 @@ def main():
 def connect():
     """ connect to the appropriate sources
     """
-    conf.NAME = 'lightHead.conf'
-    conf.load()
+    print "configuration name: ", conf.set_name('lightHead')
+    print "missing configuration entries: ", conf.load()
     # Will ignore send_msg if not connected
-    return (communication.CommBase(conf.expression_server),
-            communication.CommBase(conf.lightHead_server) )
+    return (communication.CommBase(conf.expression_server), communication.CommBase(conf.lightHead_server) )
 
 
 

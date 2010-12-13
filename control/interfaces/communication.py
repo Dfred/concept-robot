@@ -32,8 +32,8 @@ class CommBase(comm.BaseClient):
 
     def send_msg(self, msg):
         if self.connected:
-            import pdb; pdb.set_trace()
-            LOG.debug("sending to %s: '%s'", self.target_addr, msg)
+#            import pdb; pdb.set_trace()
+#            LOG.debug("sending to %s: '%s'", self.target_addr, msg)
             return comm.BaseClient.send_msg(self, msg)
         LOG.debug("*NOT* sending to %s: '%s'", self.target_addr, msg)
 
@@ -61,8 +61,7 @@ class CommBase(comm.BaseClient):
         # TODO: remove time check, replace with logic based on reply from expr.
         if (time.time() - self.time_last_gaze) > config.gaze_timer:
             try:
-                self.send_msg(";;;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1],
-                                                           neck))
+                self.send_msg(";;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
                 self.time_last_gaze = time.time()
             except socket.error:
                 self.handle_disconnect()
