@@ -91,7 +91,7 @@ class SpineComm(object):
 
     def cmd_commit(self, argline):
         """from expr2"""
-        self.cmd_rotate('neck '+' '.join([value for time, value in self.xyz]))
+        self.cmd_rotate('neck '+' '.join([value for value,time in self.xyz]))
 
 
 class SpineBase(object):
