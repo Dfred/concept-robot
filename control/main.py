@@ -50,8 +50,6 @@ def main():
     
     # create appropriate connections
     comm_express, comm_features = connect()
-    if comm_express.connected:
-        comm_express.set_neck_gaze(gaze=config.gaze_pos, neck=(0,0,0))
 
     # create robot control        
     rb = RobotControl(comm_express)
@@ -90,8 +88,8 @@ class RobotControl(threading.Thread):
         # length, width, height of the room
         self.environment = (7, 3, 2.5)
         self.robot_pos = (3.5, 0.75, 0.75)
+        expression_comm.set_neck_gaze(gaze=config.gaze_pos, neck=(0,0,0))
 
-        
     def run(self):
 
         #TODO: set checks for missing comm
