@@ -57,15 +57,13 @@ class CommBase(comm.BaseClient):
 
     def set_neck_gaze(self, gaze='  ', neck=''):
         """Formats and sends a gaze and/or neck packet to expression server."""
-        # TODO: remove time check, replace with logic based on reply from expr.
-        if (time.time() - self.time_last_gaze) > config.gaze_timer:
-            if not neck:
-                neck = ''
-            try:
-                self.send_msg(";;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
-                self.time_last_gaze = time.time()
-            except socket.error:
-                self.handle_disconnect()
+        if not neck:
+            neck = ''
+        try:
+            self.send_msg(";;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
+            self.time_last_gaze = time.time()
+        except socket.error:
+            self.handle_disconnect()
 
     def set_expression(self, expression="neutral", mode="*", intensity=0):
         try:
