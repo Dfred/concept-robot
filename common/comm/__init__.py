@@ -141,7 +141,7 @@ class BaseServer(object):
             self.__is_shut_down.wait()
             self.thread.join()
         else:
-            for fd, client in self.clients.iteritems():
+            for fd, client in self.clients.items():
                 client.finish()
                 if client.socket in self.polling_sockets:
                     self.close_request(client.socket)
@@ -604,6 +604,7 @@ class BaseComm(object):
 
     def __init__(self):
         self.command = ''
+        self.buffered = ''
         self.connected = False
         self.running = False
 
@@ -691,20 +692,25 @@ class BaseComm(object):
         Returns the number of bytes read.
         """        
         length = 0
-        buffered = ''
         LOG.debug("%s> command [%iB]: '%s'",
                   self.socket.fileno(), len(command), command)
 
         for cmdline in command.splitlines(True):
             length += len(cmdline)
-            cmdline = cmdline.strip()
-            if not cmdline or cmdline.startswith('#'):
+            cmdline = cmdline.lstrip()
+            if cmdline.startswith('#'):
                 continue
-            if cmdline.endswith('\\'):
-                buffered += cmdline[:-1]
+            elif not cmdline.endswith('\n'):
+                self.buffered += cmdline[:-1]
                 continue
-            cmdline = buffered + cmdline
-            buffered = ''
+            elif cmdline.endswith('\\\n'):
+                self.buffered += cmdline[:-2]
+                continue
+            cmdline = cmdline.rstrip()
+            if not cmdline:
+                continue
+            cmdline = self.buffered + cmdline
+            self.buffered = ''
             for cmd in cmdline.split('&&'):
                 self.parse_cmd(cmd)
         return length
