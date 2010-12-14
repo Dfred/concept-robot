@@ -65,8 +65,7 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
-                neck = self.follow_face_with_neck(relative_x, relative_y, close_face_rect.w)
-                #print gaze, neck
+                neck = self.follow_face_with_neck(relative_x, relative_y, gaze[1])
                 if self.comm:
                     if self.comm.last_ack != "wait" and gaze:
                         self.comm.set_neck_gaze(gaze, neck)
@@ -105,7 +104,7 @@ class CaptureVideo(threading.Thread):
         return (-x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
             
             
-    def follow_face_with_neck(self, x, y, width):
+    def follow_face_with_neck(self, x, y, face_distance):
         """adjust coordinates of detected faces to neck movement
         """
         move = False
@@ -114,13 +113,26 @@ class CaptureVideo(threading.Thread):
             move = True
         else:
             distance_x = 0.0
+            
         if y > 60 or y < -60: # threshold
             distance_y = (y/-480.0) * 0.1 * math.pi
             move = True
         else:
             distance_y = 0.0
+
+        if face_distance > 1.0:    # threshold for moving forward when perceived face is far
+            config.getting_closer_to_face = 1.0
+        if config.getting_closer_to_face > 0.05:
+            distance_z = 0.1
+            config.getting_closer_to_face += -0.1
+            move = True
+        if face_distance < 0.2:    # threshold for moving back when face is too close
+            distance_z = -0.3 + face_distance
+            move = True
+        else:
+            distance_z = 0
         if move:
-            return (distance_y, 0, -distance_x)
+            return (distance_y, distance_z, -distance_x)
         
                 
     
