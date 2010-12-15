@@ -203,7 +203,7 @@ def main(addr_port):
 
             if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
                 # set system-wide logging level
-                comm.set_default_logging(debug=True)
+                import comm; comm.set_default_logging(debug=True)
 
             initialize(conf.lightHead_server)
             G.server.set_listen_timeout(0.001)
