@@ -134,18 +134,17 @@ class BaseServer(object):
 
     def shutdown(self):
         """Stops the server."""
-        if not self.socket:
-            return
-        LOG.info("%s> stopping server", self.socket.fileno())
-        self.running = False
-        if self.threaded:
-            self.__is_shut_down.wait()
-            self.thread.join()
-        else:
-            for fd, client in self.clients.items():
-                client.finish()
-                if client.socket in self.polling_sockets:
-                    self.close_request(client.socket)
+        if self.socket:
+            LOG.info("%s> stopping server", self.socket.fileno())
+            self.running = False
+            if self.threaded:
+                self.__is_shut_down.wait()
+                self.thread.join()
+            else:
+                for fd, client in self.clients.items():
+                    client.finish()
+                    if client.socket in self.polling_sockets:
+                        self.close_request(client.socket)
         self.disactivate()
 
     def serve_once(self):
@@ -463,47 +462,66 @@ class ThreadingTCPServer(ThreadingMixIn, TCPServer): pass
 # addition
 # { type of port : { proto : { threading : class } } }
 #
-SERVER_CLASSES = {
-    type(42): {'udp': { True : ThreadingUDPServer,
-                        False: UDPServer },
-               'tcp': { True : ThreadingTCPServer,
-                        False: TCPServer }
-               } }
+SERVER_CLASSES = { type(42): {'udp': { True : ThreadingUDPServer,
+                                       False: UDPServer },
+                              'tcp': { True : ThreadingTCPServer,
+                                       False: TCPServer }
+                              } }
 
 if hasattr(socket, 'AF_UNIX'):
-    class UnixStreamServer(TCPServer):   address_family = socket.AF_UNIX
-    class UnixDatagramServer(UDPServer): address_family = socket.AF_UNIX
+    def clear_unix_socket(socket_path):
+        if os.stat(socket_path)[0] == 49645:
+            LOG.info('cleaning up socket file %s', socket_path)
+            os.remove(socket_path)
+
+    class UnixStreamServer(TCPServer):
+        address_family = socket.AF_UNIX
+        def disactivate(self):
+            TCPServer.disactivate(self)
+            clear_unix_socket(self.addr_port)
+        
+    class UnixDatagramServer(UDPServer):
+        address_family = socket.AF_UNIX
+        def disactivate(self):
+            UDPServer.disactivate(self)
+            clear_unix_socket(self.addr_port)
+
     class ThreadingUnixStreamServer(ThreadingMixIn, UnixStreamServer): pass
     class ThreadingUnixDatagramServer(ThreadingMixIn, UnixDatagramServer): pass
 #
 # And of pure reuse
 #
-    SERVER_CLASSES[type('')] = { '':{ True : ThreadingUnixStreamServer,
-                                      False: UnixStreamServer } }
+    SERVER_CLASSES[type('')] = { 'tcp': { True : ThreadingUnixStreamServer,
+                                          False: UnixStreamServer },
+                                 'udp': { True : ThreadingUnixDatagramServer,
+                                          False: UnixDatagramServer }
+                                 }
 
 def getBaseServerClass(addr_port, threaded):
     """Returns the appropriate base class for server according to addr_port"""
     """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
      port field (eg. 'udp:4242'). Default is udp."""
     D_PROTO = 'tcp'
-    addr, port = addr_port
+    try:
+        addr, port = addr_port
+    except ValueError:
+        raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
+    # check protocol
     if type(port) == type(''):
         proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
         if port.isdigit():
-            port = int(port)
-            addr_port = (addr, port)
+            addr_port = (addr, int(port))
     else:
         proto = D_PROTO
+
     try:
         srv_class = SERVER_CLASSES[type(port)][proto][threaded]
-        if type(port) == '' and \
-           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
-            addr_port = addr_port[1]
-        LOG.debug('address-port: %s, selected server class: %s',
-                  addr_port, srv_class)
-        return addr_port, srv_class
     except KeyError:
-        raise Exception('No suitable server class from addr_port. Check conf.')
+        raise ValueError('No suitable server class for:', port, proto)
+    if type(addr_port[1]) == type(''):
+        addr_port = addr_port[1]
+    LOG.debug('address-port: %s, selected server class: %s',addr_port,srv_class)
+    return addr_port, srv_class
 
 
 def create_RequestHandlerClass(handler_class, threaded=False):
@@ -786,6 +804,7 @@ class BaseClient(BaseComm):
         self.running = False
 
     def connect_and_run(self):
+        """High Level communication processing: blocks until run() returns."""
         try:
             self.socket.connect(self.target_addr)
         except socket.error, e:
@@ -831,9 +850,10 @@ def set_default_logging(debug=False):
     LOG.info('set log level to %s', debug and 'DEBUG' or 'INFO')
 
 def get_conn_infos(addr_port):
-    if hasattr(socket, "AF_UNIX") and \
-            type(addr_port[1]) == type("") and \
-            addr_port[0] in ["127.0.0.1", "localhost"]:
+    LOCALHOSTS = ["127.0.0.1", "localhost"]
+    if hasattr(socket, "AF_UNIX") and type(addr_port[1]) == type(""):
+        if addr_port[0] and addr_port[0] not in LOCALHOSTS:
+            raise ProtcolError('address must be null or one of %s', LOCALHOSTS)
         return socket.AF_UNIX, addr_port[1]
     return socket.AF_INET, addr_port
 
