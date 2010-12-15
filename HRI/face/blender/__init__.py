@@ -33,7 +33,7 @@
 # A few things to remember for integration with Blender (2.49):
 #  * defining classes in toplevel scripts (like here) leads to scope problems
 #
-import sys, time
+import sys, time, atexit
 from math import cos, sin, pi
 import GameLogic as G
 
@@ -61,13 +61,20 @@ EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 INFO_PERIOD = 0
 
+def exiting():
+    #We check if there is a valid "server" object because its possible that 
+    #we were unable to create it, and therefore we are shutting down
+    if hasattr(G, "server"):
+      G.server.shutdown()
+
+atexit.register(exiting)
+
 def fatal(error):
     print '*** Fatal Error ***', error
     import conf; conf.load()
     if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
         import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
-
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -81,18 +88,12 @@ def check_defects(owner, acts):
                             'type property' % act.name)
     return False
 
-
 def shutdown(cont):
-    """Shutdown server and other clean-ups"""
+    """Finish animation and let atexit do the cleaning job"""
     cont.activate(cont.actuators["- QUITTER"])
-    #We check if there is a valid "server" object because its possible that 
-    #we were unable to create it, and therefore we are shutting down
-    if hasattr(G, "server"):
-      G.server.shutdown()
-    else:
-      sys.exit(1)
-    sys.exit(0)
-
+    if hasattr(G, 'server'):
+        sys.exit(0)
+    sys.exit(1)
 
 def initialize(server_addrPort):
     """Initialize connections and configures facial subsystem"""
