@@ -60,15 +60,16 @@ class CommBase(comm.BaseClient):
         if not neck:
             neck = ''
         try:
-            self.send_msg(";;;%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
+            self.send_msg(";;;'';%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
             self.time_last_gaze = time.time()
         except socket.error:
             self.handle_disconnect()
 
-    def set_expression(self, expression="neutral", mode="*", intensity=0):
+    def set_expression(self, activity='*', expression="neutral", intensity=0):
         try:
-            self.send_msg("%s;%s;%s;;;;tag_FEXPRESSION" % (expression, mode,
-                                                           intensity))
+            self.send_msg("%s;%s;%i;'';;;tag_FEXPRESSION" % (activity,
+                                                             expression,
+                                                             intensity))
         except socket.error:
             self.handle_disconnect()
 
