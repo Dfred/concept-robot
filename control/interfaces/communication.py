@@ -10,7 +10,6 @@ LOG = comm.LOG
 class CommBase(comm.BaseClient):
     
     def __init__(self, server_addrPort):
-        self.time_last_gaze = 0
         comm.BaseClient.__init__(self, server_addrPort)
         self.set_timeout(5)
         threading.Thread(target=self.connect_and_run).start()
@@ -25,11 +24,17 @@ class CommBase(comm.BaseClient):
     def handle_connect(self):
         """Callback for sucessful connection.
         Inits communication and set robot on origin"""
+        if type(self.target_addr) == type(''):
+            LOG.info("Connected to server on {0}".format(self.target_addr))
+            return
         LOG.info("Connected to server {0[0]}:{0[1]}".format(self.target_addr))
 
     def handle_disconnect(self):
         """Callback for sucessful disconnection. Info log level."""
-        LOG.info("Disconnected from server {0[0]}:{0[1]}".format(self.target_addr))
+        if type(self.target_addr) == type(''):
+            LOG.info("Disconnected from {0}".format(self.target_addr))
+            return
+        LOG.info("Disconnected from {0[0]}:{0[1]}".format(self.target_addr))
 
     def send_msg(self, msg):
         if self.connected:
@@ -56,13 +61,21 @@ class CommBase(comm.BaseClient):
     def cmd_face(self, argline):
         self.face_info = argline  
 
+    # TODO: support absolute orientation with '((' instead of '('
     def set_neck_gaze(self, gaze='  ', neck=''):
-        """Formats and sends a gaze and/or neck packet to expression server."""
+        """Formats and sends a gaze and/or neck packet to expression server.
+        Relative Values.
+         gaze: 3D vector for focal point
+         neck: (3axis orientation, 3axis position) each can be None.
+        """
         if not neck:
             neck = ''
+        else:
+            neck = (neck[0] and '(%s)' % str(neck[0])[1:-1] or '') + \
+                (neck[1] and '[%s]' % str(neck[1])[1:-1] or '')
         try:
-            self.send_msg(";;;'';%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
-            self.time_last_gaze = time.time()
+            self.send_msg(";;;'';%s;%s;tag_NECK_GAZE" % (str(gaze)[1:-1],
+                                                         neck))
         except socket.error:
             self.handle_disconnect()
 

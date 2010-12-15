@@ -132,8 +132,7 @@ class CaptureVideo(threading.Thread):
         else:
             distance_z = 0
         if move:
-            return (distance_y, distance_z, -distance_x)
-        
+            return ((distance_y, .0, -distance_x), (.0,distance_z,.0))
                 
     
     def detect_edge(self, image):
@@ -182,7 +181,8 @@ class CaptureVideo(threading.Thread):
                 distance_y = (y_adjust/-480.0) * 0.2 * math.pi
             if self.comm.last_ack != "wait":
                     if gazing:
-                        self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+#                        self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                        pass
                     else:
                         self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
                     config.neck_pos[2] += distance_x
@@ -214,7 +214,8 @@ class CaptureVideo(threading.Thread):
 #                        print "x_neck:", str(config.neck_pos[2]), "   y_neck:", str(config.neck_pos[0])
 #                        print "x:", str(config.neck_pos[2] + distance_x), "   y:", str(config.neck_pos[0] + distance_y)
                         if gazing:
-                            self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+#                            self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                            pass
                         else:
                             self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
                         config.neck_pos[2] += distance_x
