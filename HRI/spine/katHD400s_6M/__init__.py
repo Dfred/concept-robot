@@ -105,12 +105,15 @@ class SpineHW(SpineBase):
 
     def get_neck_info(self):
         """Returns NeckInfo instance"""
-        tp = KNI.TPos()
-        KNI.getPosition(tp)
-        self._neck_info.pos= self.round([tp.X, tp.Y, tp.Z])
-        self._neck_info.rot= self.round([v/180*math.pi for v in (tp.phi,
-                                                                 tp.theta,
-                                                                 tp.psi)])
+        # XXX: we are not using the same reference: create a mapping function
+#        tp = KNI.TPos()
+#        KNI.getPosition(tp)
+#        self._neck_info.pos= self.round([tp.X, tp.Y, tp.Z])
+#        self._neck_info.rot= self.round([tp.phi, tp.theta, tp.psi])
+
+        self._neck_info.rot = self.round( \
+            [ SpineHW.enc2rad(i, KNI.getEncoder(i)) for i in \
+                  xrange(4, len(self.AXIS_LIMITS)) ])
         return self._neck_info
 
     def switch_on(self):
