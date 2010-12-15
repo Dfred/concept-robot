@@ -65,15 +65,17 @@ class MetaServer(object):
         """Adds a server and its request handler class to the meta server .
         On connection, self.clients adds an instance of request_handler_class .
         """
-        # we need to provide the handler with BaseComm.send_msg()
+
         def meta_subhandler_init(self):
+            """Provides the handler with BaseComm.send_msg()"""
             LOG.debug('initializing compound handler %s', self.__class__)
             comm.BaseComm.__init__(self)
             handler_class.__init__(self)
 
         commHandler_class = type(handler_class.__name__+'BaseComm',
                                  (handler_class, comm.BaseComm),
-                                 {'__init__':meta_subhandler_init} )
+                                 {'__init__':meta_subhandler_init,
+                                  'server':server} )
         self.servers_SHclasses.append((server, commHandler_class))
 
     def create_subserver(self, server_class):

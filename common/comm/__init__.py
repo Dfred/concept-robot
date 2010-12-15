@@ -516,8 +516,7 @@ def create_RequestHandlerClass(handler_class, threaded=False):
                          handler_class)
         
     def handler_init(self, server, sock, client_addr):
-        """Transparently call super(self.__class, self).__init__"""
-#       super(self.__class__, self).__init__()
+        """Call initializers properly + runtime support for threading."""
         RequestHandler.__init__(self, server, sock, client_addr)
         # add runtime support for threading (sending clients)
         if threaded:
@@ -542,9 +541,7 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
     mixed_handler_class = create_RequestHandlerClass(handler_class,
                                                      thread_info[1])
     def init_server(self):
-        """Transparently call super(self.__class, self).__init__
-        Also save users some calls."""
-#       super(self.__class__, self).__init__()
+        """Call initializers properly."""
         base_class.__init__(self)
         self.set_RequestHandlerClass(mixed_handler_class)
         self.set_addrPort(addr_port)
@@ -553,44 +550,11 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
     return type(ext_class.__name__+base_class.__name__, 
                 (ext_class, base_class),{'__init__':init_server})()
 
-# def create_server(ext_class, handler_class, addr_port, thread_info):
-#     """Creates a new (compound) type of server according to addr_port, also
-#      creates a new type of RequestHandler so users don't inherit from anything.
 
-#         ext_class: extension class to be a base of the new type.
-#         handler_class: class to be instancied on accepted connection.
-#         addr_port: (address, port). port type is relevant, see conf module.
-#     """
-#     if not issubclass(ext_class, object):
-#         raise ClassError('class %s must inherit from object' % ext_class)
+###
+# Protocol Level: Request Handlers and Remote Clients 
+###
 
-#     addr_port, base_class = getBaseServerClass(addr_port, thread_info[0])
-#     mixed_handler_class = create_requestHandler_class(handler_class,
-#                                                       thread_info[1])
-#     def server_init(self, addr_port, handler_class):
-#         """Call all subtypes initializers and add support for threading locks"""
-#         # add runtime support for threading (accessing server)
-#         if thread_info[0]:
-#             self._threading_lock = threading.Lock()
-#             def threadsafe_start(self):
-#                 self._threading_lock.acquire()
-#             def threadsafe_stop(self):
-#                 self._threading_lock.release()
-#         LOG.debug('initializing compound server %s', self.__class__)
-#         # most of this mess because of parameters in SocketServer.__init__
-#         base_class.__init__(self, addr_port, handler_class)
-#         BaseServer.__init__(self)
-#         ext_class.__init__(self)
-
-#     if ext_class != BaseServer:
-#         bases = (ext_class, BaseServer)
-#     else:
-#         bases = (BaseServer,)
-#     return type(ext_class.__name__+base_class.__name__, bases,
-#                 {"__init__":server_init})(addr_port, mixed_handler_class)
-
-
-       
 class BaseComm(object):
     """Basic protocol handling and command-to-function resolver. This is the
      base class for a local client connecting to a server (BaseClient) or for a
