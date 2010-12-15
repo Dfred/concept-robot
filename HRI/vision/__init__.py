@@ -65,8 +65,7 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
-                neck = self.follow_face_with_neck(relative_x, relative_y, close_face_rect.w)
-                #print gaze, neck
+                neck = self.follow_face_with_neck(relative_x, relative_y, gaze[1])
                 if self.comm:
                     if self.comm.last_ack != "wait" and gaze:
                         self.comm.set_neck_gaze(gaze, neck)
@@ -105,7 +104,7 @@ class CaptureVideo(threading.Thread):
         return (-x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
             
             
-    def follow_face_with_neck(self, x, y, width):
+    def follow_face_with_neck(self, x, y, face_distance):
         """adjust coordinates of detected faces to neck movement
         """
         move = False
@@ -114,13 +113,26 @@ class CaptureVideo(threading.Thread):
             move = True
         else:
             distance_x = 0.0
+            
         if y > 60 or y < -60: # threshold
             distance_y = (y/-480.0) * 0.1 * math.pi
             move = True
         else:
             distance_y = 0.0
+
+        if face_distance > 1.0:    # threshold for moving forward when perceived face is far
+            config.getting_closer_to_face = 1.0
+        if config.getting_closer_to_face > 0.05:
+            distance_z = 0.1
+            config.getting_closer_to_face += -0.1
+            move = True
+        if face_distance < 0.2:    # threshold for moving back when face is too close
+            distance_z = -0.3 + face_distance
+            move = True
+        else:
+            distance_z = 0
         if move:
-            return (distance_y, 0, -distance_x)
+            return (distance_y, distance_z, -distance_x)
         
                 
     
@@ -313,8 +325,9 @@ class CaptureVideo(threading.Thread):
         #writer = cv.CreateVideoWriter("out.avi", cv.CV_FOURCC('P','I','M','1'), 30, (640,480),1)
         
         while 1:
-            im = self.webcam.query()
 
+            im = self.webcam.query()
+            
             # handle events
             key = cv.WaitKey(10)
             if key != -1 and key < 256:
@@ -322,8 +335,7 @@ class CaptureVideo(threading.Thread):
                 
             if key == '1' or config.command == '1':
                 if config.face_d == False:
-                    config.face_d = True
-                    print "looking for faces"
+                    config.face_d = True                   
                     
             if key == '2' or config.command == 'edge':
                 if config.edge_d == False:
@@ -372,9 +384,13 @@ class CaptureVideo(threading.Thread):
                 config.quit = True
                 
             config.command = '0'
-              
+          
             if config.face_d:    # face detection
-                self.detect_face(im)
+                if config.face_d_optimised:
+                    if self.comm.last_ack != "wait":
+                        self.detect_face(im)
+                else:
+                    self.detect_face(im)
                 
             if config.colour_s:
                 self.find_colour(frame, 10)
@@ -403,8 +419,6 @@ class CaptureVideo(threading.Thread):
                 cv.Copy(frame, frame_org)
                 frame = self.detect_edge(frame)
                 
-
-
             if frame is None:
                 print "error capturing frame"
                 break

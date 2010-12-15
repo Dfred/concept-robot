@@ -19,10 +19,13 @@ command = '0'
 
 # visual processing
 face_d = True
+face_d_optimised = True
 detect_threshold = 35
 follow_face_gaze = True
 follow_face_neck = True
 search_for_face = False
+be_startled_on_close = True
+getting_closer_to_face = 0.0
 neck_pos = [0.0, 0.0, 0.0]
 gaze_pos = [0.0, 0.5, 0.0]
 face_x = None
@@ -43,7 +46,7 @@ game_coors = "10.0, 50.0, 0.0"
 x_search = -0.5
 print_d = False
 cam_shift = False
-slow_adjust = True
+slow_adjust = False
 gain = 0.2
 idle_go = True
 
