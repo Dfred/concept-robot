@@ -135,7 +135,6 @@ class BaseServer(object):
     def shutdown(self):
         """Stops the server."""
         if self.socket:
-            LOG.info("%s> stopping server", self.socket.fileno())
             self.running = False
             if self.threaded:
                 self.__is_shut_down.wait()
@@ -146,6 +145,7 @@ class BaseServer(object):
                     if client.socket in self.polling_sockets:
                         self.close_request(client.socket)
         self.disactivate()
+        LOG.info('server now shut down.')
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()
@@ -312,7 +312,11 @@ class TCPServer(BaseServer):
         self.socket.settimeout(self.listen_timeout)
         if self.allow_reuse_address:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(self.addr_port)
+        try:
+            self.socket.bind(self.addr_port)
+        except socket.error, e:
+            raise ProtocolError('cannot start server using %s: %s' % (
+                    self.addr_port, e))
         self.addr_port = self.socket.getsockname()
         self.socket.listen(self.request_queue_size)
 
@@ -471,8 +475,10 @@ SERVER_CLASSES = { type(42): {'udp': { True : ThreadingUDPServer,
 if hasattr(socket, 'AF_UNIX'):
     def clear_unix_socket(socket_path):
         if os.stat(socket_path)[0] == 49645:
-            LOG.info('cleaning up socket file %s', socket_path)
+            LOG.debug('cleaning up socket file %s', socket_path)
             os.remove(socket_path)
+        else:
+            LOG.debug('socket file %s is strange: no cleanup.', socket_path)
 
     class UnixStreamServer(TCPServer):
         address_family = socket.AF_UNIX
