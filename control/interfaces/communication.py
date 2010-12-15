@@ -3,7 +3,8 @@
 import threading, time, socket
 import comm, config
 
-comm.set_default_logging(debug=config.DEBUG)
+if hasattr(config, 'DEBUG') and config.DEBUG:
+    comm.set_default_logging(debug=config.DEBUG)
 LOG = comm.LOG
 
 class CommBase(comm.BaseClient):

@@ -1,9 +1,9 @@
 import types
 import logging
-LOG = logging.getLogger(__package__)
 
 import comm
 
+LOG = logging.getLogger(__package__)
 
 class MetaRequestHandler(object):
     """

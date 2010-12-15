@@ -102,14 +102,7 @@ def initialize(server_addrPort):
     print "LIGHTHEAD Facial Animation System, python version:", sys.version
     print "loaded module from", __path__[0]
 
-    import comm, conf
-    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-        print 'setting debug mode'
-        # set system-wide logging level
-        comm.logging.basicConfig(level=comm.logging.DEBUG,format=comm.LOGFORMAT)
-    else:
-        comm.set_default_logging()
-
+    import comm
     from lightHead_server import lightHeadServer, lightHeadHandler
     G.server = comm.create_server(lightHeadServer, lightHeadHandler,
                                   server_addrPort, THREAD_INFO)
@@ -207,6 +200,11 @@ def main(addr_port):
             import conf; missing = conf.load()
             if missing:
                 fatal('missing configuration entries: %s' % missing)
+
+            if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
+                # set system-wide logging level
+                comm.set_default_logging(debug=True)
+
             initialize(conf.lightHead_server)
             G.server.set_listen_timeout(0.001)
             G.server.start()

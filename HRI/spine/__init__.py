@@ -7,9 +7,14 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-import comm
+import comm, conf
 import logging
-LOG = logging.getLogger(__package__)
+
+if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+    comm.set_default_logging(debug=True)
+    LOG = comm.LOG
+else:
+    LOG = logging.getLogger(__package__)
 
 
 class SpineProtocolError(comm.ProtocolError):
@@ -44,8 +49,8 @@ class SpineComm(object):
 
     def __init__(self):
         self.xyz = [[.0, 0]] *3         # value , attack_time (TODO: torso)
-        self.rotators = { 'neck': self.server.rotate_neck,
-                          'torso': self.server.set_torso_orientation }
+        self.relative_rotators = { 'neck': self.server.rotate_neck,
+                                   'torso': self.server.rotate_torso }
 
     def cmd_switch(self, argline):
         args = argline.split()
@@ -59,6 +64,7 @@ class SpineComm(object):
         else:
             fct()
 
+    # TODO: get rid of this and use a global AU pool
     def cmd_AU(self, argline):
         """Absolute rotation on 1 axis.
         Syntax is: AU_name, target_value, attack_time (in s.)"""
@@ -66,7 +72,11 @@ class SpineComm(object):
         if len(args) != 3:
             LOG.warning('AU: expected 3 arguments (got %s)', args)
             return
-        dim = ('53.5', '55.5', '51.5').index(args[0])
+        try:
+            dim = ('53.5', '55.5', '51.5').index(args[0])
+        except ValueError:
+            LOG.warning('AU not known: %s', args[0])
+            return
         self.xyz[dim] = [ float(v) for v in args[1:] ]
 
     def cmd_commit(self, argline):
@@ -77,10 +87,9 @@ class SpineComm(object):
         """relative rotation on 3 axis.
         Syntax is: neck|torso x y z [wait]"""
         if not argline:
-            self.send_msg('rot_neck %s' % \
-                              SpineBase.round(self.server.get_neck_info().rot))
-            self.send_msg('rot_torso %s' % \
-                              SpineBase.round(self.server.get_torso_info().rot))
+            self.send_msg('rot_neck %s\nrot_torso %s' % (
+                    SpineBase.round(self.server.get_neck_info().rot),
+                    SpineBase.round(self.server.get_torso_info().rot) ) )
             return
 
         args = argline.split()
@@ -89,7 +98,7 @@ class SpineComm(object):
         wait = len(args) == 5 and args[4] == 'wait'
         xyz = [ round(float(arg),SpineBase.PRECISION) for arg in args[1:4] ]
         try:
-            self.rotators[args[0]](xyz, wait)
+            self.relative_rotators[args[0]](xyz, wait)
         except KeyError, e:
             raise SpineProtocolError("invalid body-part %s (%s)", args[0], e)
 
@@ -213,7 +222,6 @@ __all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException
 
 if __name__ == '__main__':
     import sys
-    import conf
     try:
         comm.set_default_logging(debug=True)
         conf.load()

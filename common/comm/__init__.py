@@ -49,6 +49,7 @@ from threading import Thread, Lock
 LOGFORMAT = "%(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
 # create our logging object and set log format
 LOG = logging.getLogger(__package__)
+LOG.setLevel(logging.INFO)
 
 class ProtocolError(Exception):
     """Base Exception class for protocol error.
@@ -824,9 +825,10 @@ class BaseClient(BaseComm):
 def set_default_logging(debug=False):
     """This function does nothing if the root logger already has
     handlers configured."""
-    logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
-                        format=LOGFORMAT)
-
+    log_lvl = (debug and logging.DEBUG or logging.INFO)
+    logging.basicConfig(level=log_lvl, format=LOGFORMAT)
+    LOG.setLevel(log_lvl)
+    LOG.info('set log level to %s', debug and 'DEBUG' or 'INFO')
 
 def get_conn_infos(addr_port):
     if hasattr(socket, "AF_UNIX") and \
