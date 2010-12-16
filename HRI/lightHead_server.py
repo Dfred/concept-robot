@@ -77,12 +77,14 @@ class lightHeadHandler(MetaRequestHandler):
         self.handlers = {}
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
+        self.updated = []
 
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
             try:
                 self.set_current_subhandler(self.handlers[argline])
+                self.updated.append(argline)
             except KeyError:
                 LOG.warning('unknown origin: %s', argline)
         else:
@@ -90,10 +92,9 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        self.curr_handler.cmd_commit(argline)
-#        for key in ORIGINS:
-#            if self.handlers.has_key(key):
-#                self.handlers[key].cmd_commit(argline)
+        for origin in self.updated:
+            self.handlers[origin].cmd_commit(argline)
+        self.updated = []
 
     def cmd_reload(self, argline):
         """Reload subserver modules"""
