@@ -482,14 +482,12 @@ if hasattr(socket, 'AF_UNIX'):
 
     class UnixStreamServer(TCPServer):
         address_family = socket.AF_UNIX
-        def disactivate(self):
-            TCPServer.disactivate(self)
+        def __del__(self):
             clear_unix_socket(self.addr_port)
         
     class UnixDatagramServer(UDPServer):
         address_family = socket.AF_UNIX
-        def disactivate(self):
-            UDPServer.disactivate(self)
+        def __del__(self):
             clear_unix_socket(self.addr_port)
 
     class ThreadingUnixStreamServer(ThreadingMixIn, UnixStreamServer): pass
