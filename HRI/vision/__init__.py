@@ -101,7 +101,10 @@ class CaptureVideo(threading.Thread):
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
         x_dist = ((config.face_x/1400.6666)*face_distance)/100
         y_dist = ((config.face_y/700.6666)*face_distance)/100
-        return (-x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
+        if config.camera_on_projector:
+		  return (x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
+		else:
+		  return (-x_dist, (face_distance/100.0), y_dist)
             
             
     def follow_face_with_neck(self, x, y, face_distance):

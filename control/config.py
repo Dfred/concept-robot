@@ -18,6 +18,7 @@ use_comm_features = True             # communicate with lightHead server (featur
 command = '0'
 
 # visual processing
+camera_on_projector = True
 face_d = True
 face_d_optimised = True
 detect_threshold = 35
