@@ -140,10 +140,8 @@ def initialize(server_addrPort):
 #    Rasterizer.enableMotionBlur( 0.65)
     Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
     print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
-
-    cont.activate(cont.actuators["- wakeUp -"])
     G.last_update_time = time.time()    
-
+    return cont
 
 def update(faceServer, time_diff):
     """
@@ -206,13 +204,14 @@ def main(addr_port):
                 # set system-wide logging level
                 import comm; comm.set_default_logging(debug=True)
 
-            initialize(conf.lightHead_server)
+            cont = initialize(conf.lightHead_server)
             G.server.set_listen_timeout(0.001)
             G.server.start()
         except conf.LoadException, e:
             fatal('in file {0[0]}: {0[1]}'.format(e)) 
         except Exception, e:
             fatal(e)
+        cont.activate(cont.actuators["- wakeUp -"])
     else:
         if not THREADED_SERVER:
             # server handles channels explicitly

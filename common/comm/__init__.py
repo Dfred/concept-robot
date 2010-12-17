@@ -322,7 +322,8 @@ class TCPServer(BaseServer):
 
     def disactivate(self):
         """Called to clean-up the server. May be overridden."""
-        self.socket.close()
+        if self.socket:
+            self.socket.close()
 
     def fileno(self):
         """Return socket file number. Interface required by select()."""
@@ -474,11 +475,9 @@ SERVER_CLASSES = { type(42): {'udp': { True : ThreadingUDPServer,
 
 if hasattr(socket, 'AF_UNIX'):
     def clear_unix_socket(socket_path):
-        if os.stat(socket_path)[0] == 49645:
+        if os.access(socket_path, os.W_OK) and os.stat(socket_path)[0] == 49645:
             LOG.debug('cleaning up socket file %s', socket_path)
             os.remove(socket_path)
-        else:
-            LOG.debug('socket file %s is strange: no cleanup.', socket_path)
 
     class UnixStreamServer(TCPServer):
         address_family = socket.AF_UNIX
