@@ -1,9 +1,9 @@
 import types
 import logging
-LOG = logging.getLogger(__package__)
 
 import comm
 
+LOG = logging.getLogger(__package__)
 
 class MetaRequestHandler(object):
     """
@@ -65,8 +65,9 @@ class MetaServer(object):
         """Adds a server and its request handler class to the meta server .
         On connection, self.clients adds an instance of request_handler_class .
         """
-        # we need to provide the handler with BaseComm.send_msg()
+
         def meta_subhandler_init(self):
+            """Provides the handler with BaseComm.send_msg()"""
             LOG.debug('initializing compound handler %s', self.__class__)
             comm.BaseComm.__init__(self)
             handler_class.__init__(self)

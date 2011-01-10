@@ -149,7 +149,7 @@ class BaseServer(object):
                     if client.socket in self.polling_sockets:
                         self.close_request(client.socket)
         self.disactivate()
-        LOG.debug('server now shut down.')
+        LOG.info('server now shut down.')
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()
