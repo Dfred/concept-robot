@@ -77,12 +77,14 @@ class lightHeadHandler(MetaRequestHandler):
         self.handlers = {}
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
+        self.updated = []
 
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
             try:
                 self.set_current_subhandler(self.handlers[argline])
+                self.updated.append(argline)
             except KeyError:
                 LOG.warning('unknown origin: %s', argline)
         else:
@@ -90,9 +92,9 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        for key in ORIGINS:
-            if self.handlers.has_key(key):
-                self.handlers[key].cmd_commit(argline)
+        for origin in self.updated:
+            self.handlers[origin].cmd_commit(argline)
+        self.updated = []
 
     def cmd_reload(self, argline):
         """Reload subserver modules"""
@@ -117,7 +119,7 @@ class lightHeadServer(MetaServer):
     def __init__(self):
         """All subServers will receive a reference to the Feature Pool"""
         MetaServer.__init__(self)
-        self.origins = {}       # { origin: index in self.servers and handlers }
+        self.origins = {}       # { origin: self.server and associed handler }
         self.FP = FeaturePool() # the feature pool for context queries
 
     def __getitem__(self, protocol_keyword):
@@ -137,8 +139,8 @@ class lightHeadServer(MetaServer):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, request_handler_class, origin)
-        MetaServer.register(self, server, request_handler_class)
-        self.origins[origin] = self.servers_SHclasses[-1]
+        self.origins[origin] = server, MetaServer.register(self, server,
+                                                           request_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server."""
@@ -150,10 +152,6 @@ class lightHeadServer(MetaServer):
         self.register(server, FaceComm, 'gaze')
         self.register(server, FaceComm, 'lips')
 
-        import conf
-        if not hasattr(conf, 'conn_spine'):
-	    LOG.info('no conn_spine in config file. ignoring spine!')
-            return
         try:
             from spine import Spine, SpineComm, SpineError
         except ImportError, e:

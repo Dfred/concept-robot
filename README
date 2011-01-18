@@ -54,6 +54,8 @@ Open people would just:
  
    $ ./start_face.sh
 
+   By default the graphical interface is in full-screen; use option -w to enjoy window mode.
+
 
 Now you can connect and start setting Action Units according to the protocol definition.
 

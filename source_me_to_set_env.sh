@@ -16,7 +16,7 @@ if test -z "$CONCEPT_DIR"; then
 fi
 
 # override PROJECT_NAME if given an argument
-if ! test -z "$1"; then
+if test $0 != './start_face.sh' && test -n "$1"; then
     PROJECT_NAME=$1
 fi
 
@@ -50,7 +50,7 @@ else
 	echo "$CONF_FILE"
 	unset CONF_FILE
     else
-	if ! test -z "$CONF_FILE"; then
+	if test -n "$CONF_FILE"; then
 	    echo "found configuration file: " $CONF_FILE
 	    export CONF_FILE
 	else
@@ -60,7 +60,7 @@ else
 	fi
 
 	MISSING= check_python_conf $PROJECT_NAME
-	if ! test -z "$MISSING"; then
+	if test -n "$MISSING"; then
 	    echo "missing required entries in conf: $MISSING"
 	fi
     fi

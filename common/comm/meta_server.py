@@ -59,7 +59,7 @@ class MetaServer(object):
     """
 
     def __init__(self):
-        self.servers_SHclasses = []
+        self.servers_SHclasses = {}
 
     def register(self, server, handler_class):
         """Adds a server and its request handler class to the meta server .
@@ -76,7 +76,16 @@ class MetaServer(object):
                                  (handler_class, comm.BaseComm),
                                  {'__init__':meta_subhandler_init,
                                   'server':server} )
-        self.servers_SHclasses.append((server, commHandler_class))
+        self.servers_SHclasses[server] = commHandler_class
+        return commHandler_class
+
+    def unregister(self, server):
+        """Removes a registered server."""
+        try:
+            del self.servers_SHclasses[server]
+        except KeyError:
+            return False
+        return True
 
     def create_subserver(self, server_class):
         """Equivalent of create_server for a meta server.

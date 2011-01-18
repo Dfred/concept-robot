@@ -93,10 +93,7 @@ class FaceComm(object):
 
     def cmd_commit(self, argline):
         """Commit buffered updates"""
-        try:
-            self.server.set_AUs(self.fifo)
-        except KeyError, e:
-            LOG.warning(e)
+        self.server.set_AUs(self.fifo)
         self.fifo.clear()
 
     # def cmd_start(self, argline):
@@ -175,12 +172,15 @@ class Face(object):
                     ((target_value-self.AUs[name][3])/duration,
                      self.AUs[name][3]), duration, 0)
             else:
-                self.AUs[name+'R'][:3] = (
-                    ((target_value-self.AUs[name+'R'][3])/duration,
-                     self.AUs[name+'R'][3]), duration, 0)
-                self.AUs[name+'L'][:3] = (
-                    ((target_value-self.AUs[name+'L'][3])/duration,
-                     self.AUs[name+'L'][3]), duration, 0)
+                try:
+                    self.AUs[name+'R'][:3] = (
+                        ((target_value-self.AUs[name+'R'][3])/duration,
+                         self.AUs[name+'R'][3]), duration, 0)
+                    self.AUs[name+'L'][:3] = (
+                        ((target_value-self.AUs[name+'L'][3])/duration,
+                         self.AUs[name+'L'][3]), duration, 0)
+                except KeyError, e:
+                    LOG.warning('AU %s not found (%s)', name, e)
         if self.thread_id != thread.get_ident():
             self.threadsafe_stop()
 
@@ -213,6 +213,15 @@ class Face(object):
             self.threadsafe_start()
         return to_update
 
+
+try:
+    from face.backend import main
+except ImportError, e:
+    print 
+    print '*** FACE MISCONFIGURATION ***'
+    print 'Make sure the FACE backend link points to your backend!'
+    print 'for your information:', e
+    raise 
 
 
 if __name__ == '__main__':

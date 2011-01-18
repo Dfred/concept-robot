@@ -32,7 +32,7 @@ if ! python -c 'print'; then
     exit 1
 fi
 
-. ./source_me_to_set_env.sh
+. ./source_me_to_set_env.sh 
 
 if ! test -x ./$PROJECT_NAME; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
@@ -64,7 +64,19 @@ if test -n "$SOCKETS" ; then
 	done
 fi
 
+
 # Now launch
+getopts "w" OPTS
+if [ "$OPTS" = "w" ]; then
+    shift;
+fi
+
 echo -n "--- launching face "
-if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
-./$PROJECT_NAME $@ "$PROJECT_NAME"
+if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
+fi
+
+if [ "$OPTS" = "w" ]; then
+    ./$PROJECT_NAME-window $@ "$PROJECT_NAME"
+else
+    ./$PROJECT_NAME $@ "$PROJECT_NAME"
+fi
