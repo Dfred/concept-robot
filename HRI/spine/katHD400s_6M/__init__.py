@@ -76,7 +76,6 @@ class SpineHW(SpineBase):
         self._accel = 1                 
         self._tolerance = 50
         #TODO: fill self.neck_info and self.torso_info
-        LOG.info('connecting to Katana400s-6m')
         init_arm()
         self.switch_on()
 
@@ -231,6 +230,7 @@ def init_arm():
     import os.path
     import conf
     KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
+    LOG.info('trying to connect to Katana400s-6m on %s', conf.spine_hardware)
     if KNI.initKatana(KatHD400s_6m, conf.spine_hardware) == -1:
         raise SpineError('configuration file not found or'
                          ' failed to connect to hardware', KatHD400s_6m)
