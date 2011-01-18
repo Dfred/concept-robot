@@ -119,7 +119,7 @@ class lightHeadServer(MetaServer):
     def __init__(self):
         """All subServers will receive a reference to the Feature Pool"""
         MetaServer.__init__(self)
-        self.origins = {}       # { origin: index in self.servers and handlers }
+        self.origins = {}       # { origin: self.server and associed handler }
         self.FP = FeaturePool() # the feature pool for context queries
 
     def __getitem__(self, protocol_keyword):
@@ -139,8 +139,8 @@ class lightHeadServer(MetaServer):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, request_handler_class, origin)
-        self.origins[origin] = MetaServer.register(self, server,
-                                                   request_handler_class)
+        self.origins[origin] = server, MetaServer.register(self, server,
+                                                           request_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server."""
