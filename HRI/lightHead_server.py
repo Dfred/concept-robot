@@ -139,8 +139,8 @@ class lightHeadServer(MetaServer):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, request_handler_class, origin)
-        MetaServer.register(self, server, request_handler_class)
-        self.origins[origin] = self.servers_SHclasses[-1]
+        self.origins[origin] = MetaServer.register(self, server,
+                                                   request_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server."""
