@@ -47,9 +47,9 @@ import logging
 from threading import Thread, Lock
 
 LOGFORMAT = "%(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
-# create our logging object and set log format
+# let users set log format themselves (see set_default_logging)
 LOG = logging.getLogger(__package__)
-LOG.setLevel(logging.INFO)
+
 
 class ProtocolError(Exception):
     """Base Exception class for protocol error.
@@ -128,12 +128,16 @@ class BaseServer(object):
         if self.threaded:
             self.thread = Thread(target=G.server.serve_forever, name='server')
             self.thread.start()
-        LOG.info("server started in %s-thread mode",
-                 self.threaded and 'multi' or 'single')
+        LOG.debug("server started in %s-thread mode",
+                  self.threaded and 'multi' or 'single')
         return self.threaded and self.thread or None
+
+    def pre_shutdown(self):
+        pass
 
     def shutdown(self):
         """Stops the server."""
+        self.pre_shutdown()
         if self.socket:
             self.running = False
             if self.threaded:
@@ -145,7 +149,7 @@ class BaseServer(object):
                     if client.socket in self.polling_sockets:
                         self.close_request(client.socket)
         self.disactivate()
-        LOG.info('server now shut down.')
+        LOG.debug('server now shut down.')
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()
@@ -171,13 +175,14 @@ class BaseServer(object):
     def serve_forever(self):
         """Blocking call. Inspired from SocketServer.
         """
+	if not self.running:
+	    self.start()
         if self.threaded:
             self.__is_shut_down.clear()
         try:
             while self.running and self.serve_once():
                 pass
         finally:
-            self.running = True
             if self.threaded:
                 self.__is_shut_down.set()
 
