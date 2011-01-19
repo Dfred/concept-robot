@@ -24,6 +24,7 @@
 # Starter script for LightHead-bot.
 #
 
+export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
 BGE_PYTHON_VERS=2.6
 PROJECT_NAME=lightHead
 
