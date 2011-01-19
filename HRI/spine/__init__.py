@@ -43,7 +43,7 @@ class NeckInfo(SpineElementInfo):
     pass
 
 
-class SpineComm(object):
+class Spine_Handler(object):
     """
     """
 
@@ -209,7 +209,7 @@ class SpineBase(object):
 
 
 try:
-    from spine.backend import SpineHW as Spine
+    from spine.backend import SpineHW as Spine_Server
 except ImportError, e:
     print 
     print '*** SPINE MISCONFIGURATION ***'

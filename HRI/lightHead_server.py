@@ -33,16 +33,15 @@
 #
 
 import logging
-
 from comm.meta_server import MetaRequestHandler, MetaServer
 
 LOG = logging.getLogger(__package__)
 
-ORGN_FACE = 'face'
-ORGN_GAZE = 'gaze'
-ORGN_LIPS = 'lips'
-ORGN_HEAD = 'head'
-ORIGINS = (ORGN_GAZE, ORGN_FACE, ORGN_LIPS, ORGN_HEAD)
+# protocol keywords to switch from a subserver/handler to another
+ORIGINS = ('face', 'gaze', 'lips', 'head')
+
+# submodule key for registering more protocol keywords for a subserver/handler
+EXTRA_ORIGINS = 'extra_origins'
 
 
 class FeaturePool(object):
@@ -132,34 +131,78 @@ class lightHeadServer(MetaServer):
     def get_server(self, keyword):
         return self.origins[keyword][0]
 
-    def register(self, server, request_handler_class, origin):
-        """bufferize server-handler associations with origin keyword."""
+    def register(self, server, req_handler_class, origin):
+        """Binds origin keyword with server and relative request handler."""
         if origin not in ORIGINS:
             LOG.error("rejecting unknown origin '%s'", origin)
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
-                  server, request_handler_class, origin)
+                  server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
-                                                           request_handler_class)
+                                                           req_handler_class)
 
     def create_protocol_handlers(self):
-        """Bind individual servers and their handler to the meta server."""
-        # TODO: use conf for automatic registration
+        """Bind individual servers and their handler to the meta server.
+        This function uses conf's module definitions: if conf has an attribute
+         which name can be found in ORIGINS, then the HRI module is loaded.
+         """
+#TODO:        See more info in the documentation.
+#        """
+        # conf's specifics should have been sorted out much earlier
+        import conf; conf.load()
 
-        from face import Face, FaceComm
-        server = self.create_subserver(Face)
-        self.register(server, FaceComm, 'face')
-        self.register(server, FaceComm, 'gaze')
-        self.register(server, FaceComm, 'lips')
+        # check for mod_... attributes, allowing a submodule to register more
+        #  than one ORIGIN keyword with its extra_origins attribute.
+        for info, name in [ (getattr(conf,name), name[4:]) for name in dir(conf)
+                            if name.startswith('mod_') ]:
+            try:
+                module = __import__(name)
+            except ImportError:
+                LOG.info("Found %s's config but couldn't load that HRI module",
+                         name)
+                continue
+            try:
+                subserv_class = getattr(module, name.capitalize()+'_Server')
+                handler_class = getattr(module, name.capitalize()+'_Handler')
+            except AttributeError, e:
+                raise conf.LoadException("Module %s: Missing mandatory classes"
+                                         "(%s)" % (name, e))
+            subserver = self.create_subserver(subserv_class)
+            self.register(subserver, handler_class, name)
+            if info.has_key(EXTRA_ORIGINS):
+                for origin in info[EXTRA_ORIGINS]:
+                    self.register(subserver, handler_class, origin)
+        if not self.origins:
+            raise conf.LoadException("No submodule found in configuration.")
+        missing = [ o for o in ORIGINS if o not in self.origins ]
+        if missing:
+            LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)
 
-        try:
-            from spine import Spine, SpineComm, SpineError
-        except ImportError, e:
-            LOG.warn('!!! spine backend not available. spine not included !!!')
-            return
-        try:
-            server = self.create_subserver(Spine)
-        except SpineError, e:
-            LOG.error('spine connection error', e)
-        self.register(server, SpineComm, 'head')
 
+def initialize(thread_info):
+    """Initialize the system.
+    thread_info: tuple of booleans setting threaded_server and threaded_clients
+    """
+    import sys
+    print "LIGHTHEAD Animation System, python version:", sys.version
+
+    # check configuration
+    try:
+        import conf; missing = conf.load()
+        if missing:
+            fatal('missing configuration entries: %s' % missing)
+        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
+            # set system-wide logging level
+            import comm; comm.set_default_logging(debug=True)
+    except conf.LoadException, e:
+        fatal('in file {0[0]}: {0[1]}'.format(e)) 
+
+    # Initializes the system
+    import comm
+    from lightHead_server import lightHeadServer, lightHeadHandler
+    server = comm.create_server(lightHeadServer, lightHeadHandler,
+                                conf.lightHead_server, thread_info)
+    # Because what we have here is a *meta server*, we need to initialize it
+    #  properly; face and all other subservers are initialized in that call
+    server.create_protocol_handlers()
+    return server

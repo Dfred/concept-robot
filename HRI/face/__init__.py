@@ -65,7 +65,7 @@ class FaceProtocolError(comm.ProtocolError):
 class FaceError(comm.CmdError):
     pass
 
-class FaceComm(object):
+class Face_Handler(object):
     """Remote connection handler: protocol parser."""
     
     def __init__(self, *args):
@@ -112,7 +112,7 @@ class FaceComm(object):
 
 
 
-class Face(object):
+class Face_Server(object):
     """Main facial feature animation module
 
     Also maintains consistent muscle activation.
@@ -222,13 +222,14 @@ except ImportError, e:
     print 'Make sure the FACE backend link points to your backend!'
     print 'for your information:', e
     raise 
-
+    
 
 if __name__ == '__main__':
     conf.name = sys.argv[-1]
     conf.load()
     try:
-        server = comm.create_server(FaceServer, FaceClient, conf.conn_face)
+        server = comm.create_server(FaceServer, FaceClient, conf.conn_face,
+                                    (False,False))
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)
