@@ -36,6 +36,7 @@
 import sys, time, atexit
 from math import cos, sin, pi
 import GameLogic as G
+import lightHead_server
 
 MAX_FPS = 50
 
@@ -51,8 +52,6 @@ MAX_FPS = 50
 THREADED_SERVER  = False
 THREADED_CLIENTS = False
 THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
-
-FACE = 'face'
 
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
@@ -70,11 +69,20 @@ def exiting():
 atexit.register(exiting)
 
 def fatal(error):
+    """Common function to gracefully quit."""
     print '*** Fatal Error ***', error
     import conf; conf.load()
     if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
         import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
+
+def shutdown(cont):
+    """Finish animation and let atexit do the cleaning job"""
+    cont.activate(cont.actuators["- QUITTER"])
+    if hasattr(G, 'server'):
+        sys.exit(0)
+    sys.exit(1)
+    # see exiting()
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -88,26 +96,9 @@ def check_defects(owner, acts):
                             'type property' % act.name)
     return False
 
-def shutdown(cont):
-    """Finish animation and let atexit do the cleaning job"""
-    cont.activate(cont.actuators["- QUITTER"])
-    if hasattr(G, 'server'):
-        sys.exit(0)
-    sys.exit(1)
-
-def initialize(server_addrPort):
-    """Initialize connections and configures facial subsystem"""
-    import sys
-
-    # for init, imports are done on demand
-    print "LIGHTHEAD Facial Animation System, python version:", sys.version
+def initialize(server):
+    """Initialiazes and configures facial subsystem (blender specifics...)"""
     print "loaded module from", __path__[0]
-
-    import comm
-    from lightHead_server import lightHeadServer, lightHeadHandler
-    G.server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                  server_addrPort, THREAD_INFO)
-    G.server.create_protocol_handlers()
 
     # get driven objects
     objs = G.getCurrentScene().objects
@@ -130,7 +121,7 @@ def initialize(server_addrPort):
 
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
-    G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
+    server.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
     G.initialized = True	
@@ -196,21 +187,18 @@ def update(faceServer, time_diff):
 def main(addr_port):
     if not hasattr(G, "initialized"):
         try:
-            import conf; missing = conf.load()
-            if missing:
-                fatal('missing configuration entries: %s' % missing)
+# standalone version:
+#            import face, comm, conf; conf.load()
+#            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
 
-            if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-                # set system-wide logging level
-                import comm; comm.set_default_logging(debug=True)
+            G.server = lightHead_server.initialize(THREAD_INFO)
+            G.face_server = G.server['face']
 
-            cont = initialize(conf.lightHead_server)
-            G.server.set_listen_timeout(0.001)
+            cont = initialize(G.face_server)
+            G.server.set_listen_timeout(0.001)      # tune it !
             G.server.start()
-        except conf.LoadException, e:
-            fatal('in file {0[0]}: {0[1]}'.format(e)) 
-        except Exception, e:
-            fatal(e)
+        except:
+            fatal("initialization error")
         cont.activate(cont.actuators["- wakeUp -"])
     else:
         if not THREADED_SERVER:
@@ -219,5 +207,5 @@ def main(addr_port):
                 print 'server returned an error'
                 G.server.shutdown()
         # update blender with fresh face data
-        update(G.server[FACE], time.time() - G.last_update_time)
+        update(G.face_server, time.time() - G.last_update_time)
         G.last_update_time = time.time()
