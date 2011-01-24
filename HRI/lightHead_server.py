@@ -82,6 +82,7 @@ class lightHeadHandler(MetaRequestHandler):
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
+            argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
                 self.updated.append(argline)
