@@ -35,6 +35,8 @@ def main():
     parser.add_option("-c", "--control", dest="control",
                       default="keyboard", type="string",
                       help="specifies type of control. Options are: " + str(config.control_options)  )
+    parser.add_option("-v", "--video-device", type="int", dest="videoDev_index",
+                      default=0, help="set index of video device to use.")
     parser.add_option("-g", "--gui",
                       action="store_true", dest="gui", default=True,
                       help="specifies if a GUI is used")
@@ -47,6 +49,7 @@ def main():
               "Options are: " + str(config.control_options)
         exit(1)
     config.use_gui = options.gui
+    config.videoDev_idx = options.videoDev_index
     
     # create appropriate connections
     comm_express, comm_features = connect()
@@ -76,7 +79,7 @@ class RobotControl(threading.Thread):
     def __init__(self, expression_comm):
         threading.Thread.__init__(self)
         self.comm = expression_comm
-        self.camera = vision.CaptureVideo(self.comm)
+        self.camera = vision.CaptureVideo(config.videoDev_idx, self.comm)
         self.camera.start()
         self.camera_ball = None
         self.learning_agent = agent.Agent("agent", "learner")

@@ -21,7 +21,7 @@ class CaptureVideo(threading.Thread):
     """ captures video stream from camera and performs various detections (face, edge, circle)
     """
     
-    def __init__(self, comm = None):
+    def __init__(self, videoDevice_index, comm = None):
         """ initiate variables"""
         
         threading.Thread.__init__(self)
@@ -29,7 +29,7 @@ class CaptureVideo(threading.Thread):
         self.current_colour = None
 
         self.face_detector = CascadeDetector(cascade_name=config.haar_casc,min_size=(50,50), image_scale=0.5)
-        self.webcam = Webcam()
+        self.webcam = Webcam(videoDevice_index)
         
         if config.use_gui: # create windows            
             cv.NamedWindow('Camera', cv.CV_WINDOW_AUTOSIZE)
@@ -436,6 +436,7 @@ class CaptureVideo(threading.Thread):
     
 if __name__ == "__main__":
     config.haar_casc = "haarcascade_frontalface_alt.xml"        # change path for compatibility
-    cap = CaptureVideo()
+    import sys
+    cap = CaptureVideo(len(sys.argv) > 1 and sys.argv[1] or 0)
     cap.start()
 
