@@ -85,17 +85,16 @@ class Behaviour():
     #     if self.machines:
     #         self.run_machines()
     #     else:
-    #         while self.current_state != None:
+    #         while self.current_state is not None:
     #             self.current_state = machine.step()
 
     def run(self):
         """
         Allows multiple Behaviours to run at the same time.
         """
-#        self.comm = comm.BaseClient(conf.expression_server)
         machines = [self]+self.machines
         machines_states = ['STARTED',]*len(machines)
-        while machines_states[0] != None:
+        while machines_states[0] is not None:
             errors = []
             for i, machine in enumerate(machines):
                 try:
@@ -114,7 +113,6 @@ class Behaviour():
         except KeyError:
             if not machines_states:
                 raise BehaviourRuleError("unknown state %s" %self.current_state)
-                                         
             # else:
             states = [ s for s in machines_states if self.actions.has_key(s)]
             if not states:

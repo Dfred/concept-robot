@@ -762,7 +762,7 @@ class RequestHandler(BaseComm):
 
     def cmd_shutdown(self, args):
         """Disconnects all clients and terminate the server process."""
-        if self.server == None:
+        if self.server is None:
             raise CmdError("cannot shutdown server")
         self.running = False
         self.server.shutdown()
