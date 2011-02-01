@@ -33,6 +33,9 @@
 #
 
 import logging
+
+import numpy
+
 from comm.meta_server import MetaRequestHandler, MetaServer
 
 LOG = logging.getLogger(__package__)
@@ -43,29 +46,48 @@ ORIGINS = ('face', 'gaze', 'lips', 'head')
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
 
-
-class FeaturePool(object):
+class FeaturePool(dict):
     """This class serves as a short term memory. It holds all possible features
-    so other modules can query a snapshot of the current robot's state."""
+    so other modules can query a snapshot of the current robot's state.
+    Also, it's a singleton.
+    """
+    # single instance holder
+    instance = None
 
-    def __init__(self):
-        self.context = {}       # identifier : value(s)
+    def __new__(cls):
+        """Creates a singleton.
+        Another feature pool? Derive from that class overriding self.instance,
+         and don't bother with the __ prefix to make it pseudo-private...
+        cls: don't touch (it's the current type, ie: maybe a derived class type)
+        """
+        if cls.instance is None:
+            cls.instance = super(FeaturePool,cls).__new__(cls)
+        return cls.instance
 
-    def is_empty(self):
-        return not self.context
+    def __setitem__(self, i, y):
+        """We are read only. Direct assignation is disabled.
+        """
+        raise ValueError('Read only object. Use set_..Feature()')
+
+    def add_feature(self, name, numpy_array):
+        """Registers a new Feature into the pool.
+        name: string identifying the feature
+        numpy_array: numpy.ndarray (aka numpy array) of arbitrary size
+        """
+        assert isinstance(numpy_array,numpy.ndarray),'No numpy ndarray instance'
+        if self.has_key(name):
+            raise KeyError('key %s already exists' % name)
+        dict.__setitem__(self, name, numpy_array)
 
     def get_snapshot(self, features=None):
         """Get a snapshot, optionally selecting specific features.
-        features == None: return whole context
-        features == iterable: return subset of the context.
+        features: iterable specifying the features of the context to return.
+        Returns: all context (default) or subset from specified features.
         """
-        print features, self.context
+        print features, self
         if not features:
-            return self.context
-        return dict( (f,self.context[f]) for f in features )
-
-    def set_value(self, identifier, value):
-        self.context[identifier] = value
+            return self
+        return dict( (f,self[f]) for f in features )
 
 
 class lightHeadHandler(MetaRequestHandler):
@@ -101,14 +123,10 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_get_snapshot(self, argline):
         """Returns the current snapshot of robot context"""
-        if self.server.FP.is_empty():
-            for origin in self.server.origins.iterkeys():
-                subserver = self.server.get_server(origin)
-                self.server.FP.set_value(origin, subserver.get_features(origin))
-        for k,v in self.server.FP.get_snapshot(argline.split()).iteritems():
-            if v and hasattr(v, '__iter__'):
-                v = [ str(i) for i in v ]
-            self.send_msg(k+' '+' '.join(v))
+        origins = [ origin.strip() for origin in argline.split() ]
+#        for k,v in self.server.FP.get_snapshot(origins).iteritems():
+#            self.send_msg(k+' '+' '.join(v))
+        self.send_msg(str(self.server.FP))
         self.send_msg('end_snapshot')
 
 
@@ -177,32 +195,3 @@ class lightHeadServer(MetaServer):
         missing = [ o for o in ORIGINS if o not in self.origins ]
         if missing:
             LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)
-
-
-def initialize(thread_info):
-    """Initialize the system.
-    thread_info: tuple of booleans setting threaded_server and threaded_clients
-    """
-    import sys
-    print "LIGHTHEAD Animation System, python version:", sys.version
-
-    # check configuration
-    try:
-        import conf; missing = conf.load()
-        if missing:
-            fatal('missing configuration entries: %s' % missing)
-        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-            # set system-wide logging level
-            import comm; comm.set_default_logging(debug=True)
-    except conf.LoadException, e:
-        fatal('in file {0[0]}: {0[1]}'.format(e)) 
-
-    # Initializes the system
-    import comm
-    from lightHead_server import lightHeadServer, lightHeadHandler
-    server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                conf.lightHead_server, thread_info)
-    # Because what we have here is a *meta server*, we need to initialize it
-    #  properly; face and all other subservers are initialized in that call
-    server.create_protocol_handlers()
-    return server

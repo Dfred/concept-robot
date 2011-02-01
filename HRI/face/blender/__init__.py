@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Lighthead-bot programm is a HRI PhD project at the University of Plymouth,
+# LightHead programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.  
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
@@ -36,7 +36,6 @@
 import sys, time, atexit
 from math import cos, sin, pi
 import GameLogic as G
-import lightHead_server
 
 MAX_FPS = 50
 
@@ -191,7 +190,9 @@ def main(addr_port):
 #            import face, comm, conf; conf.load()
 #            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
 
-            G.server = lightHead_server.initialize(THREAD_INFO)
+            import HRI
+
+            G.server = HRI.initialize(THREAD_INFO)
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)
