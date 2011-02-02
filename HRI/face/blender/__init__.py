@@ -35,7 +35,10 @@
 #
 import sys, time, atexit
 from math import cos, sin, pi
+
 import GameLogic as G
+
+from face import float_to_AUname
 
 MAX_FPS = 50
 
@@ -133,6 +136,7 @@ def initialize(server):
     G.last_update_time = time.time()    
     return cont
 
+
 def update(faceServer, time_diff):
     """
     """
@@ -143,14 +147,14 @@ def update(faceServer, time_diff):
 
     # threaded server is thread-safe
     for au, value in faceServer.update(time_diff):
-        if au[0] == '6':        # XXX: yes, 6 is an eye prefix (do better ?)
+        if int(abs(au/10)) == 6:# XXX: yes, 6 is an eye prefix (do better ?)
             if eyes_done:
                 continue
             # The model is supposed to look towards negative Y values
             # Also Up is positive Z values
-            ax  = -faceServer.get_AU('63.5')[3]
-            az0 = faceServer.get_AU('61.5R')[3]
-            az1 = faceServer.get_AU('61.5L')[3]
+            ax  = -faceServer.get_AU( 63.5)[3]
+            az0 =  faceServer.get_AU( 61.5)[3]
+            az1 =  faceServer.get_AU(-61.5)[3]
             # No ACTION for eyes
             G.eye_L.localOrientation = [
                 [cos(az0),        -sin(az0),         0],
@@ -161,14 +165,14 @@ def update(faceServer, time_diff):
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
-        elif au == '26':
+        elif au/10 == 9:        # XXX: yes, 9 is a tongue prefix (do better ?)
+            G.tongue[au] = SH_ACT_LEN * value
+        elif au == 26:
             # TODO: try with G.setChannel
             G.jaw['p26'] = SH_ACT_LEN * value    # see always sensor in .blend
-        elif au[0] == '9':      # XXX: yes, 6 is a tongue prefix (do better ?)
-            G.tongue[au] = SH_ACT_LEN * value
         else:
-            cont.owner['p'+au] = value * SH_ACT_LEN
-            cont.activate(cont.actuators[au])
+            cont.owner['p'+str(au)] = value * SH_ACT_LEN
+            cont.activate(cont.actuators[float_to_AUname[au]])
 
     INFO_PERIOD += time_diff
     if INFO_PERIOD > 5:
@@ -191,7 +195,6 @@ def main(addr_port):
 #            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
 
             import HRI
-
             G.server = HRI.initialize(THREAD_INFO)
             G.face_server = G.server['face']
 
