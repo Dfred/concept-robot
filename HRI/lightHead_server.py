@@ -74,6 +74,8 @@ class FeaturePool(dict):
         name: string identifying the feature
         numpy_array: numpy.ndarray (aka numpy array) of arbitrary size
         """
+        if numpy_array is None:
+            return
         assert isinstance(numpy_array,numpy.ndarray),'No numpy ndarray instance'
         if self.has_key(name):
             raise KeyError('key %s already exists' % name)
@@ -150,7 +152,8 @@ class lightHeadServer(MetaServer):
         return self.origins[keyword][0]
 
     def register(self, server, req_handler_class, origin):
-        """Binds origin keyword with server and relative request handler."""
+        """Binds origin keyword with server and relative request handler.
+        """
         if origin not in ORIGINS:
             LOG.error("rejecting unknown origin '%s'", origin)
             return
@@ -158,6 +161,7 @@ class lightHeadServer(MetaServer):
                   server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
                                                            req_handler_class)
+        self.FP.add_feature(origin, server.get_array_for_featurePool(origin))
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
