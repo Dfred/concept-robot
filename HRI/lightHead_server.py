@@ -74,8 +74,7 @@ class FeaturePool(dict):
         name: string identifying the feature
         numpy_array: numpy.ndarray (aka numpy array) of arbitrary size
         """
-        if numpy_array is None:
-            return
+        LOG.debug("new feature in the pool from %s: %s", name, numpy_array)
         assert isinstance(numpy_array,numpy.ndarray),'No numpy ndarray instance'
         if self.has_key(name):
             raise KeyError('key %s already exists' % name)
@@ -86,7 +85,6 @@ class FeaturePool(dict):
         features: iterable specifying the features of the context to return.
         Returns: all context (default) or subset from specified features.
         """
-        print features, self
         if not features:
             return self
         return dict( (f,self[f]) for f in features )
@@ -124,11 +122,16 @@ class lightHeadHandler(MetaRequestHandler):
         self.send_msg('TODO')
 
     def cmd_get_snapshot(self, argline):
-        """Returns the current snapshot of robot context"""
-        origins = [ origin.strip() for origin in argline.split() ]
+        """Returns the current snapshot of robot context
+        argline: origins identifying arrays to be sent.
+        """
+        origins = ( argline.strip() and [ o.strip() for o in argline.split()
+                                        if o in self.server.FP.keys() ] 
+                    ) or self.server.FP.keys()
 #        for k,v in self.server.FP.get_snapshot(origins).iteritems():
 #            self.send_msg(k+' '+' '.join(v))
-        self.send_msg(str(self.server.FP))
+        for o in origins:
+            self.send_msg('snapshot %s %s' % (o, self.server.FP[o]))
         self.send_msg('end_snapshot')
 
 
@@ -161,7 +164,10 @@ class lightHeadServer(MetaServer):
                   server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
                                                            req_handler_class)
-        self.FP.add_feature(origin, server.get_array_for_featurePool(origin))
+        # Servers shall call feature_pool.add_feature with appropriate origin(s)
+        #  identifying their internal numpy array. We just can't predict when
+        #  their array will be created.
+        server.set_featurePool(self.FP)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
