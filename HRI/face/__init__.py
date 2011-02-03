@@ -57,21 +57,17 @@ float_to_AUname = {
      -13:'13L', 13:'13R', -14:'14L', 14:'14R', -15:'15L', 15:'15R',
      -16:'16L', 16:'16R', .17:'17', -18:'18L', 18:'18R', -20:'20L', 20:'20R',
      -21:'21L', 21:'21R', -22:'22L', 22:'22R', -23:'23L', 23:'23R',
-     .24:'24', .25:'25' ,  26:'26', -28:'28L', 28:'28R', .31:'31', .32:'32',
-     -33:'33L', 33:'33R', -38:'38L', 38:'38R', -39:'39L', 39:'39R',
+     -24:'24L', 24:'24R', .25:'25' , 26:'26', -28:'28L', 28:'28R', .31:'31',
+     -32:'32L', 32:'32R', -33:'33L', 33:'33R', -38:'38L', 38:'38R',
+     -39:'39L', 39:'39R', -61.5:'61.5L', 61.5:'61.5R', .635:'63.5'
 }
+AUname_to_float = dict(zip(float_to_AUname.values(),float_to_AUname.keys()))
 
 class FaceProtocolError(comm.ProtocolError):
     pass
 
 class FaceError(comm.CmdError):
     pass
-
-
-def AUname_to_float(au_name):
-    return float((au_name.endswith('L') and '-'+au_name[:-1]) or
-                 (au_name.endswith('R') and au_name[:-1]) or au_name)
-
 
 class Face_Handler(object):
     """Remote connection handler: protocol parser."""
@@ -86,10 +82,18 @@ class Face_Handler(object):
         if len(argline):
             try:
                 au_name, value, duration = argline.split()[:3]
-                self.fifo.append((AUname_to_float(au_name),
-                                  float(value), float(duration)))
             except ValueError, e:
-                raise FaceProtocolError("[AU] invalid float argument (%s)", e)
+                raise FaceProtocolError("[AU] wrong number of arguments (%s)",e)
+            try:
+                value, duration = float(value), float(duration)
+                self.fifo.append((AUname_to_float[au_name], value, duration))
+            except ValueError,e:
+                raise FaceProtocolError("[AU] invalid float (%s)", e)
+            except KeyError, e:
+                if not AUname_to_float.has_key(au_name+'R'):
+                    raise FaceProtocolError("[AU] invalid float (%s)", e)
+                self.fifo.append((AUname_to_float[au_name+'R'],value,duration))
+                self.fifo.append((AUname_to_float[au_name+'L'],value,duration))
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
@@ -162,7 +166,7 @@ class Face_Server(object):
         """
         self.AUs = numpy.zeros((len(available_AUs),self.COLS),
                                dtype=numpy.float32)
-        self.AUs[:,0] = sorted([AUname_to_float(au) for au in available_AUs])
+        self.AUs[:,0] = sorted([AUname_to_float[au] for au in available_AUs])
         LOG.info("Available AUs:\n%s" % self.AUs[:,0])
 
     def set_AUs(self, iterable):

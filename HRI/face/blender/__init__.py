@@ -171,8 +171,9 @@ def update(faceServer, time_diff):
             # TODO: try with G.setChannel
             G.jaw['p26'] = SH_ACT_LEN * value    # see always sensor in .blend
         else:
-            cont.owner['p'+str(au)] = value * SH_ACT_LEN
-            cont.activate(cont.actuators[float_to_AUname[au]])
+            au = float_to_AUname[au]
+            cont.owner['p'+au] = value * SH_ACT_LEN
+            cont.activate(cont.actuators[au])
 
     INFO_PERIOD += time_diff
     if INFO_PERIOD > 5:
