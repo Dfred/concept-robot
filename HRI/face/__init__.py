@@ -141,12 +141,11 @@ class Face_Server(object):
         self.updates = []
         self.thread_id = thread.get_ident()
 
-    def get_array_for_featurePool(self, origin):
-        """Returns the buffer to be available through the feature pool.
-        If you want to disable the feature pool facility, return None here.
-        origin: specific origin for selecting buffer in multi-origin buffers.
+    def set_featurePool(self, feature_pool):
+        """Attach the feature_pool for further registration of self.AUs .
+        feature_pool: a dict of { origin : numpy.array }
         """
-        return self.AUs
+        self.FP = feature_pool
 
     def index(self, AU):
         """Returns index of specified AU or raises IndexError if not found.
@@ -164,9 +163,12 @@ class Face_Server(object):
         """Define list of AUs available for a specific face.
          available_AUs: list of AUs (floats)
         """
-        self.AUs = numpy.zeros((len(available_AUs),self.COLS),
+        self.AUs = numpy.zeros((len(available_AUs), self.COLS), 
                                dtype=numpy.float32)
         self.AUs[:,0] = sorted([AUname_to_float[au] for au in available_AUs])
+#        for name in SUPPORTED_ORIGINS:
+#            self.FP.add_feature(name, self.subarray_from_origin(name))
+        self.FP.add_feature('face', self.AUs)
         LOG.info("Available AUs:\n%s" % self.AUs[:,0])
 
     def set_AUs(self, iterable):
