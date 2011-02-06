@@ -86,7 +86,7 @@ NAME = None
 REQUIRED = None
 __LOADED_FILE = None
 
-ROOT_PATH=os.path.normpath(__path__[0]+'/../..')+'/'
+BASE_PATH=os.path.normpath(__path__[0]+'/../..')+'/'
 
 class LoadException(Exception):
     """Exception with 2 elements: filename and error_message. Use like:
