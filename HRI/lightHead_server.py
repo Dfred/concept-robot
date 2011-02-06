@@ -46,50 +46,6 @@ ORIGINS = ('face', 'gaze', 'lips', 'head')
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
 
-class FeaturePool(dict):
-    """This class serves as a short term memory. It holds all possible features
-    so other modules can query a snapshot of the current robot's state.
-    Also, it's a singleton.
-    """
-    # single instance holder
-    instance = None
-
-    def __new__(cls):
-        """Creates a singleton.
-        Another feature pool? Derive from that class overriding self.instance,
-         and don't bother with the __ prefix to make it pseudo-private...
-        cls: don't touch (it's the current type, ie: maybe a derived class type)
-        """
-        if cls.instance is None:
-            cls.instance = super(FeaturePool,cls).__new__(cls)
-        return cls.instance
-
-    def __setitem__(self, i, y):
-        """We are read only. Direct assignation is disabled.
-        """
-        raise ValueError('Read only object. Use set_..Feature()')
-
-    def add_feature(self, name, numpy_array):
-        """Registers a new Feature into the pool.
-        name: string identifying the feature
-        numpy_array: numpy.ndarray (aka numpy array) of arbitrary size
-        """
-        LOG.debug("new feature in the pool from %s: %s", name, numpy_array)
-        assert isinstance(numpy_array,numpy.ndarray),'No numpy ndarray instance'
-        if self.has_key(name):
-            raise KeyError('key %s already exists' % name)
-        dict.__setitem__(self, name, numpy_array)
-
-    def get_snapshot(self, features=None):
-        """Get a snapshot, optionally selecting specific features.
-        features: iterable specifying the features of the context to return.
-        Returns: all context (default) or subset from specified features.
-        """
-        if not features:
-            return self
-        return dict( (f,self[f]) for f in features )
-
-
 class lightHeadHandler(MetaRequestHandler):
     """Handles high level protocol transactions: origin and commit"""
 
