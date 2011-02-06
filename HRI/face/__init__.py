@@ -168,7 +168,7 @@ class Face_Server(object):
         self.AUs[:,0] = sorted([AUname_to_float[au] for au in available_AUs])
 #        for name in SUPPORTED_ORIGINS:
 #            self.FP.add_feature(name, self.subarray_from_origin(name))
-        self.FP.add_feature('face', self.AUs)
+        self.FP['face'] = self.AUs
         LOG.info("Available AUs:\n%s" % self.AUs[:,0])
 
     def set_AUs(self, iterable):
