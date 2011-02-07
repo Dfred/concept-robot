@@ -33,11 +33,11 @@ else
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
-	    MODULES_PATH="$CONCEPT_DIR;$CONCEPT_DIR/common;$CONCEPT_DIR/HRI"
+	    MODULES_PATH="$CONCEPT_DIR;$CONCEPT_DIR/common;$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
 	    PYTHONPATH="$MODULES_PATH"
 	    ;;
 	*)
-	    MODULES_PATH="$CONCEPT_DIR:$CONCEPT_DIR/common:$CONCEPT_DIR/HRI"
+	    MODULES_PATH="$CONCEPT_DIR:$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
             PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
 	    ;;
     esac
