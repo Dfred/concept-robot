@@ -64,7 +64,8 @@ class CmdError(Exception):
     pass
 
 class ClassError(Exception):
-    """Exception for dealing with type generation"""
+    """Exception for dealing with type generation.
+    """
     pass
 
 
@@ -84,30 +85,39 @@ class BaseServer(object):
 
     def set_threaded(self):
         """Enable the server to start() its own thread.
-        Sets handler_timeout so select is blocking."""
+        Sets handler_timeout so select is blocking.
+        """
         self.threaded = True
         self.__is_shut_down = threading.Event()
         self.__threading_lock = threading.Lock()
         self.handler_timeout = None     # blocking select() in thread
 
     def set_addrPort(self, addrPort):
+        """
+        """
         self.addr_port = addrPort
 
     def set_RequestHandlerClass(self, ClientHandlerClass):
+        """
+        """
         self.RequestHandlerClass = ClientHandlerClass
 
     def set_listen_timeout(self, listen_timeout):
-        """Sets socket timeout for incoming connections."""
+        """Sets socket timeout for incoming connections.
+        """
         self.listen_timeout = listen_timeout
         if self.running:
             self.socket.settimeout(listen_timeout)
             self.update_poll_timeout()
 
     def set_handler_timeout(self, timeout):
-        """Sets new handlers' socket timeout."""
+        """Sets new handlers' socket timeout.
+        """
         self.handler_timeout = timeout
 
     def update_poll_timeout(self):
+        """
+        """
         self.poll_interval = min([sock.gettimeout() for sock in \
                                       self.polling_sockets + [self.socket]])
 
@@ -120,7 +130,8 @@ class BaseServer(object):
         pass
 
     def start(self):
-        """Starts the server (listen to connections)"""
+        """Starts the server (listen to connections).
+        """
         self.running = True
         self.activate()
         self.polling_sockets = [self.socket]
@@ -136,7 +147,8 @@ class BaseServer(object):
         pass
 
     def shutdown(self):
-        """Stops the server."""
+        """Stops the server.
+        """
         self.pre_shutdown()
         if self.socket:
             self.running = False
@@ -153,7 +165,8 @@ class BaseServer(object):
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()
-         for that thread."""
+         for that thread.
+        """
         # XXX: Consider using another file descriptor or
         # connecting to the socket to wake this up instead of
         # polling. Polling reduces our responsiveness to a
@@ -202,7 +215,8 @@ class BaseServer(object):
                 self.close_request(socket)
 
     def handle_error(self, sock, client_addr):
-        """Installs an interactive pdb session if logger is at DEBUG level"""
+        """Installs an interactive pdb session if logger is at DEBUG level.
+        """
         import traceback
         LOG.error('Exception raised with %s (%s)', sock, client_addr)
         if LOG.getEffectiveLevel() != logging.DEBUG:
@@ -215,11 +229,13 @@ class BaseServer(object):
 
     def verify_request(self, request, client_addrPort):
         """Verify the request.  May be overridden.
-        Return True if we should proceed with this request."""
+        Return True if we should proceed with this request.
+        """
         return True
 
     def finish_request(self, sock, client_addr):
-        """Instanciates the RequestHandler and set its connection timeout."""
+        """Instanciates the RequestHandler and set its connection timeout.
+        """
         LOG.debug('new connection request from %s (%s)', client_addr, sock)
         handler = self.RequestHandlerClass(self, sock, client_addr)
         sock.settimeout(self.handler_timeout)
@@ -234,7 +250,8 @@ class BaseServer(object):
         self.clients[sock] = handler
 
     def close_request(self, sock):
-        """Cleans up an individual request. Extend but don't override."""
+        """Cleans up an individual request. Extend but don't override.
+        """
         del self.polling_sockets[self.polling_sockets.index(sock)]
         del self.clients[sock]
         self.update_poll_timeout()
@@ -267,12 +284,14 @@ class BaseServer(object):
         LOG.debug('overriden finish_request and close_request')
 
     def threadsafe_start(self):
-        """Transparent threading support."""
-        """When handlers are threaded, it's good to have a way to sync them."""
+        """Transparent threading support.
+        When handlers are threaded, it's good to have a way to sync them.
+        """
         self.__threading_lock.acquire()
 
     def threadsafe_stop(self):
-        """Transparent threading support."""
+        """Transparent threading support.
+        """
         self.__threading_lock.release()
 
 
@@ -311,7 +330,8 @@ class TCPServer(BaseServer):
     allow_reuse_address = True
 
     def activate(self):
-        """Called by constructor to activate the server. May be overridden."""
+        """Called by constructor to activate the server. May be overridden.
+        """
         self.socket = socket.socket(self.address_family,
                                     self.socket_type)
         self.socket.settimeout(self.listen_timeout)
@@ -326,12 +346,14 @@ class TCPServer(BaseServer):
         self.socket.listen(self.request_queue_size)
 
     def disactivate(self):
-        """Called to clean-up the server. May be overridden."""
+        """Called to clean-up the server. May be overridden.
+        """
         if self.socket:
             self.socket.close()
 
     def fileno(self):
-        """Return socket file number. Interface required by select()."""
+        """Return socket file number. Interface required by select().
+        """
         return self.socket.fileno()
 
     def get_request(self):
@@ -340,7 +362,8 @@ class TCPServer(BaseServer):
         return self.socket.accept()
 
     def close_request(self, sock):
-        """Called to clean up an individual request."""
+        """Called to clean up an individual request.
+        """
         LOG.debug('closing TCP connection with %s (%s)',
                   self.clients[sock].addr_port, sock)
         BaseServer.close_request(self, sock)
@@ -348,7 +371,8 @@ class TCPServer(BaseServer):
 
 
 class UDPServer(TCPServer):
-    """UDP server class."""
+    """UDP server class.
+    """
 
     allow_reuse_address = False
     socket_type = socket.SOCK_DGRAM
@@ -367,14 +391,16 @@ class UDPServer(TCPServer):
         BaseServer.close_request(self, socket)
 
 class ForkingMixIn:
-    """Mix-in class to handle each request in a new process."""
+    """Mix-in class to handle each request in a new process.
+    """
 
     timeout = 300
     active_children = None
     max_children = 40
 
     def collect_children(self):
-        """Internal routine to wait for children that have exited."""
+        """Internal routine to wait for children that have exited.
+        """
         if self.active_children is None: return
         while len(self.active_children) >= self.max_children:
             # XXX: This will wait for any child process, not just ones
@@ -413,7 +439,8 @@ class ForkingMixIn:
         self.collect_children()
 
     def process_request(self, socket, client_addrPort):
-        """Fork a new subprocess to process the request."""
+        """Fork a new subprocess to process the request.
+        """
         self.collect_children()
         pid = os.fork()
         if pid:
@@ -436,7 +463,8 @@ class ForkingMixIn:
                     os._exit(1)
 
 class ThreadingMixIn:
-    """Mix-in class to handle each request in a new thread."""
+    """Mix-in class to handle each request in a new thread.
+    """
 
     # Decides how threads will act upon termination of the
     # main process
@@ -454,7 +482,8 @@ class ThreadingMixIn:
             self.close_request(socket)
 
     def process_request(self, socket, client_addrPort):
-        """Start a new thread to process the request."""
+        """Start a new thread to process the request.
+        """
         t = threading.Thread(target = self.process_request_thread,
                              args = (socket, client_addrPort))
         if self.daemon_threads:
@@ -506,9 +535,10 @@ if hasattr(socket, 'AF_UNIX'):
                                  }
 
 def getBaseServerClass(addr_port, threaded):
-    """Returns the appropriate base class for server according to addr_port"""
-    """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
-     port field (eg. 'udp:4242'). Default is udp."""
+    """Returns the appropriate base class for server according to addr_port.
+    Protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
+     port field (eg. 'udp:4242'). Default is udp.
+    """
     D_PROTO = 'tcp'
     try:
         addr, port = addr_port
@@ -543,7 +573,8 @@ def create_RequestHandlerClass(handler_class, threaded=False):
                          handler_class)
         
     def handler_init(self, server, sock, client_addr):
-        """Call initializers properly + runtime support for threading."""
+        """Call initializers properly + runtime support for threading.
+        """
         RequestHandler.__init__(self, server, sock, client_addr)
         # add runtime support for threading (sending clients)
         if threaded:
@@ -559,6 +590,8 @@ def create_RequestHandlerClass(handler_class, threaded=False):
 
 
 def create_server(ext_class, handler_class, addr_port, thread_info):
+    """
+    """
     if not issubclass(ext_class, object):
         raise ClassError("class %s must inherit from object" % ext_class)
     if ext_class in [ cls for proto, cls in SERVER_CLASSES.items() ]:
@@ -568,7 +601,8 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
     mixed_handler_class = create_RequestHandlerClass(handler_class,
                                                      thread_info[1])
     def init_server(self):
-        """Call initializers properly."""
+        """Call initializers properly.
+        """
         base_class.__init__(self)
         self.set_RequestHandlerClass(mixed_handler_class)
         self.set_addrPort(addr_port)
@@ -586,8 +620,8 @@ class BaseComm(object):
     """Basic protocol handling and command-to-function resolver. This is the
      base class for a local client connecting to a server (BaseClient) or for a
      handler of a remote client connecting to the local server (RequestHandler).
-     This class mainly relies on socket's fileno() function.
-
+    This class mainly relies on socket's fileno() function.
+    There's no 
     To implement a binary protocol, you'd override process() and parse_cmd().
     """
 
@@ -600,29 +634,35 @@ class BaseComm(object):
         self.running = False
 
     def abort(self):
-        """For read_while_running"""
+        """Completely abort any loop or connection.
+        Return: False
+        """
         if self.socket:
             self.socket.close()
         self.connected = False
         self.running = False
+        self.handle_disconnect()
         return False
 
-    def read_once(self, timeout=0.01):
+    def read_once(self, timeout):
         """Non-blocking call for processing client commands (see __init__).
-        Replaces handle()
-        No check for self.running.
-        Return: False on error
+        timeout: time waiting for data (in seconds).
+                 a value of 0 specifies a poll and never blocks.
+                 a value of None makes the function blocks until socket's ready.
+        Returns: False on error, True if all goes well or timeout on expiry.
         """
         r, w, e = select.select([self.socket], [], [self.socket], timeout)
         if not r:
-            return True
+            return timeout
         if e:
             self.handle_error('Unknown error with socket %s' % e)
             return self.abort()
         return self.read_socket()
 
     def read_socket(self):
-        """Read its own socket."""
+        """Read its own socket.
+        Returns: False on socket error, True otherwise.
+        """
         try:
             buff = self.socket.recv(1024)
             if not buff:
@@ -634,13 +674,27 @@ class BaseComm(object):
         self.command = self.command[self.process(self.command):]
         return True
 
-    def read_while_running(self):
-        """Blocking call for processing of client commands (see __init__).
-        Returns if self.running is False.
+    def read_while_running(self, timeout=0.01):
+        """Blocking call for processing of client commands (see __init__) which
+         only returns when self.running is False.
+        timeout: optional delay see doc for read_once().
+        Returns: True if stopped running, False on error.
         """
         self.running = True
-        while self.running and self.read_once():
-            pass
+        while self.running:
+            if not self.read_once(timeout):
+                return False
+        return True
+
+    def handle_error(self, e):
+        """Callback for connection error.
+        """
+        LOG.warning("Connection error :%s", e)
+
+    def handle_disconnect(self):
+        """Callback after client disconnection to (remote) server.
+        """
+        LOG.debug('client disconnected from remote server %s', self.target_addr)
 
     def handle_notfound(self, cmd, args):
         """When a method (a command) is not found in self. See process().
@@ -648,12 +702,10 @@ class BaseComm(object):
         """
         LOG.debug("function %s not found in %s [args: '%s']", cmd, self, args)
 
-    def handle_error(self, e):
-        """Callback for connection error.
-        """
-        LOG.warning("Connection error :%s", e)
-
     def parse_cmd(self, cmdline):
+        """To be overriden for implementation of a different protocol.
+        Returns: None
+        """
         cmd_tokens = cmdline.split(None,1) # keep 1
         cmd, args = self.CMD_PREFIX+cmd_tokens.pop(0),\
                     cmd_tokens and cmd_tokens[0] or ""
@@ -671,7 +723,7 @@ class BaseComm(object):
                 raise
 
     def process(self, command):
-        """Command dispatcher function.
+        """Command dispatcher function. (Override for different protocol)
 
         Tokenize command and calls 'cmd_ + 1st_token' function defined in self.
          Calls self.handle_notfound if the built function name isn't defined.
@@ -680,8 +732,8 @@ class BaseComm(object):
           linking them with '&&'.
 
         command: string of text to be parsed
-        Returns the number of bytes read.
-        """        
+        Returns: number of bytes read.
+        """
         length = 0
         LOG.debug("%s> command [%iB]: '%s'",
                   self.socket.fileno(), len(command), command)
@@ -707,12 +759,14 @@ class BaseComm(object):
         return length
 
     def send_msg(self, msg):
-        """Sends msg with a trailing \\n as required by the protocol."""
+        """Sends msg with a trailing \\n as required by the protocol.
+        """
         LOG.debug("sending %s\n", msg)
         self.socket.send(msg+'\n')
 
     def cmd_bye(self, args):
-        """Disconnects that client."""
+        """Disconnects that client.
+        """
         self.running = False
     cmd_EOF = cmd_bye
         
@@ -741,7 +795,8 @@ class RequestHandler(BaseComm):
 #            sys.exc_traceback = None    # Help garbage collection
 
     def setup(self):
-        """Overrides SocketServer"""
+        """Overrides SocketServer
+        """
         # check if we want to block in self.work()
         self.work = self.server.handler_looping and\
             self.read_while_running or self.read_once
@@ -753,21 +808,24 @@ class RequestHandler(BaseComm):
                  self.work == self.read_once and '*NOT* ' or '')
 
     def finish(self):
-        """Overrides SocketServer"""
+        """Overrides SocketServer
+        """
 #        if not self.server.handler_looping:
 #            return
         LOG.info("%i> connection terminating : %s on "+str(self.addr_port[1]),
                  self.socket.fileno(), self.addr_port[0])
 
     def cmd_shutdown(self, args):
-        """Disconnects all clients and terminate the server process."""
+        """Disconnects all clients and terminate the server process.
+        """
         if self.server is None:
             raise CmdError("cannot shutdown server")
         self.running = False
         self.server.shutdown()
 
     def cmd_clients(self, args):
-        """Lists clients currently connected."""
+        """Lists clients currently connected.
+        """
         LOG.info("%s> listing %i clients.",
                  self.socket.fileno(), len(self.server.clients))
         clients_infos = []
@@ -782,7 +840,8 @@ class RequestHandler(BaseComm):
         self.send_msg(obuffer)
         
     def cmd_verb(self, args):
-        """Changes LOG verbosity level."""
+        """Changes LOG verbosity level.
+        """
         if not args:
             self.send_msg("CRITICAL 50\nERROR	 40\nWARNING  30\n"
                           "INFO     20\nDEBUG	 10\nNOTSET    0")
@@ -794,70 +853,111 @@ class RequestHandler(BaseComm):
 
 class BaseClient(BaseComm):
     """Client creating a connection to a (remote) server.
+    Allows to set the connection timeout. Other non-blocking timeout should be
+     handled with connect_and_run()'s timeout parameter (select based timeout).
 
-       Remember it's impossible to use the file interface of the socket while
-        setting a socket timeout.
+    [Dev Note: Remember it's impossible to use the file interface of the socket
+     while setting a socket timeout.]
     """
     def __init__(self, addr_port):
         BaseComm.__init__(self)
-        family, self.target_addr = get_conn_infos(addr_port)
-        self.socket = socket.socket(family)
+        self.family, self.target_addr = get_conn_infos(addr_port)
+        self.socket = None
+        self.connect_timeout = 0
 
-    def set_timeout(self, timeout):
-        self.socket.settimeout(timeout)
+    def set_connect_timeout(self, timeout):
+        """Sets the timeout connecting to a server.
+        Use 
+        """
+        self.connect_timeout = timeout
+        # self.socket.settimeout(timeout)
 
-    def disconnect(self):
-        """Set flag for disconnection.
-        You need to set a timeout to connect_and_run() or read_until_done()"""
-        self.running = False
+    def get_connect_timeout(self):
+        """Gets the timeout connecting to a server.
+        """
+        return self.connect_timeout
+        # return self.socket.gettimeout()
 
-    def connect_and_run(self):
-        """High Level communication processing: blocks until run() returns."""
-        try:
-            self.socket.connect(self.target_addr)
-        except socket.error, e:
-            self.handle_error('{1[0]}:{1[1]}: {0}'.format(e, self.target_addr))
-            # we can just do an abort here
-            return self.abort()
-        self.connected = True
-        self.handle_connect()
+    def handle_connect_timeout(self):
+        """Callback for timeout on connection.
+        """
+        LOG.debug('timeout connecting to remote server %s', self.target_addr)
 
-	try:
-	    self.read_while_running()
-	except select.error, e:
-	    self.handle_error(e)
-	finally:
-            self.socket.close()
-            self.connected = False
-            self.handle_disconnect()
-        return True
+    def handle_connect_error(self, e):
+        """Callback for error on waiting for input.
+        """
+        LOG.debug('error connecting to server %s (%s)', self.target_addr, e)
 
     def handle_connect(self):
         """Callback for client successful connection to (remote) server.
         """
         LOG.debug('client connected to remote server %s', self.target_addr)
 
-    def handle_timeout(self):
-        """Callback for timeout on waiting for input
-        Returning False would skip recv()
+    def disconnect(self):
+        """Set flag for disconnection.
+        You need to set a timeout to connect_and_run() or read_until_done().
         """
-        pass
+        self.running = False
 
-    def handle_disconnect(self):
-        """Callback after client disconnection to (remote) server.
+    def connect(self):
+        """Creates a new connection to a server.
+        Returns: 
         """
-        LOG.debug('client disconnected from remote server %s', self.target_addr)
+        assert self.connected is False, 'connecting while connected ?'
+        LOG.debug('connecting to %s:%s (for %ss.)', self.target_addr[0],
+                  self.target_addr[1], self.connect_timeout)
+        try:
+            self.socket = socket.create_connection(self.target_addr,
+                                                   self.connect_timeout)
+        except socket.timeout:
+            self.handle_connect_timeout()
+        except socket.error, e:
+            self.handle_connect_error(e)
+        else:
+            self.connected = True
+            self.handle_connect()
+            return True
+        self.socket = None
+        return False
+
+    def connect_and_run(self, timeout=0.01):
+        """High Level communication processing: blocks until connected and run()
+         returns. You can interrupt the connection loop in handle_error().
+        timeout: delay in seconds before giving up waiting for data (select).
+        Returns: True if disconnected normally, False on error.
+        """
+        self.running = True
+        while self.running and not self.connect():
+            pass
+        if not self.connected:
+            return False
+	try:
+	    self.read_while_running(timeout)
+            ret = True
+	except select.error, e:
+	    self.handle_error(e)
+            ret = False
+	finally:
+            if self.socket:
+                self.socket.close()
+            self.connected = False
+            self.handle_disconnect()
+        return ret
 
 
 def set_default_logging(debug=False):
     """This function does nothing if the root logger already has
-    handlers configured."""
+    handlers configured.
+    """
     log_lvl = (debug and logging.DEBUG or logging.INFO)
     logging.basicConfig(level=log_lvl, format=LOGFORMAT)
     LOG.setLevel(log_lvl)
-    LOG.info('set log level to %s', debug and 'DEBUG' or 'INFO')
+    LOG.info('Logger[%s] set log level to %s',
+             LOG.name, debug and 'DEBUG' or 'INFO')
 
 def get_conn_infos(addr_port):
+    """
+    """
     LOCALHOSTS = ["127.0.0.1", "localhost"]
     if hasattr(socket, "AF_UNIX") and type(addr_port[1]) == type(""):
         if addr_port[0] and addr_port[0] not in LOCALHOSTS:
