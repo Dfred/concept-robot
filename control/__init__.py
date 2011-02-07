@@ -33,7 +33,20 @@ conf.load()
 class BehaviourRuleError(Exception):
     pass
 
-class Behaviour():
+class IO(object):
+    """Input and Output abstracting feature access (in terms of Feature Pool).
+    Connection method can be using the comm module or simply import (process).
+    """
+
+    def __init__(self, numpy_array, inp_or_out):
+        """
+        inp_or_out: True: input, False: output
+        """
+        self.npArray = numpy_array
+        self.io = inp_or_out
+
+
+class Behaviour(object):
     """
     """
 
@@ -54,13 +67,16 @@ class Behaviour():
     def reset(self):
         """
         """
-        self.current_state = 'STARTED'
+        self.previous_state = self.current_state = 'STARTED'
 
-    def set_rule(self, in_state, action, inp, out):
-        """
+    def set_rule(self, in_state, action):
+        """Add a rule in the machine.
+        in_state: input state
+        action: function returning a new state (or None for no state change)
+        inp/out: 
         """
         if not self.actions.has_key(in_state):
-                self.actions[in_state] = (action, inp, out)
+                self.actions[in_state] = action
         elif self.actions[in_state]:
             raise BehaviourRuleError("Overwritting state: %s has action %s" %
                                      (in_state, self.actions[in_state][0]) )
@@ -74,9 +90,9 @@ class Behaviour():
         for in_states, action, in rules_definitions:
             if hasattr(in_states,'__iter__'):
                 for s in in_states:
-                    self.set_rule(s, action, None, None)
+                    self.set_rule(s, action)
             else:
-                self.set_rule(in_states, action, None, None)
+                self.set_rule(in_states, action)
         # no integrity check
 
     # def run(self):
@@ -107,9 +123,8 @@ class Behaviour():
     def step(self, machines_states = None):
         """
         """
-        print 'stepping', self
         try:
-            fct, inp, out = self.actions[self.current_state]
+            fct = self.actions[self.current_state]
         except KeyError:
             if not machines_states:
                 raise BehaviourRuleError("unknown state %s" %self.current_state)
@@ -118,17 +133,21 @@ class Behaviour():
             if not states:
                 raise BehaviourRuleError("no action for any state in %s" %
                                          machines_states)
-            fct, inp, out = self.actions[states[0]]
-        self.current_state = fct(inp, out)
+            fct = self.actions[states[0]]
+        self.current_state = fct() or self.previous_state
+        if self.current_state != self.previous_state:
+            print 'state change to', self.current_state
+        self.previous_state = self.current_state
         return self.current_state
 
     def stop(self):
         """
         """
         if self.actions.has_key('STOPPED'):
-            fct, inp, out = self.actions['STOPPED']
+            fct = self.actions['STOPPED']
             try:
-                fct(inp, out)
+                print 'running', fct
+                fct()
             finally:
                 self.current_state = None
         else:
