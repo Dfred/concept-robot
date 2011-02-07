@@ -37,6 +37,7 @@ import logging
 import numpy
 
 from comm.meta_server import MetaRequestHandler, MetaServer
+from HRI import FeaturePool
 
 LOG = logging.getLogger(__package__)
 
