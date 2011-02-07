@@ -1,4 +1,8 @@
+import logging
+
 import numpy as np
+
+LOG = logging.getLogger(__package__)
 
 class FeaturePool(dict):
     """This class serves as a short term memory. It holds all possible features
