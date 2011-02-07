@@ -16,8 +16,13 @@
 # along with lightHead.  If not, see <http://www.gnu.org/licenses/>.
 
 import math
+import time
 
 import control
+import vision
+import conf
+import comm
+from control.interfaces.communication import ExpressionComm
 
 __author__ = "Frédéric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
@@ -28,81 +33,118 @@ __maintainer__ = "Frédéric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
 __status__ = "Prototype" # , "Development" or "Production"
 
-
-def read_section(inp, out, memory=[]):
-    """
-    Returns: 'EOSECTION','STOPPED'
-    """
-
-def listenTo_participant(inp, out):
-    """
-    Returns: 'P_QUESTION', 'P_STATEMENT', 'P_TIMEOUT'
-    """
-
-def answer_participant(inp, out):
-    """
-    Returns: 'REPLIED'
-    """
-
-def nodTo_participant(inp, out):
-    """
-    Returns: 'REPLIED'
-    """
-
-def interrupt_participant(inp, out):
-    """
-    Returns: 'REPLIED'
-    """
-
-def search_participant(inp, out):
-    """
-    Returns: 'FOUND_PART'
-    """
-
-def adjust_head(inp, out):
-    """
-    Returns: 'ADJUSTED'
-    """
+def error(msg):
+    print msg
+    exit(1)
 
 
 class IntelligentPlayer():
     """
     """
 
-    PLAYER_DEF = ( (('FOUND_PART', 'REPLIED'), 
-                    read_section),
+    def finish(self):
+        return 'STOPPED'
 
-                   ('EOSECTION',  
-                    listenTo_participant),
+    def read_section(self):
+        """
+        Returns: 'EOSECTION','FINISHING'
+        """
+        line = self.performance.readline()
+        if not line:
+            return 'FINISHING'
+        self.comm_expr.send_msg(line)
 
-                   ('P_QUESTION',  
-                    answer_participant),
+    def listenTo_participant(self):
+        """
+        Returns: 'P_QUESTION', 'P_STATEMENT', 'P_TIMEOUT'
+        """
+        return 'P_QUESTION'
+        return 'P_STATEMENT'
+        return 'P_TIMEOUT'
 
-                   ('P_STATEMENT',
-                    nodTo_participant),
-
-                   ('P_TIMEOUT',
-                    interrupt_participant) )
+    def answer_participant(self):
+        """
+        Returns: 'REPLIED'
+        """
+        return 'REPLIED'
     
-    FACETRACKER_DEF = ( (('STARTED', 'ADJUSTED'),
-                         search_participant),
+    def nodTo_participant(self):
+        """
+        Returns: 'REPLIED'
+        """
+        return 'REPLIED'
+    
+    def interrupt_participant(self):
+        """
+        Returns: 'REPLIED'
+        """
+        return 'REPLIED'
+    
+    def search_participant(self):
+        """
+        Returns: 'FOUND_PART'
+        """
+        self.vision.update()
+        faces = self.vision.find_faces()
+        if self.vision.gui:
+            self.vision.mark_faces(faces)
+            self.vision.gui.show_frame(self.vision.frame)
+        return faces and 'FOUND_PART' or None
 
-                        ('FOUND_PART',
-                         adjust_head) )
-                      
+    def adjust_head(self):
+        """
+        Returns: 'ADJUSTED'
+        """
+        return 'ADJUSTED'
+
+
     def __init__(self):
         """
         """
-        self.player = control.Behaviour(self.PLAYER_DEF)
-        self.tracker = control.Behaviour(self.FACETRACKER_DEF, self.player)
+        PLAYER_DEF = ( (('FOUND_PART', 'REPLIED'), self.read_section),
+                       ('EOSECTION',  self.listenTo_participant),
+                       ('P_QUESTION', self.answer_participant),
+                       ('P_STATEMENT', self.nodTo_participant),
+                       ('P_TIMEOUT', self.interrupt_participant),
+                       ('FINISHING', self.finish),
+                   )
+    
+        FACETRACKER_DEF = ( (('STARTED', 'ADJUSTED'), self.search_participant),
+                            ('FOUND_PART', self.adjust_head),
+                            ('FINISHING', self.finish),
+                        )
+                      
+        self.player = control.Behaviour(PLAYER_DEF)
+        self.tracker = control.Behaviour(FACETRACKER_DEF, self.player)
+        conf.load()
+        self.vision = vision.CamFaceFinder(conf.haar_cascade_path)
+        self.vision.gui_create()
+        self.performance = file('./performance.txt', 'r', 1)
+        self.comm_expr = ExpressionComm(conf.expression_server)
+
+    def cleanup(self):
+        """
+        """
+        print 'cleaning up'
+        self.vision.gui_destroy()
+        self.performance.close()
+        self.comm_expr.done()
 
     def run(self):
+        """
+        """
         try:
+            while not self.comm_expr.connected:
+                time.sleep(1)
             self.player.run()
         except KeyboardInterrupt:
+            print 'stopping'
             self.player.stop()
+            self.cleanup()
 
 
 if __name__ == '__main__':
+    # in this scenario, we are a process using at least the webcam (and audio).
     player = IntelligentPlayer()
     player.run()
+    print 'done'
