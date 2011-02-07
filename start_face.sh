@@ -44,36 +44,15 @@ if test -z "$CONF_FILE"; then
     exit 1
 fi
 
-# the config file is a python script, let's use a function from it
-ADDR_PORT=`python -c "execfile('$CONF_FILE'); print "$PROJECT_NAME"_server"`
-if ( test $? != 0 ) || ( test -z "$ADDR_PORT" ); then
-    echo "!!! problem getting value for "$PROJECT_NAME"_server in $CONF_FILE"
-else
-    echo "--- Using $CONF_FILE -> Listening on $ADDR_PORT "
-fi
-
-# remove old unix sockets if present
-SOCKETS=`python -c "execfile('$CONF_FILE'); get_unix_sockets(True)"`
-if test $? -ne 0; then
-	echo "ERROR: Failure to get socket list !"
-	exit 1
-fi
-if test -n "$SOCKETS" ; then
-	echo "deleting old sockets: "
-	for s in $SOCKETS; do
-	  if test -S "$s"; then echo "  "`rm -v "$s"` ; fi
-	done
-fi
-
-
 # Now launch
 getopts "w" OPTS
 if [ "$OPTS" = "w" ]; then
     shift;
 fi
 
-echo -n "--- launching face "
-if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
+echo -n "--- launching face ---"
+if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
+fi
 
 if [ "$OPTS" = "w" ]; then
     ./$PROJECT_NAME-window $@ "$PROJECT_NAME"
