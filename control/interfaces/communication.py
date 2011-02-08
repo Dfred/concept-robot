@@ -47,7 +47,7 @@ class Comm(comm.BaseClient):
     def send_msg(self, msg):
         if self.connected:
             return comm.BaseClient.send_msg(self, msg)
-        LOG.debug("*NOT* sending to %s: '%s'", self.target_addr, msg)
+        LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
 
 class LightHeadComm(Comm):
