@@ -43,12 +43,7 @@ class IntelligentPlayer():
     """
 
     def finish(self):
-        """
-        """
-        return 'STOPPED'
-
-    def stop(self):
-        """Place holder.
+        """Called on 'STOPPED' state.
         """
         return None
 
@@ -112,13 +107,12 @@ class IntelligentPlayer():
                        ('P_QUESTION', self.answer_participant),
                        ('P_STATEMENT', self.nodTo_participant),
                        ('P_TIMEOUT', self.interrupt_participant),
-                       ('FINISHING', self.finish),
-                       ('STOPPED', self.stop),
+                       ('STOPPED', self.finish),
                    )
     
         FACETRACKER_DEF = ( (('STARTED', 'ADJUSTED'), self.search_participant),
                             ('FOUND_PART', self.adjust_head),
-                            ('FINISHING', self.finish),
+                            ('STOPPED', self.finish),
                         )
                       
         self.player = control.Behaviour(PLAYER_DEF)
