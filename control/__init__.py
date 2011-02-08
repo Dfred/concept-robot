@@ -104,9 +104,10 @@ class Behaviour(object):
     #         while self.current_state is not None:
     #             self.current_state = machine.step()
 
-    def run(self):
-        """
+    def run(self, callback=None):
+        """Run machine(s) until one reaches state 'STOPPED'.
         Allows multiple Behaviours to run at the same time.
+        callback: callable called after each step.
         """
         machines = [self]+self.machines
         machines_states = ['STARTED',]*len(machines)
@@ -119,6 +120,9 @@ class Behaviour(object):
                     errors.append(e)
             if len(errors) == len(machines_states):
                 raise BehaviourRuleError(errors)
+            if callback:
+                callback(machines)
+                machines_states = [ m.current_state for m in machines ]
 
     def step(self, machines_states = None):
         """
@@ -143,12 +147,8 @@ class Behaviour(object):
     def stop(self):
         """
         """
-        if self.actions.has_key('STOPPED'):
-            fct = self.actions['STOPPED']
-            try:
-                print 'running', fct
-                fct()
-            finally:
-                self.current_state = None
-        else:
-            self.current_state = None
+        machines = [self]+self.machines
+        for m in machines:
+            if m.actions.has_key('STOPPED'):
+                m.actions['STOPPED']()
+            m.current_state = None
