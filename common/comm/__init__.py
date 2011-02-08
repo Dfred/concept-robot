@@ -694,7 +694,7 @@ class BaseComm(object):
     def handle_disconnect(self):
         """Callback after client disconnection to (remote) server.
         """
-        LOG.debug('client disconnected from remote server %s', self.target_addr)
+        LOG.debug('client disconnected from remote server %s', self.addr_port)
 
     def handle_notfound(self, cmd, args):
         """When a method (a command) is not found in self. See process().
@@ -861,7 +861,7 @@ class BaseClient(BaseComm):
     """
     def __init__(self, addr_port):
         BaseComm.__init__(self)
-        self.family, self.target_addr = get_conn_infos(addr_port)
+        self.family, self.addr_port = get_conn_infos(addr_port)
         self.socket = None
         self.connect_timeout = 0
 
@@ -881,17 +881,17 @@ class BaseClient(BaseComm):
     def handle_connect_timeout(self):
         """Callback for timeout on connection.
         """
-        LOG.debug('timeout connecting to remote server %s', self.target_addr)
+        LOG.debug('timeout connecting to remote server %s', self.addr_port)
 
     def handle_connect_error(self, e):
         """Callback for error on waiting for input.
         """
-        LOG.debug('error connecting to server %s (%s)', self.target_addr, e)
+        LOG.debug('error connecting to server %s (%s)', self.addr_port, e)
 
     def handle_connect(self):
         """Callback for client successful connection to (remote) server.
         """
-        LOG.debug('client connected to remote server %s', self.target_addr)
+        LOG.debug('client connected to remote server %s', self.addr_port)
 
     def disconnect(self):
         """Set flag for disconnection.
@@ -904,10 +904,10 @@ class BaseClient(BaseComm):
         Returns: 
         """
         assert self.connected is False, 'connecting while connected ?'
-        LOG.debug('connecting to %s:%s (for %ss.)', self.target_addr[0],
-                  self.target_addr[1], self.connect_timeout)
+        LOG.debug('connecting to %s:%s (for %ss.)', self.addr_port[0],
+                  self.addr_port[1], self.connect_timeout)
         try:
-            self.socket = socket.create_connection(self.target_addr,
+            self.socket = socket.create_connection(self.addr_port,
                                                    self.connect_timeout)
         except socket.timeout:
             self.handle_connect_timeout()
