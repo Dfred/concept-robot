@@ -43,7 +43,14 @@ class IntelligentPlayer():
     """
 
     def finish(self):
+        """
+        """
         return 'STOPPED'
+
+    def stop(self):
+        """Place holder.
+        """
+        return None
 
     def read_section(self):
         """
@@ -97,7 +104,6 @@ class IntelligentPlayer():
         """
         return 'ADJUSTED'
 
-
     def __init__(self):
         """
         """
@@ -107,6 +113,7 @@ class IntelligentPlayer():
                        ('P_STATEMENT', self.nodTo_participant),
                        ('P_TIMEOUT', self.interrupt_participant),
                        ('FINISHING', self.finish),
+                       ('STOPPED', self.stop),
                    )
     
         FACETRACKER_DEF = ( (('STARTED', 'ADJUSTED'), self.search_participant),
@@ -130,21 +137,30 @@ class IntelligentPlayer():
         self.performance.close()
         self.comm_expr.done()
 
+    def check_channels(self, machines):
+        """
+        Returns: finishes on disconnection.
+        """
+        if not self.comm_expr.connected:
+            self.tracker.stop()
+            self.player.stop()
+
     def run(self):
         """
         """
         try:
             while not self.comm_expr.connected:
                 time.sleep(1)
-            self.player.run()
+            self.player.run(self.check_channels)
         except KeyboardInterrupt:
             print 'stopping'
             self.player.stop()
-            self.cleanup()
+
 
 
 if __name__ == '__main__':
     # in this scenario, we are a process using at least the webcam (and audio).
     player = IntelligentPlayer()
     player.run()
+    player.cleanup()
     print 'done'
