@@ -17,7 +17,7 @@ class Comm(comm.BaseClient):
         self.set_connect_timeout(self.CONNECT_TIMEOUT)
         self.working = True
         # let's the threaded object manage the socket independently
-        self.thread = threading.Thread(target=self.connect_and_run)
+        self.thread = threading.Thread(target=self.always_connected)
         self.thread.start()
 
     def handle_connect_error(self, e):
@@ -30,6 +30,12 @@ class Comm(comm.BaseClient):
         """Sleeps a bit.
         """
         time.sleep(1)
+
+    def always_connected(self):
+        """
+        """
+        while self.working:
+            self.connect_and_run()
 
     def done(self):
         """
