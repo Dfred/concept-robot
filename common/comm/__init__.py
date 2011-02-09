@@ -139,8 +139,8 @@ class BaseServer(object):
         if self.threaded:
             self.thread = Thread(target=G.server.serve_forever, name='server')
             self.thread.start()
-        LOG.debug("server started in %s-thread mode",
-                  self.threaded and 'multi' or 'single')
+        LOG.info("server started in %s-thread mode",
+                 self.threaded and 'multi' or 'single')
         return self.threaded and self.thread or None
 
     def pre_shutdown(self):
@@ -162,7 +162,7 @@ class BaseServer(object):
                     if client.socket in self.polling_sockets:
                         self.close_request(client.socket)
         self.disactivate()
-        LOG.debug('server now shut down.')
+        LOG.info('server now shut down.')
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()

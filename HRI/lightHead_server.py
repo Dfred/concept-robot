@@ -47,6 +47,7 @@ ORIGINS = ('face', 'gaze', 'lips', 'head')
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
 
+
 class lightHeadHandler(MetaRequestHandler):
     """Handles high level protocol transactions: origin and commit"""
 

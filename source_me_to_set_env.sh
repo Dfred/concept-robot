@@ -67,4 +67,3 @@ else
     fi
     alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"
 fi
-
