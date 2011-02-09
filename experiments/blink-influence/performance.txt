@@ -1,0 +1,4 @@
+simple_smile1:1;"hello there! welcome!";;;;TAG
+idle:1;;;;;TAG
+EOSECTION
+surprised:1;"What?";;;;TAG
