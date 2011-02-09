@@ -16,6 +16,7 @@
 # along with lightHead.  If not, see <http://www.gnu.org/licenses/>.
 
 import math
+import logging
 
 import comm, conf
 
@@ -28,10 +29,14 @@ __maintainer__ = "Frédéric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
 __status__ = "Prototype" # , "Development" or "Production"
 
+LOG = logging.getLogger(__name__)
+
 conf.load()
+
 
 class BehaviourRuleError(Exception):
     pass
+
 
 class IO(object):
     """Input and Output abstracting feature access (in terms of Feature Pool).
@@ -50,24 +55,23 @@ class Behaviour(object):
     """
     """
 
-    def __init__(self, rules, parent_machine = None):
+    STARTED, STOPPED = 'STARTED', 'STOPPED'
+
+    def __init__(self, name, rules, parent_machine = None):
         """
         Creates a new behaviour based on given rules.
         Behaviours can share states if a parent Behaviour instance is given.
          Order of instanciation sets priority for excution and IO.
+        name: string identifying machine.
+        rules: iterable of (state or (states,) , function).
         parent_machine: Behaviour instance to run with.
         """
-        self.actions = {}       # state : [(fct,in,out),] # ordered by priority
+        self.name = name
+        self.actions = {}       # { state : fct }
         self.machines = []      # for parallel machines
-        self.reset()
         if parent_machine:
             parent_machine.machines.append(self)
         self.set_rules(rules)
-
-    def reset(self):
-        """
-        """
-        self.previous_state = self.current_state = 'STARTED'
 
     def set_rule(self, in_state, action):
         """Add a rule in the machine.
@@ -93,7 +97,6 @@ class Behaviour(object):
                     self.set_rule(s, action)
             else:
                 self.set_rule(in_states, action)
-        # no integrity check
 
     # def run(self):
     #     """
@@ -105,50 +108,50 @@ class Behaviour(object):
     #             self.current_state = machine.step()
 
     def run(self, callback=None):
-        """Run machine(s) until one reaches state 'STOPPED'.
+        """Run machine(s) until one reaches state STOPPED.
         Allows multiple Behaviours to run at the same time.
         callback: callable called after each step.
         """
-        machines = [self]+self.machines
-        machines_states = ['STARTED',]*len(machines)
-        while machines_states[0] is not None:
-            errors = []
-            for i, machine in enumerate(machines):
-                try:
-                    machines_states[i] = machine.step(machines_states)
-                except BehaviourRuleError, e:
-                    errors.append(e)
-            if len(errors) == len(machines_states):
-                raise BehaviourRuleError(errors)
+        all_states, machines = [], [self]+self.machines
+        for m in machines:
+            m.current_state = self.STARTED
+            all_states.extend(m.actions.keys())
+        all_states = set(all_states)
+        while self.current_state is not self.STOPPED:
+            # keep states relative to step
+            m_states = [ m.current_state for m in machines ]
+            errors = [ not m.step(m_states) for m in machines ]
+            if all(errors):
+                raise BehaviourRuleError("[%s] no action for any state in %s" %\
+                                             (m.name, m_states))
+            # XXX: needed ?
+            for m in machines:
+                assert m.current_state in all_states, '[%s] unknown state %s' %\
+                    (self.name, s)
             if callback:
                 callback(machines)
-                machines_states = [ m.current_state for m in machines ]
 
-    def step(self, machines_states = None):
+    def step(self, machines_states = ()):
         """
+        Return: False if no action could be triggered.
         """
         try:
             fct = self.actions[self.current_state]
         except KeyError:
-            if not machines_states:
-                raise BehaviourRuleError("unknown state %s" %self.current_state)
-            # else:
             states = [ s for s in machines_states if self.actions.has_key(s)]
             if not states:
-                raise BehaviourRuleError("no action for any state in %s" %
-                                         machines_states)
+                return False
             fct = self.actions[states[0]]
-        self.current_state = fct() or self.previous_state
-        if self.current_state != self.previous_state:
-            print 'state change to', self.current_state
-        self.previous_state = self.current_state
-        return self.current_state
+        state = fct()
+        if state is not None:
+            LOG.debug("[%s] changing to state: %s", self.name, state)
+            self.current_state = state
+            if state == self.STOPPED and self.actions.has_key(self.STOPPED):
+                self.actions[state](self.name)
+        return True
 
-    def stop(self):
+    def abort(self):
         """
         """
-        machines = [self]+self.machines
-        for m in machines:
-            if m.actions.has_key('STOPPED'):
-                m.actions['STOPPED']()
+        for m in [self]+self.machines:
             m.current_state = None
