@@ -14,6 +14,12 @@ from pyvision.edge.canny import canny
 from HRI import FeaturePool
 import fps
 
+class VisionException(Exception):
+    """
+    """
+    pass
+
+
 class CamGUI(object):
     """
     """
@@ -83,8 +89,9 @@ class CamCapture(object):
         dev_index: specify camera number for multiple camera configurations.
         resolution: (width,height) of the frames to grab.
         """
-        self.current_colour = None
         self.webcam = Webcam(dev_index,resolution)
+        if not self.webcam.grab():
+            raise VisionException("Can't get camera, check previous messages.")
         self.gui = None
 
     def set_featurePool(self, feature_pool):
