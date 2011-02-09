@@ -6,7 +6,8 @@ import comm
 LOG = logging.getLogger(__package__)
 
 class MetaRequestHandler(object):
-    """
+    """Remote Client Handler.
+    Represents a single remote client, so no thread-safety issues here.
     """
 
     def __init__(self):
