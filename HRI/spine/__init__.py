@@ -131,6 +131,12 @@ class SpineBase(object):
         self._motors_on = False
         self._lock_handler = None
 
+    def set_featurePool(self, feature_pool):
+        """Attach the feature pool for our viewable internal data.
+        feature_pool: a dict of { origin : numpy.array }
+        """
+        self.FP = feature_pool
+
     # Note: property decorators are great but don't allow child class to define
     #       just the setter...
 
