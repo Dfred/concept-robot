@@ -78,11 +78,13 @@ class CamCapture(object):
     A visualisation of the video stream is also available.
     """
     
-    def __init__(self):
+    def __init__(self, dev_index=0,resolution=(800,600)):
         """
+        dev_index: specify camera number for multiple camera configurations.
+        resolution: (width,height) of the frames to grab.
         """
         self.current_colour = None
-        self.webcam = Webcam()
+        self.webcam = Webcam(dev_index,resolution)
         self.gui = None
 
     def set_featurePool(self, feature_pool):
@@ -99,6 +101,12 @@ class CamCapture(object):
         """
         return numpy.asarray(self.frame)
 
+    def get_resolution(self):
+        """
+        Returns: (width,height) of camera frames.
+        """
+        return self.webcam.size
+
     def update(self):
         """
         """
@@ -114,14 +122,18 @@ class CamCapture(object):
         """
         self.gui.destroy()
 
+
 class CamFaceFinder(CamCapture):
     """
     """
     
-    def __init__(self, haar_cascade_path):
+    def __init__(self, haar_cascade_path, index=0, resolution=(320,240)):
         """
+        haar_cascade_path: path to .xml
+        index: camera device index
+        resolution: defaults to (320,240)
         """
-        CamCapture.__init__(self)
+        CamCapture.__init__(self, index, resolution)
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
                                              min_size=(50,50), image_scale=0.5)
 
@@ -139,31 +151,13 @@ class CamFaceFinder(CamCapture):
                           affine.invertPoint(AVE_RIGHT_EYE)) )
         return eyes
 
-    def mark_faces(self, faces, with_eyes=False):
-        """Detect faces in the given video stream.
+    def mark_areas(self, areas, with_eyes=False):
+        """Outlines the areas given in our video stream.
+        Return: None
         """
-        if not faces:
-            return
-        close_face_rect = None
-        close_face_w = 0.0
-        for rect in faces:
-            if rect.w > close_face_w:               # get closest face coords
-                close_face_w = rect.w
-                close_face_rect = rect
+        for rect in areas:
             self.frame.annotateRect(rect, color='blue')    # draw square around
-            
-        return faces
-        # if config.follow_face_gaze:
-        #     relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
-        #     relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
-        #     gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
-        #     neck = self.follow_face_with_neck(relative_x, relative_y, gaze[1])
-        #     if self.comm:
-        #         if self.comm.last_ack != "wait" and gaze:
-        #             self.comm.set_neck_gaze(gaze, neck)
-        #             self.comm.last_ack = "wait"
 
-    
     # def follow_face_with_gaze(self, x, y, width):
     #     """adjust coordinates of detected faces to mask
     #     """
