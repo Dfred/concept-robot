@@ -19,11 +19,11 @@ import math
 import time
 import random
 
-import control
 import vision
 import conf
 import comm
 from control.interfaces.communication import ExpressionComm
+from control import Behaviour as FSM
 
 __author__ = "Frédéric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
@@ -44,21 +44,15 @@ class IntelligentPlayer():
     """
     """
 
-    def finish(self):
-        """Called on 'STOPPED' state.
-        """
-        print 'finishiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiing', self.name
-        return None
-
     def read_section(self):
         """
-        Returns: 'EOSECTION','STOPPED'
+        Returns: 'EOSECTION',FSM.STOPPED
         """
         line = self.performance.readline()
         if line.startswith('EOSECTION'):
             return 'EOSECTION'
         if not line:
-            return 'STOPPED'
+            return FSM.STOPPED
         self.comm_expr.send_msg(line)
         self.wait_comm_expr_reply()
 
@@ -141,6 +135,12 @@ class IntelligentPlayer():
                     print 'error with replies file line %i: %s (%s)' % (i,l,e)
                     exit(1)
 
+    def finish(self, name):
+        """Called on FSM.STOPPED state.
+        name: name of the machine.
+        """
+        return None
+
     def __init__(self, dev_index):
         """
         dev_index: camera device index
@@ -150,16 +150,16 @@ class IntelligentPlayer():
                        ('P_QUESTION', self.answer_participant),
                        ('P_STATEMENT', self.nodTo_participant),
                        ('P_TIMEOUT', self.interrupt_participant),
-                       ('STOPPED', self.finish),
+                       (FSM.STOPPED, self.finish),
                    )
     
-        FACETRACKER_DEF = ( (('STARTED', 'ADJUSTED'), self.search_participant),
+        FACETRACKER_DEF = ( ((FSM.STARTED,'ADJUSTED'), self.search_participant),
                             ('FOUND_PART', self.adjust_head),
-                            ('STOPPED', self.finish),
+                            (FSM.STOPPED, self.finish),
                         )
                       
-        self.player = control.Behaviour('player', PLAYER_DEF)
-        self.tracker = control.Behaviour('tracker',FACETRACKER_DEF, self.player)
+        self.player = FSM('player', PLAYER_DEF)
+        self.tracker = FSM('tracker',FACETRACKER_DEF, self.player)
         conf.load()
         try:
             self.vision = vision.CamFaceFinder(conf.haar_cascade_path,dev_index)
@@ -186,8 +186,8 @@ class IntelligentPlayer():
         Returns: finishes on disconnection.
         """
         if not self.comm_expr.connected:
-            self.tracker.stop()
-            self.player.stop()
+            self.tracker.abort()
+            self.player.abort()
 
     def run(self):
         """
@@ -197,8 +197,8 @@ class IntelligentPlayer():
                 time.sleep(1)
             self.player.run(self.check_channels)
         except KeyboardInterrupt:
-            print 'stopping'
-            self.player.stop()
+            print 'aborting player'
+            self.player.abort()
 
 
 
