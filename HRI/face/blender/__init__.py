@@ -33,11 +33,11 @@
 # A few things to remember for integration with Blender (2.49):
 #  * defining classes in toplevel scripts (like here) leads to scope problems
 #
-import sys, time
+import sys, time, atexit
 from math import cos, sin, pi
 import GameLogic as G
+import lightHead_server
 
-DEBUG_MODE = True
 MAX_FPS = 50
 
 # A word on threading:
@@ -53,8 +53,6 @@ THREADED_SERVER  = False
 THREADED_CLIENTS = False
 THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 
-FACE = 'face'
-
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
@@ -62,11 +60,29 @@ EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
 RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 INFO_PERIOD = 0
 
+def exiting():
+    #We check if there is a valid "server" object because its possible that 
+    #we were unable to create it, and therefore we are shutting down
+    if hasattr(G, "server"):
+      G.server.shutdown()
+
+atexit.register(exiting)
+
 def fatal(error):
-    print '*** Fatal Error ***'
-    import traceback; traceback.print_exc()
+    """Common function to gracefully quit."""
+    print '*** Fatal Error ***', error
+    import conf; conf.load()
+    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
+        import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
 
+def shutdown(cont):
+    """Finish animation and let atexit do the cleaning job"""
+    cont.activate(cont.actuators["- QUITTER"])
+    if hasattr(G, 'server'):
+        sys.exit(0)
+    sys.exit(1)
+    # see exiting()
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -80,61 +96,32 @@ def check_defects(owner, acts):
                             'type property' % act.name)
     return False
 
-
-def shutdown(cont):
-    """Shutdown server and other clean-ups"""
-    cont.activate(cont.actuators["- QUITTER"])
-    #We check if there is a valid "server" object because its possible that 
-    #we were unable to create it, and therefore we are shutting down
-    if hasattr(G, "server"):
-      G.server.shutdown()
-    else:
-      sys.exit(1)
-    sys.exit(0)
-
-
-def initialize(server_addrPort):
-    """Initialize connections and configures facial subsystem"""
-    import sys
-
-    # for init, imports are done on demand
-    print "LIGHTHEAD Facial Animation System, python version:", sys.version
+def initialize(server):
+    """Initialiazes and configures facial subsystem (blender specifics...)"""
     print "loaded module from", __path__[0]
 
-    # look for and load a file called lightHead.conf
-    # set indirection with environment variable conf.NAME (eg. LIGHTHEAD_CONF)
-    import comm
-    if DEBUG_MODE:
-        print 'setting debug mode'
-        # set system-wide logging level
-        comm.logging.basicConfig(level=comm.logging.DEBUG,format=comm.LOGFORMAT)
-    else:
-        comm.set_default_logging()
-
-    from lightHead_server import lightHeadServer, lightHeadHandler
-    G.server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                  server_addrPort, THREAD_INFO)
-    G.server.create_protocol_handlers()
-
-    # for eye orientation.
+    # get driven objects
     objs = G.getCurrentScene().objects
-    G.eyes = (objs[OBJ_PREFIX+"eye-R"], objs[OBJ_PREFIX+"eye-L"])
-
-    # for jaw opening
-    G.jaw = objs[OBJ_PREFIX+"jaw"]
+    for obj_name in ('eye_L', 'eye_R', 'jaw', 'tongue'):
+        try:
+            setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
+        except KeyError:
+            try:
+# WARNING: at least in python 2.6 capitalize and title docstrings are confused!
+                setattr(G, obj_name, objs[OBJ_PREFIX+obj_name.title()])
+            except KeyError, e:
+                raise Exception('no object "%s" in blender file' % e[0][16:-18])
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()
     owner = cont.owner
     acts = [act for act in cont.actuators if
             not act.name.startswith('-') and act.action]
-    try:
-        check_defects(owner, acts)
-    except Exception, e:
-        fatal(e)
+    check_defects(owner, acts)
+
     # all properties must be set to the face mesh.
     # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
-    G.server[FACE].set_available_AUs([n[1:] for n in owner.getPropertyNames()])
+    server.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
     G.initialized = True	
@@ -144,12 +131,10 @@ def initialize(server_addrPort):
 #    Rasterizer.enableMotionBlur( 0.65)
     Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
     print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
-
-    cont.activate(cont.actuators["- wakeUp -"])
     G.last_update_time = time.time()    
+    return cont
 
-
-def update(faceServer, eyes, time_diff):
+def update(faceServer, time_diff):
     """
     """
     global INFO_PERIOD
@@ -159,7 +144,7 @@ def update(faceServer, eyes, time_diff):
 
     # threaded server is thread-safe
     for au, value in faceServer.update(time_diff):
-        if au[0] == '6':        # yes, 6 is an eye prefix !
+        if au[0] == '6':        # XXX: yes, 6 is an eye prefix (do better ?)
             if eyes_done:
                 continue
             # The model is supposed to look towards negative Y values
@@ -167,18 +152,21 @@ def update(faceServer, eyes, time_diff):
             ax  = -faceServer.get_AU('63.5')[3]
             az0 = faceServer.get_AU('61.5R')[3]
             az1 = faceServer.get_AU('61.5L')[3]
-            eyes[0].localOrientation = [
+            # No ACTION for eyes
+            G.eye_L.localOrientation = [
                 [cos(az0),        -sin(az0),         0],
                 [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
                 [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)] ]
-            eyes[1].localOrientation = [
+            G.eye_R.localOrientation = [
                 [cos(az1),        -sin(az1),          0],
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
         elif au == '26':
             # TODO: try with G.setChannel
-            G.jaw['p26'] = SH_ACT_LEN*value    # see always sensor in .blend
+            G.jaw['p26'] = SH_ACT_LEN * value    # see always sensor in .blend
+        elif au[0] == '9':      # XXX: yes, 6 is a tongue prefix (do better ?)
+            G.tongue[au] = SH_ACT_LEN * value
         else:
             cont.owner['p'+au] = value * SH_ACT_LEN
             cont.activate(cont.actuators[au])
@@ -195,18 +183,23 @@ def update(faceServer, eyes, time_diff):
 #
 # Main loop
 #
-import conf
-conf.NAME='lightHead.conf'
-missing = conf.load()
 
 def main(addr_port):
     if not hasattr(G, "initialized"):
         try:
-            initialize(conf.lightHead_server)
-            G.server.set_listen_timeout(0.001)
+# standalone version:
+#            import face, comm, conf; conf.load()
+#            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
+
+            G.server = lightHead_server.initialize(THREAD_INFO)
+            G.face_server = G.server['face']
+
+            cont = initialize(G.face_server)
+            G.server.set_listen_timeout(0.001)      # tune it !
             G.server.start()
-        except Exception, e:
-            fatal(e)
+        except:
+            fatal("initialization error")
+        cont.activate(cont.actuators["- wakeUp -"])
     else:
         if not THREADED_SERVER:
             # server handles channels explicitly
@@ -214,5 +207,5 @@ def main(addr_port):
                 print 'server returned an error'
                 G.server.shutdown()
         # update blender with fresh face data
-        update(G.server[FACE], G.eyes, time.time() - G.last_update_time)
+        update(G.face_server, time.time() - G.last_update_time)
         G.last_update_time = time.time()

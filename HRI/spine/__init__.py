@@ -7,9 +7,14 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-import comm
+import comm, conf
 import logging
-LOG = logging.getLogger(__package__)
+
+if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+    comm.set_default_logging(debug=True)
+    LOG = comm.LOG
+else:
+    LOG = logging.getLogger(__package__)
 
 
 class SpineProtocolError(comm.ProtocolError):
@@ -38,14 +43,14 @@ class NeckInfo(SpineElementInfo):
     pass
 
 
-class SpineComm(object):
+class Spine_Handler(object):
     """
     """
 
     def __init__(self):
-        self.map = ('53.5', '55.5', '51.5') 
-        self.xyz = [('.0', '0'),('.0','0'),('.0','0')]
-        self.server.switch_auto()
+        self.xyz = [[.0, 0]] *3         # value , attack_time (TODO: torso)
+        self.relative_rotators = { 'neck': self.server.rotate_neck,
+                                   'torso': self.server.rotate_torso }
 
     def cmd_switch(self, argline):
         args = argline.split()
@@ -59,29 +64,43 @@ class SpineComm(object):
         else:
             fct()
 
+    # TODO: get rid of this and use a global AU pool
     def cmd_AU(self, argline):
-        """from expr2: AU, target, attack_time"""
+        """Absolute rotation on 1 axis.
+        Syntax is: AU_name, target_value, attack_time (in s.)"""
         args = argline.split()
-        self.xyz[self.map.index(args[0])] = args[1:]
+        if len(args) != 3:
+            LOG.warning('AU: expected 3 arguments (got %s)', args)
+            return
+        try:
+            dim = ('53.5', '55.5', '51.5').index(args[0])
+        except ValueError:
+            LOG.warning('AU not known: %s', args[0])
+            return
+        self.xyz[dim] = [ float(v) for v in args[1:] ]
+
+    def cmd_commit(self, argline):
+        """from expr2"""
+        self.server.animate(self.xyz, None)
 
     def cmd_rotate(self, argline):
-        """relative rotation on 3 axis.\tsyntax is: neck|torso x y z [wait]'
-        """
+        """relative rotation on 3 axis.
+        Syntax is: neck|torso x y z [wait]"""
         if not argline:
-#            self.send_msg('head_rot %s' % self.server.get_neck_info().rot)
+            self.send_msg('rot_neck %s\nrot_torso %s' % (
+                    SpineBase.round(self.server.get_neck_info().rot),
+                    SpineBase.round(self.server.get_torso_info().rot) ) )
             return
+
         args = argline.split()
         if len(args) < 4:
-            raise SpineProtocolError('4 arguments required')
-        xyz = [ float(arg) for arg in args[1:4] ]
+            raise SpineProtocolError('rotate: 4 or 5 arguments required')
         wait = len(args) == 5 and args[4] == 'wait'
-        if args[0] == 'neck':
-            self.server.set_neck_orientation(xyz, wait)
-        elif args[0] == 'torso':
-            self.server.set_torso_orientation(xyz, wait)
-#        self.server.set_neck_rot_pos(rot_xyz=tuple(args))
-        else:
-            raise SpineProtocolError("invalid body-part %s", args[0])
+        xyz = [ round(float(arg),SpineBase.PRECISION) for arg in args[1:4] ]
+        try:
+            self.relative_rotators[args[0]](xyz, wait)
+        except KeyError, e:
+            raise SpineProtocolError("invalid body-part %s (%s)", args[0], e)
 
     def cmd_move(self, argline):
         """relative position on 3 axis"""
@@ -91,13 +110,16 @@ class SpineComm(object):
         args = [ float(arg) for arg in argline.split(',') ]
         self.server.set_neck_rot_pos(pos_xyz=tuple(args))
 
-    def cmd_commit(self, argline):
-        """from expr2"""
-        self.cmd_rotate('neck '+' '.join([value for time, value in self.xyz]))
-
 
 class SpineBase(object):
     """API for spine management (includes neck)."""
+
+    PRECISION = 4       # number of digits for real part
+
+    @staticmethod
+    def round(iterable):
+        """version for iterables, different signature from __builtins__.round"""
+        return [ round(v, SpineBase.PRECISION) for v in iterable ]
 
     def __init__(self):
         """torso_info and neck_info are readonly properties"""
@@ -132,20 +154,12 @@ class SpineBase(object):
         """function to call upon collision detection locking"""
         self._lock_handler = handler
     
-    def switch_on(self):
-        raise NotImplemented()
-
-    def switch_off(self):
-        raise NotImplemented()
-
-    def unlock(self):
-        """Unlock spine after collision detection cause locking"""
-        raise NotImplemented()
-
     def set_neck_orientation(self, axis3):
+        """Absolute orientation:"""
         raise NotImplemented()
 
     def set_torso_orientation(self, axis3):
+        """Absolute orientation:"""
         raise NotImplemented()
 
     def set_neck_rot_pos(self, axis3_rot=None, axis3_pos=None):
@@ -156,40 +170,70 @@ class SpineBase(object):
         # to be overriden
         raise NotImplemented()
 
-    def set_all(self, axis3_no, axis3_np, axis3_to):
-        """Set orientation, position for neck and torso's orientation in one go.
-        axis3_no: neck orientation (triplet of floats in radians)
-        axis3_np: neck position (triplet of floats in meters)
-        axis3_to: torso orientation
+    # TODO: poll AU values from the AU pool after each update
+    def animate(self, neck_rot_attack, torso_rot_attack):
+        """Set neck and torso's absolute orientation with timing information.
+        neck_rot_attack:  X,Y,Z: (orientation_in_rads, attack_time_in_s)
+        torso_rot_attack: X,Y,Z: (orientation_in_rads, attack_time_in_s)
+        """
+        # raise NotImplemented()
+        self.set_neck_orientation([ rad for rad, att in neck_rot_attack])
+
+    def rotate_neck(self, xyz, wait=True):
+        """Set neck's relative orientation."""
+        ptp = self.get_neck_info().rot
+        xyz_ = map(float.__add__, ptp, xyz)
+        LOG.debug('neck %s + %s = %s', ptp, xyz, xyz_)
+        self.set_neck_orientation(xyz_, wait)
+
+    def rotate_torso(self, xyz, wait=True):
+        """Set torso's relative orientation."""
+        ptp = self.get_torso_info().rot
+        xyz_ = map(float.__add__, ptp, xyz)
+        LOG.debug('torso %s + %s = %s', ptp, xyz, xyz_)
+        self.set_torso_orientation(xyz_, wait)
+
+    def switch_on(self):
+        """Mandatory 1st call after hardware is switched on.
+        Starts calibration if needed.
         """
         raise NotImplemented()
 
+    def switch_off(self):
+        """Set the robot's pose for safe hardware switch off."""
+        raise NotImplemented()
+
+    def unlock(self):
+        """Unlock spine after collision detection cause locking"""
+        raise NotImplemented()
+
+
 try:
-    from spine.backend import SpineHW
+    from spine.backend import SpineHW as Spine_Server
 except ImportError, e:
     print 
-    print '*** MISCONFIGURATION ***'
-    print 'Make sure the backend link points to your backend!'
+    print '*** SPINE MISCONFIGURATION ***'
+    print 'Make sure the SPINE backend link points to your backend!'
     print 'for your information:', e
     raise 
-else:
-    Spine = SpineHW
 
-__all__ = ['Spine', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
+__all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 
 if __name__ == '__main__':
     import sys
-    import conf
-    conf.NAME = sys.argv[-1]
     try:
         comm.set_default_logging(debug=True)
         conf.load()
         server = comm.create_server(Spine, SpineComm, conf.conn_spine,
                                     (False,False))
     except (conf.LoadException, UserWarning), err:
-        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
+        comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
         exit(-1)
     server.start()
-    server.serve_forever()
+    while server.running:
+        try:
+            server.serve_forever()
+        except SpineProtocolError, e:
+            print 'Protocol Error:', e
     LOG.debug("Spine server done")

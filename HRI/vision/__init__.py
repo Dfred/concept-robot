@@ -65,11 +65,11 @@ class CaptureVideo(threading.Thread):
                 relative_x = (320 - (close_face_rect.x + (close_face_rect.w/2.0)))
                 relative_y = (240 - (close_face_rect.y + (close_face_rect.h/2.0)))
                 gaze = self.follow_face_with_gaze(relative_x, relative_y, close_face_rect.w)
-                neck = self.follow_face_with_neck(relative_x, relative_y, close_face_rect.w)
-#                print gaze, neck, self.comm.last_ack
-                if self.comm.last_ack != "wait" and gaze:
-                    self.comm.set_neck_gaze(gaze, neck)
-                    self.comm.last_ack = "wait"
+                neck = self.follow_face_with_neck(relative_x, relative_y, gaze[1])
+                if self.comm:
+                    if self.comm.last_ack != "wait" and gaze:
+                        self.comm.set_neck_gaze(gaze, neck)
+                        self.comm.last_ack = "wait"
                     
                     
     def findFaces(self, im):
@@ -101,10 +101,13 @@ class CaptureVideo(threading.Thread):
         face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
         x_dist = ((config.face_x/1400.6666)*face_distance)/100
         y_dist = ((config.face_y/700.6666)*face_distance)/100
-        return str(-x_dist) + "," + str(face_distance/100) + "," + str(y_dist)  # x is inverted for compatibility
+        if config.camera_on_projector:
+	    return (x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
+	else:
+	    return (-x_dist, (face_distance/100.0), y_dist)
             
             
-    def follow_face_with_neck(self, x, y, width):
+    def follow_face_with_neck(self, x, y, face_distance):
         """adjust coordinates of detected faces to neck movement
         """
         move = False
@@ -113,14 +116,26 @@ class CaptureVideo(threading.Thread):
             move = True
         else:
             distance_x = 0.0
+            
         if y > 60 or y < -60: # threshold
             distance_y = (y/-480.0) * 0.1 * math.pi
             move = True
         else:
             distance_y = 0.0
+
+        if face_distance > 1.0:    # threshold for moving forward when perceived face is far
+            config.getting_closer_to_face = 1.0
+        if config.getting_closer_to_face > 0.05:
+            distance_z = 0.1
+            config.getting_closer_to_face += -0.1
+            move = True
+        if face_distance < 0.2:    # threshold for moving back when face is too close
+            distance_z = -0.3 + face_distance
+            move = True
+        else:
+            distance_z = 0
         if move:
-            return (distance_y, 0, distance_x)
-        
+            return ((distance_y, .0, -distance_x), (.0,distance_z,.0))
                 
     
     def detect_edge(self, image):
@@ -169,7 +184,8 @@ class CaptureVideo(threading.Thread):
                 distance_y = (y_adjust/-480.0) * 0.2 * math.pi
             if self.comm.last_ack != "wait":
                     if gazing:
-                        self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+#                        self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                        pass
                     else:
                         self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
                     config.neck_pos[2] += distance_x
@@ -201,7 +217,8 @@ class CaptureVideo(threading.Thread):
 #                        print "x_neck:", str(config.neck_pos[2]), "   y_neck:", str(config.neck_pos[0])
 #                        print "x:", str(config.neck_pos[2] + distance_x), "   y:", str(config.neck_pos[0] + distance_y)
                         if gazing:
-                            self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+#                            self.comm.set_neck_gaze(gazing, "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACK_GAZE")
+                            pass
                         else:
                             self.comm.set_neck_orientation( "(" + str(config.neck_pos[0] + distance_y) + ",0," + str(config.neck_pos[2] + distance_x) + ")", "TRACKING")
                         config.neck_pos[2] += distance_x
@@ -312,8 +329,9 @@ class CaptureVideo(threading.Thread):
         #writer = cv.CreateVideoWriter("out.avi", cv.CV_FOURCC('P','I','M','1'), 30, (640,480),1)
         
         while 1:
-            im = self.webcam.query()
 
+            im = self.webcam.query()
+            
             # handle events
             key = cv.WaitKey(10)
             if key != -1 and key < 256:
@@ -321,8 +339,7 @@ class CaptureVideo(threading.Thread):
                 
             if key == '1' or config.command == '1':
                 if config.face_d == False:
-                    config.face_d = True
-                    print "looking for faces"
+                    config.face_d = True                   
                     
             if key == '2' or config.command == 'edge':
                 if config.edge_d == False:
@@ -371,9 +388,13 @@ class CaptureVideo(threading.Thread):
                 config.quit = True
                 
             config.command = '0'
-              
+          
             if config.face_d:    # face detection
-                self.detect_face(im)
+                if config.face_d_optimised:
+                    if self.comm.last_ack != "wait":
+                        self.detect_face(im)
+                else:
+                    self.detect_face(im)
                 
             if config.colour_s:
                 self.find_colour(frame, 10)
@@ -402,8 +423,6 @@ class CaptureVideo(threading.Thread):
                 cv.Copy(frame, frame_org)
                 frame = self.detect_edge(frame)
                 
-
-
             if frame is None:
                 print "error capturing frame"
                 break

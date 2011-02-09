@@ -47,8 +47,9 @@ import logging
 from threading import Thread, Lock
 
 LOGFORMAT = "%(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
-# create our logging object and set log format
+# let users set log format themselves (see set_default_logging)
 LOG = logging.getLogger(__package__)
+
 
 class ProtocolError(Exception):
     """Base Exception class for protocol error.
@@ -131,21 +132,24 @@ class BaseServer(object):
                  self.threaded and 'multi' or 'single')
         return self.threaded and self.thread or None
 
+    def pre_shutdown(self):
+        pass
+
     def shutdown(self):
         """Stops the server."""
-        if not self.socket:
-            return
-        LOG.info("%s> stopping server", self.socket.fileno())
-        self.running = False
-        if self.threaded:
-            self.__is_shut_down.wait()
-            self.thread.join()
-        else:
-            for fd, client in self.clients.iteritems():
-                client.finish()
-                if client.socket in self.polling_sockets:
-                    self.close_request(client.socket)
+        self.pre_shutdown()
+        if self.socket:
+            self.running = False
+            if self.threaded:
+                self.__is_shut_down.wait()
+                self.thread.join()
+            else:
+                for fd, client in self.clients.items():
+                    client.finish()
+                    if client.socket in self.polling_sockets:
+                        self.close_request(client.socket)
         self.disactivate()
+        LOG.info('server now shut down.')
 
     def serve_once(self):
         """Check for incoming connections and saves further calls to select()
@@ -171,13 +175,14 @@ class BaseServer(object):
     def serve_forever(self):
         """Blocking call. Inspired from SocketServer.
         """
+	if not self.running:
+	    self.start()
         if self.threaded:
             self.__is_shut_down.clear()
         try:
             while self.running and self.serve_once():
                 pass
         finally:
-            self.running = True
             if self.threaded:
                 self.__is_shut_down.set()
 
@@ -312,13 +317,18 @@ class TCPServer(BaseServer):
         self.socket.settimeout(self.listen_timeout)
         if self.allow_reuse_address:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(self.addr_port)
+        try:
+            self.socket.bind(self.addr_port)
+        except socket.error, e:
+            raise ProtocolError('cannot start server using %s: %s' % (
+                    self.addr_port, e))
         self.addr_port = self.socket.getsockname()
         self.socket.listen(self.request_queue_size)
 
     def disactivate(self):
         """Called to clean-up the server. May be overridden."""
-        self.socket.close()
+        if self.socket:
+            self.socket.close()
 
     def fileno(self):
         """Return socket file number. Interface required by select()."""
@@ -462,47 +472,64 @@ class ThreadingTCPServer(ThreadingMixIn, TCPServer): pass
 # addition
 # { type of port : { proto : { threading : class } } }
 #
-SERVER_CLASSES = {
-    type(42): {'udp': { True : ThreadingUDPServer,
-                        False: UDPServer },
-               'tcp': { True : ThreadingTCPServer,
-                        False: TCPServer }
-               } }
+SERVER_CLASSES = { type(42): {'udp': { True : ThreadingUDPServer,
+                                       False: UDPServer },
+                              'tcp': { True : ThreadingTCPServer,
+                                       False: TCPServer }
+                              } }
 
 if hasattr(socket, 'AF_UNIX'):
-    class UnixStreamServer(TCPServer):   address_family = socket.AF_UNIX
-    class UnixDatagramServer(UDPServer): address_family = socket.AF_UNIX
+    def clear_unix_socket(socket_path):
+        if os.access(socket_path, os.W_OK) and os.stat(socket_path)[0] == 49645:
+            LOG.debug('cleaning up socket file %s', socket_path)
+            os.remove(socket_path)
+
+    class UnixStreamServer(TCPServer):
+        address_family = socket.AF_UNIX
+        def __del__(self):
+            clear_unix_socket(self.addr_port)
+        
+    class UnixDatagramServer(UDPServer):
+        address_family = socket.AF_UNIX
+        def __del__(self):
+            clear_unix_socket(self.addr_port)
+
     class ThreadingUnixStreamServer(ThreadingMixIn, UnixStreamServer): pass
     class ThreadingUnixDatagramServer(ThreadingMixIn, UnixDatagramServer): pass
 #
 # And of pure reuse
 #
-    SERVER_CLASSES[type('')] = { '':{ True : ThreadingUnixStreamServer,
-                                      False: UnixStreamServer } }
+    SERVER_CLASSES[type('')] = { 'tcp': { True : ThreadingUnixStreamServer,
+                                          False: UnixStreamServer },
+                                 'udp': { True : ThreadingUnixDatagramServer,
+                                          False: UnixDatagramServer }
+                                 }
 
 def getBaseServerClass(addr_port, threaded):
     """Returns the appropriate base class for server according to addr_port"""
     """protocol can be specified using a prefix from 'udp:' or 'tcp:' in the
      port field (eg. 'udp:4242'). Default is udp."""
     D_PROTO = 'tcp'
-    addr, port = addr_port
+    try:
+        addr, port = addr_port
+    except ValueError:
+        raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
+    # check protocol
     if type(port) == type(''):
         proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
         if port.isdigit():
-            port = int(port)
-            addr_port = (addr, port)
+            addr_port = (addr, int(port))
     else:
         proto = D_PROTO
+
     try:
         srv_class = SERVER_CLASSES[type(port)][proto][threaded]
-        if type(port) == '' and \
-           srv_class == isinstance(srv_class, SocketServer.UnixStreamServer):
-            addr_port = addr_port[1]
-        LOG.debug('address-port: %s, selected server class: %s',
-                  addr_port, srv_class)
-        return addr_port, srv_class
     except KeyError:
-        raise Exception('No suitable server class from addr_port. Check conf.')
+        raise ValueError('No suitable server class for:', port, proto)
+    if type(addr_port[1]) == type(''):
+        addr_port = addr_port[1]
+    LOG.debug('address-port: %s, selected server class: %s',addr_port,srv_class)
+    return addr_port, srv_class
 
 
 def create_RequestHandlerClass(handler_class, threaded=False):
@@ -516,8 +543,7 @@ def create_RequestHandlerClass(handler_class, threaded=False):
                          handler_class)
         
     def handler_init(self, server, sock, client_addr):
-        """Transparently call super(self.__class, self).__init__"""
-#       super(self.__class__, self).__init__()
+        """Call initializers properly + runtime support for threading."""
         RequestHandler.__init__(self, server, sock, client_addr)
         # add runtime support for threading (sending clients)
         if threaded:
@@ -542,9 +568,7 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
     mixed_handler_class = create_RequestHandlerClass(handler_class,
                                                      thread_info[1])
     def init_server(self):
-        """Transparently call super(self.__class, self).__init__
-        Also save users some calls."""
-#       super(self.__class__, self).__init__()
+        """Call initializers properly."""
         base_class.__init__(self)
         self.set_RequestHandlerClass(mixed_handler_class)
         self.set_addrPort(addr_port)
@@ -553,44 +577,11 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
     return type(ext_class.__name__+base_class.__name__, 
                 (ext_class, base_class),{'__init__':init_server})()
 
-# def create_server(ext_class, handler_class, addr_port, thread_info):
-#     """Creates a new (compound) type of server according to addr_port, also
-#      creates a new type of RequestHandler so users don't inherit from anything.
 
-#         ext_class: extension class to be a base of the new type.
-#         handler_class: class to be instancied on accepted connection.
-#         addr_port: (address, port). port type is relevant, see conf module.
-#     """
-#     if not issubclass(ext_class, object):
-#         raise ClassError('class %s must inherit from object' % ext_class)
+###
+# Protocol Level: Request Handlers and Remote Clients 
+###
 
-#     addr_port, base_class = getBaseServerClass(addr_port, thread_info[0])
-#     mixed_handler_class = create_requestHandler_class(handler_class,
-#                                                       thread_info[1])
-#     def server_init(self, addr_port, handler_class):
-#         """Call all subtypes initializers and add support for threading locks"""
-#         # add runtime support for threading (accessing server)
-#         if thread_info[0]:
-#             self._threading_lock = threading.Lock()
-#             def threadsafe_start(self):
-#                 self._threading_lock.acquire()
-#             def threadsafe_stop(self):
-#                 self._threading_lock.release()
-#         LOG.debug('initializing compound server %s', self.__class__)
-#         # most of this mess because of parameters in SocketServer.__init__
-#         base_class.__init__(self, addr_port, handler_class)
-#         BaseServer.__init__(self)
-#         ext_class.__init__(self)
-
-#     if ext_class != BaseServer:
-#         bases = (ext_class, BaseServer)
-#     else:
-#         bases = (BaseServer,)
-#     return type(ext_class.__name__+base_class.__name__, bases,
-#                 {"__init__":server_init})(addr_port, mixed_handler_class)
-
-
-       
 class BaseComm(object):
     """Basic protocol handling and command-to-function resolver. This is the
      base class for a local client connecting to a server (BaseClient) or for a
@@ -604,6 +595,7 @@ class BaseComm(object):
 
     def __init__(self):
         self.command = ''
+        self.buffered = ''
         self.connected = False
         self.running = False
 
@@ -691,20 +683,25 @@ class BaseComm(object):
         Returns the number of bytes read.
         """        
         length = 0
-        buffered = ''
         LOG.debug("%s> command [%iB]: '%s'",
                   self.socket.fileno(), len(command), command)
 
         for cmdline in command.splitlines(True):
             length += len(cmdline)
-            cmdline = cmdline.strip()
-            if not cmdline or cmdline.startswith('#'):
+            cmdline = cmdline.lstrip()
+            if cmdline.startswith('#'):
                 continue
-            if cmdline.endswith('\\'):
-                buffered += cmdline[:-1]
+            elif not cmdline.endswith('\n'):
+                self.buffered += cmdline[:-1]
                 continue
-            cmdline = buffered + cmdline
-            buffered = ''
+            elif cmdline.endswith('\\\n'):
+                self.buffered += cmdline[:-2]
+                continue
+            cmdline = cmdline.rstrip()
+            if not cmdline:
+                continue
+            cmdline = self.buffered + cmdline
+            self.buffered = ''
             for cmd in cmdline.split('&&'):
                 self.parse_cmd(cmd)
         return length
@@ -815,6 +812,7 @@ class BaseClient(BaseComm):
         self.running = False
 
     def connect_and_run(self):
+        """High Level communication processing: blocks until run() returns."""
         try:
             self.socket.connect(self.target_addr)
         except socket.error, e:
@@ -854,14 +852,16 @@ class BaseClient(BaseComm):
 def set_default_logging(debug=False):
     """This function does nothing if the root logger already has
     handlers configured."""
-    logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
-                        format=LOGFORMAT)
-
+    log_lvl = (debug and logging.DEBUG or logging.INFO)
+    logging.basicConfig(level=log_lvl, format=LOGFORMAT)
+    LOG.setLevel(log_lvl)
+    LOG.info('set log level to %s', debug and 'DEBUG' or 'INFO')
 
 def get_conn_infos(addr_port):
-    if hasattr(socket, "AF_UNIX") and \
-            type(addr_port[1]) == type("") and \
-            addr_port[0] in ["127.0.0.1", "localhost"]:
+    LOCALHOSTS = ["127.0.0.1", "localhost"]
+    if hasattr(socket, "AF_UNIX") and type(addr_port[1]) == type(""):
+        if addr_port[0] and addr_port[0] not in LOCALHOSTS:
+            raise ProtcolError('address must be null or one of %s', LOCALHOSTS)
         return socket.AF_UNIX, addr_port[1]
     return socket.AF_INET, addr_port
 

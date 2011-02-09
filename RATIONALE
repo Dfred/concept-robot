@@ -1,7 +1,8 @@
 This document describes file organisation of the Human-Robot Interaction part of the CONCEPT project.
 
-./		high-level information, startup script
+./		high-level information, startup script, and executables
 common/		common (and hopefully reusable) python modules and utilities
+control/	various system control interfaces and learning specifics	
 HRI/		main python modules and utilities
 HRI/face/	display engine (Blender) and client interfaces
 HRI/gaze/	gazing dynamics, postures (eg: thinking -> gazing up) and iris
