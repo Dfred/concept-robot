@@ -1,6 +1,22 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+"""Main package for Human-Robot Interaction subsystems of the lightHead Robotic
+Animation System.
+"""
+
 import logging
 
 import numpy as np
+
+__version__ = "0.0.1"
+__date__ = ""
+__author__ = "Frédéric Delaunay"
+__email__ = "frederic.delaunay@plymouth.ac.uk"
+__copyright__ = "Copyright 2011, University of Plymouth"
+__license__ = "GPL"
+__credits__ = ["Joachim De Greeff"]
+__maintainer__ = "Frédéric Delaunay"
+__status__ = "Prototype" # , "Development" or "Production"
 
 LOG = logging.getLogger(__package__)
 
