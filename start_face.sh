@@ -44,6 +44,7 @@ if test -z "$CONF_FILE"; then
     exit 1
 fi
 
+
 # Now launch
 getopts "w" OPTS
 if [ "$OPTS" = "w" ]; then
