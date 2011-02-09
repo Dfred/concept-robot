@@ -44,6 +44,7 @@ if test -z "$CONF_FILE"; then
     exit 1
 fi
 
+<<<<<<< HEAD
 # the config file is a python script, let's use a function from it
 ADDR_PORT=`python -c "execfile('$CONF_FILE'); print "$PROJECT_NAME"_server"`
 if ( test $? != 0 ) || ( test -z "$ADDR_PORT" ); then
@@ -72,7 +73,7 @@ if [ "$OPTS" = "w" ]; then
     shift;
 fi
 
-echo -n "--- launching face "
+echo -n "--- launching face ---"
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 

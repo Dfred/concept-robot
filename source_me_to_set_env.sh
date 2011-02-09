@@ -27,17 +27,18 @@ elif test -z "$PROJECT_NAME"; then
 	echo "missing argument or "'$PROJECT_NAME'" not set: cannot continue."
 else
     echo "Setting environment for project: $PROJECT_NAME"
+
+    DIST_PACKS_PATH=/usr/lib/python2.6/dist-packages
+
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
-	    MODULES_PATH="$CONCEPT_DIR/common;$CONCEPT_DIR/HRI"
+	    MODULES_PATH="$CONCEPT_DIR;$CONCEPT_DIR/common;$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
 	    PYTHONPATH="$MODULES_PATH"
 	    ;;
 	*)
-	    MODULES_PATH="$CONCEPT_DIR/common:$CONCEPT_DIR/HRI"
-            # The following depends on the BGE python version (necessary for blender 2.4x)
-            BGE_PYTHON_PATH="/usr/lib/python$BGE_PYTHON_VERS/:/usr/lib/python$BGE_PYTHON_VERS/lib-dynload"
-            PYTHONPATH="$PYTHONPATH:$BGE_PYTHON_PATH:$MODULES_PATH"
+	    MODULES_PATH="$CONCEPT_DIR:$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
+            PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
 	    ;;
     esac
     export PYTHONPATH
@@ -66,4 +67,3 @@ else
     fi
     alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"
 fi
-

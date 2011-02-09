@@ -33,7 +33,11 @@
 #
 
 import logging
+
+import numpy
+
 from comm.meta_server import MetaRequestHandler, MetaServer
+from HRI import FeaturePool
 
 LOG = logging.getLogger(__package__)
 
@@ -42,30 +46,6 @@ ORIGINS = ('face', 'gaze', 'lips', 'head')
 
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
-
-
-class FeaturePool(object):
-    """This class serves as a short term memory. It holds all possible features
-    so other modules can query a snapshot of the current robot's state."""
-
-    def __init__(self):
-        self.context = {}       # identifier : value(s)
-
-    def is_empty(self):
-        return not self.context
-
-    def get_snapshot(self, features=None):
-        """Get a snapshot, optionally selecting specific features.
-        features == None: return whole context
-        features == iterable: return subset of the context.
-        """
-        print features, self.context
-        if not features:
-            return self.context
-        return dict( (f,self.context[f]) for f in features )
-
-    def set_value(self, identifier, value):
-        self.context[identifier] = value
 
 
 class lightHeadHandler(MetaRequestHandler):
@@ -100,15 +80,16 @@ class lightHeadHandler(MetaRequestHandler):
         self.send_msg('TODO')
 
     def cmd_get_snapshot(self, argline):
-        """Returns the current snapshot of robot context"""
-        if self.server.FP.is_empty():
-            for origin in self.server.origins.iterkeys():
-                subserver = self.server.get_server(origin)
-                self.server.FP.set_value(origin, subserver.get_features(origin))
-        for k,v in self.server.FP.get_snapshot(argline.split()).iteritems():
-            if v and hasattr(v, '__iter__'):
-                v = [ str(i) for i in v ]
-            self.send_msg(k+' '+' '.join(v))
+        """Returns the current snapshot of robot context
+        argline: origins identifying arrays to be sent.
+        """
+        origins = ( argline.strip() and [ o.strip() for o in argline.split()
+                                        if o in self.server.FP.keys() ] 
+                    ) or self.server.FP.keys()
+#        for k,v in self.server.FP.get_snapshot(origins).iteritems():
+#            self.send_msg(k+' '+' '.join(v))
+        for o in origins:
+            self.send_msg('snapshot %s %s' % (o, self.server.FP[o]))
         self.send_msg('end_snapshot')
 
 
@@ -132,7 +113,8 @@ class lightHeadServer(MetaServer):
         return self.origins[keyword][0]
 
     def register(self, server, req_handler_class, origin):
-        """Binds origin keyword with server and relative request handler."""
+        """Binds origin keyword with server and relative request handler.
+        """
         if origin not in ORIGINS:
             LOG.error("rejecting unknown origin '%s'", origin)
             return
@@ -140,6 +122,10 @@ class lightHeadServer(MetaServer):
                   server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
                                                            req_handler_class)
+        # Servers shall call feature_pool.add_feature with appropriate origin(s)
+        #  identifying their internal numpy array. We just can't predict when
+        #  their array will be created.
+        server.set_featurePool(self.FP)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
@@ -177,32 +163,3 @@ class lightHeadServer(MetaServer):
         missing = [ o for o in ORIGINS if o not in self.origins ]
         if missing:
             LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)
-
-
-def initialize(thread_info):
-    """Initialize the system.
-    thread_info: tuple of booleans setting threaded_server and threaded_clients
-    """
-    import sys
-    print "LIGHTHEAD Animation System, python version:", sys.version
-
-    # check configuration
-    try:
-        import conf; missing = conf.load()
-        if missing:
-            fatal('missing configuration entries: %s' % missing)
-        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-            # set system-wide logging level
-            import comm; comm.set_default_logging(debug=True)
-    except conf.LoadException, e:
-        fatal('in file {0[0]}: {0[1]}'.format(e)) 
-
-    # Initializes the system
-    import comm
-    from lightHead_server import lightHeadServer, lightHeadHandler
-    server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                conf.lightHead_server, thread_info)
-    # Because what we have here is a *meta server*, we need to initialize it
-    #  properly; face and all other subservers are initialized in that call
-    server.create_protocol_handlers()
-    return server
