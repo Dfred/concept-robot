@@ -177,7 +177,7 @@ class BaseServer(object):
             if e:
                 return self.handle_error(e, self.clients[e].addr_port)
             for sock in r:
-                if sock == self.socket:
+                if sock is self.socket:
                     self._handle_request_noblock()
                 elif not self.clients[sock].read_socket():
                     self.close_request(sock)
@@ -545,7 +545,7 @@ def getBaseServerClass(addr_port, threaded):
     except ValueError:
         raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
     # check protocol
-    if type(port) == type(''):
+    if type(port) is type(''):
         proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
         if port.isdigit():
             addr_port = (addr, int(port))
@@ -556,7 +556,7 @@ def getBaseServerClass(addr_port, threaded):
         srv_class = SERVER_CLASSES[type(port)][proto][threaded]
     except KeyError:
         raise ValueError('No suitable server class for:', port, proto)
-    if type(addr_port[1]) == type(''):
+    if type(addr_port[1]) is type(''):
         addr_port = addr_port[1]
     LOG.debug('address-port: %s, selected server class: %s',addr_port,srv_class)
     return addr_port, srv_class
@@ -801,11 +801,11 @@ class RequestHandler(BaseComm):
         self.work = self.server.handler_looping and\
             self.read_while_running or self.read_once
         # update addr_port for unix sockets (another crazy thing!)
-        self.addr_port = type(self.addr_port) == type("") and \
+        self.addr_port = type(self.addr_port) is type("") and \
             ("localhost", "UNIX Socket") or self.addr_port
         LOG.info("%i> connection accepted from %s on %s. Client is %slooping",
                  self.socket.fileno(),self.addr_port[0],str(self.addr_port[1]),
-                 self.work == self.read_once and '*NOT* ' or '')
+                 self.work is self.read_once and '*NOT* ' or '')
 
     def finish(self):
         """Overrides SocketServer
@@ -830,7 +830,7 @@ class RequestHandler(BaseComm):
                  self.socket.fileno(), len(self.server.clients))
         clients_infos = []
         for sock, cl in self.server.clients.iteritems():
-            clients_infos.append(type(cl.addr_port) == type("") and
+            clients_infos.append(type(cl.addr_port) is type("") and
                                  (sock.fileno(), "UNIX", "localhost") or
                                  (sock.fileno(), cl.addr_port[1], cl.addr_port[0]))
         clients_infos.sort()
@@ -907,8 +907,9 @@ class BaseClient(BaseComm):
         LOG.debug('connecting to %s:%s (for %ss.)', self.addr_port[0],
                   self.addr_port[1], self.connect_timeout)
         try:
-            self.socket = socket.create_connection(self.addr_port,
-                                                   self.connect_timeout)
+            self.socket = socket.socket(self.family)
+            self.socket.settimeout(self.connect_timeout)
+            self.socket.connect(self.addr_port)
         except socket.timeout:
             self.handle_connect_timeout()
         except socket.error, e:
@@ -959,7 +960,7 @@ def get_conn_infos(addr_port):
     """
     """
     LOCALHOSTS = ["127.0.0.1", "localhost"]
-    if hasattr(socket, "AF_UNIX") and type(addr_port[1]) == type(""):
+    if hasattr(socket, "AF_UNIX") and type(addr_port[1]) is type(""):
         if addr_port[0] and addr_port[0] not in LOCALHOSTS:
             raise ProtcolError('address must be null or one of %s', LOCALHOSTS)
         return socket.AF_UNIX, addr_port[1]
