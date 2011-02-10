@@ -60,7 +60,7 @@ else
 	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
 
-	MISSING= check_python_conf $PROJECT_NAME
+	MISSING=$(check_python_conf $PROJECT_NAME)
 	if test -n "$MISSING"; then
 	    echo "missing required entries in conf: $MISSING"
 	fi
