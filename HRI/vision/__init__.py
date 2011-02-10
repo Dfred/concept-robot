@@ -14,6 +14,7 @@ from pyvision.edge.canny import canny
 from HRI import FeaturePool
 import fps
 
+
 class VisionException(Exception):
     """
     """

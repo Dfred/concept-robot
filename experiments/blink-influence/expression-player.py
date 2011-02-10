@@ -25,6 +25,7 @@ import comm
 from control.interfaces.communication import ExpressionComm
 from control import Behaviour as FSM
 
+
 __author__ = "Frédéric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
 __credits__ = [""]

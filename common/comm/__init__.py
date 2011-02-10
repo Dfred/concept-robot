@@ -144,6 +144,7 @@ class BaseServer(object):
         return self.threaded and self.thread or None
 
     def pre_shutdown(self):
+        """To be overriden"""
         pass
 
     def shutdown(self):
