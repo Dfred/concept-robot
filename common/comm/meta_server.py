@@ -15,7 +15,7 @@ class MetaRequestHandler(object):
 
     def create_subhandler(self, srv, subhandler_class):
         """Equivalent of create_subserver.
-        Basically we emulate the basics of SocketServer.BaseRequestHandler and 
+        Basically we emulate the basics of SocketServer.BaseRequestHandler
         """
         subhandler = subhandler_class()
         subhandler.socket = self.socket
