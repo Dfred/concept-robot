@@ -6,7 +6,7 @@ import comm
 comm.set_default_logging(True)
 LOG = comm.LOG
 
-class Comm(comm.BaseClient):
+class ThreadedComm(comm.BaseClient):
     """
     """
 
@@ -50,14 +50,14 @@ class Comm(comm.BaseClient):
         LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
 
-class LightHeadComm(Comm):
+class LightHeadComm(ThreadedComm):
     """Class dedicated for communication with lightHead server.
     """
     
     def __init__(self, srv_addrPort):
         """
         """
-        Comm.__init__(self, srv_addrPort)
+        ThreadedComm.__init__(self, srv_addrPort)
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -78,7 +78,8 @@ class LightHeadComm(Comm):
     def end_snapshot(self):
         return (self.lips_info, self.gaze_info, self.face_info)
 
-class ExpressionComm(Comm):
+
+class ExpressionComm(ThreadedComm):
     """Class dedicated for communication with expression server.
     """
 
@@ -87,8 +88,9 @@ class ExpressionComm(Comm):
     def __init__(self, srv_addrPort):
         """
         """
-        Comm.__init__(self, srv_addrPort)
+        ThreadedComm.__init__(self, srv_addrPort)
         self.tag = None
+        self.tag_count = 0
         self.status = None
         self.reset_datablock()
 
@@ -99,37 +101,43 @@ class ExpressionComm(Comm):
     def cmd_NACK(self, argline):
         self.status = self.ST_NACK
         self.tag = argline.strip()
+        LOG.warning('expression reports bad message (%s).', self.tag)
         
     def cmd_INT(self, argline):
         self.status = self.ST_INT
         self.tag = argline.strip()
+        LOG.warning('expression reports animation interruption!')
 
     def cmd_DSC(self, argline):
         self.status = self.ST_DSC
         self.tag = None
+        LOG.warning('expression reports disconnection from lightHead!')
 
     def reset_datablock(self):
         """Forgets values previously stored with set_ functions.
         """
-        self.datablock = []*4
+        self.datablock = ['']*5
 
     def set_fExpression(self, name, intensity=1.0):
         """
         name: facial expression identifier, no colon (:) allowed.
         intensity: normalized gain.
         """
-        self.datablock[0] = (name, intensity)
+        assert type(name) is str and type(intensity) is float, 'wrong types'
+        self.datablock[0] = '{0s}:{1:.3f}'.format(name, intensity)
 
     def set_text(self, text):
         """
         text: text to utter, no double-quotes (") allowed.
         """
+        assert type(text) is str, 'wrong types'
         self.datablock[1] = text
 
     def set_gaze(self, vector3):
         """
         vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
+        assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
         self.datablock[2] = str(vector3)[1:-1]
 
     def set_neck(self, orientation=(), position=()):
@@ -137,43 +145,48 @@ class ExpressionComm(Comm):
         orientation: (x,y,z) : in radians
         position: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
-        self.datablock[2] = (orientation, position)
+        assert len(orientation) == 3 and type(orientation[0]) is float, 'wrong types'
+        assert len(position) == 3 and type(position[0]) is float, 'wrong types'
+        self.datablock[3] = "{0}[{1}]".format(str(orientation)[1:-1],
+                                              str(position)[1:-1])
 
     def set_instinct(self, command):
         """
         command: you should know what you are doing when dealing with this.
         """
-        self.datablock[3] = command
+        assert type(command) is str, 'wrong types'
+        self.datablock[6] = command
 
-    def set_datablock(self, f_expr, intens, gaze, neck_rot, neck_pos, inst_cmd):
+    def set_datablock(self, f_expr, intens, txt, gaze, neck_rot, neck_pos, cmd):
         """
         All-in-one function, check parameters details from specific functions.
         """
-        self.datablock = [(f_expr,intens), gaze, (neck_rot,neck_pos), inst_cmd]
+        assert type(f_expr) is str and type(intens) is float, 'wrong types'
+        assert type(txt) is str, 'wrong types'
+        assert len(gaze) == 3 and type(gaze[0]) is float, 'wrong types'
+        assert len(neck_rot) == 3 and type(neck_rot[0]) is float, 'wrong types'
+        assert len(neck_pos) == 3 and type(neck_pos[0]) is float, 'wrong types'
+        assert type(cmd) is str, 'wrong types'
+        self.datablock = [ f_expr, intens, txt, gaze, neck_rot, neck_pos, cmd ]
 
-    def send_datablock(self, tag='UNUSED'):
-        """Sends datablock to server and resets self.datablock.
-        You can wait for a reply by checking the value of self.status (None
-         until reply is received).
+    def send_datablock(self, tag=''):
+        """Sends self.datablock to server and resets self.datablock.
+        Use wait_reply to block until server replies for your tag.
         tag: string identifying your datablock.
+        Returns: tag, part of it is generated. You may need it for wait_reply().
         """
-        db = '%s:%.3f;"%s";%s;%s;%s;' % datablock
+        db = '{0};"{1}";{2};{3};{4};'.format(*self.datablock)
+        self.tag_count += 1
+        tag += str(self.tag_count)
         self.send_msg(db+tag)
         self.reset_datablock()
         self.status = None
+        return tag
 
-    # TODO: support absolute orientation with '((' instead of '('
-    def send_neck_gaze(self, gaze='  ', neck=''):
-        """Formats and sends a gaze and/or neck packet to expression server.
-        Relative Values.
-         gaze: 3D vector for focal point
-         neck: (3axis orientation, 3axis position) each can be ommitted.
+    def wait_reply(self, tag):
+        """Wait for a reply from the server.
         """
-        if neck:
-            rot, pos = neck
-            neck = (rot and '(%s)' % str(rot)[1:-1] or '') + \
-                (pos and '[%s]' % str(pos)[1:-1] or '')
-        self.send_msg(";'';%s;%s;;tag_NECK_GAZE" % (str(gaze)[1:-1], neck))
-
-    def send_fExpression(self, expression="neutral", intensity=1):
-        self.send_msg("%s:%i;'';;;;tag_FEXPRESSION" % (expression, intensity))
+        while self.status is None:
+            if self.tag == tag:
+                break
+            time.sleep(0.05)

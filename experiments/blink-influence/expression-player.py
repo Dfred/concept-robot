@@ -49,13 +49,13 @@ class IntelligentPlayer():
         """
         Returns: 'EOSECTION',FSM.STOPPED
         """
-        line = self.performance.readline()
+        line = self.performance.readline().strip()
         if line.startswith('EOSECTION'):
             return 'EOSECTION'
         if not line:
             return FSM.STOPPED
-        self.comm_expr.send_msg(line)
-        self.wait_comm_expr_reply()
+        self.comm_expr.send_msg(line+'read')
+        self.comm_expr.wait_reply('read')
 
     def listenTo_participant(self):
         """
@@ -69,27 +69,27 @@ class IntelligentPlayer():
         """
         Returns: 'REPLIED'
         """
-        line = random.Random().choice(self.replies['rep'])
-        self.comm_expr.send_msg(line)
-        self.wait_comm_expr_reply()
+        line = random.Random().choice(self.replies['rep']).strip()
+        self.comm_expr.send_msg(line+'answer')
+        self.comm_expr.wait_reply('answer')
         return 'REPLIED'
     
     def nodTo_participant(self):
         """
         Returns: 'REPLIED'
         """
-        line = random.Random().choice(self.replies['nod'])
-        self.comm_expr.send_msg(line)
-        self.wait_comm_expr_reply()
+        line = random.Random().choice(self.replies['nod']).strip()
+        self.comm_expr.send_msg(line+'nod')
+        self.comm_expr.wait_reply('nod')
         return 'REPLIED'
     
     def interrupt_participant(self):
         """
         Returns: 'REPLIED'
         """
-        line = random.Random().choice(self.replies['int'])
-        self.comm_expr.send_msg(line)
-        self.wait_comm_expr_reply()
+        line = random.Random().choice(self.replies['int']).strip()
+        self.comm_expr.send_msg(line+'int')
+        self.comm_expr.wait_reply('int')
         return 'REPLIED'
     
     def search_participant(self):
@@ -110,31 +110,15 @@ class IntelligentPlayer():
         area = self.faces[0]
         relative_x = (self.vision_area[0] - (area.x + (area.w/2.0)) )
         relative_y = (self.vision_area[1] - (area.y + (area.h/2.0)) )
-        gaze = (0,0,0)#self.follow_face_with_gaze(relative_x, relative_y)
-        neck = (gaze,(0,0,0))#self.follow_face_with_neck(relative_x, relative_y, gaze[1])
+        gaze = (.0,.0,.0)#self.follow_face_with_gaze(relative_x, relative_y)
+        neck = (gaze,(.0,.0,.0))#self.follow_face_with_neck(relative_x, relative_y, gaze[1])
         # reuse numbers from Joachim's magic hat ;P
         face_distance = ((-88.4832 * math.log(self.vision_area[0])) + 538.3782)
-        self.comm_expr.send_neck_gaze(gaze, neck)
-#        self.wait_comm_expr_reply()
+        self.comm_expr.set_gaze(gaze)
+        self.comm_expr.set_neck(*neck)
+        tag = self.comm_expr.send_datablock('gaze_neck')
+        self.comm_expr.wait_reply(tag)
         return 'ADJUSTED'
-
-    def wait_comm_expr_reply(self):
-        """Wait for a reply from the server.
-        """
-        while self.comm_expr.status is None:
-            time.sleep(0.05)
-
-    def read_replies(self):
-        """
-        """
-        with file('./performance_replies.txt', 'r', 1) as f:
-            for i,l in enumerate(f.readlines()):
-                try:
-                    group, line = l.split('  ')
-                    self.replies[group].append(line)
-                except Exception, e:
-                    print 'error with replies file line %i: %s (%s)' % (i,l,e)
-                    exit(1)
 
     def finish(self, name):
         """Called on FSM.STOPPED state.
@@ -166,13 +150,26 @@ class IntelligentPlayer():
             self.vision = vision.CamFaceFinder(conf.haar_cascade_path,dev_index)
             self.vision_area = self.vision.get_resolution()
             self.vision.gui_create()
+            self.vision.update()
         except vision.VisionException, e:
             print e
             exit(1)
         self.performance = file('./performance.txt', 'r', 1)
         self.replies = {'rep' : [], 'int': [], 'nod' : []}
-        self.read_replies()
+        self._read_replies()
         self.comm_expr = ExpressionComm(conf.expression_server)
+
+    def _read_replies(self):
+        """
+        """
+        with file('./performance_replies.txt', 'r', 1) as f:
+            for i,l in enumerate(f.readlines()):
+                try:
+                    group, line = l.split('  ')
+                    self.replies[group].append(line)
+                except Exception, e:
+                    print 'error with replies file line %i: %s (%s)' % (i,l,e)
+                    exit(1)
 
     def cleanup(self):
         """
@@ -183,8 +180,8 @@ class IntelligentPlayer():
         self.comm_expr.done()
 
     def check_channels(self, machines):
-        """
-        Returns: finishes on disconnection.
+        """Will die on disconnection with expression.
+        Return: None
         """
         if not self.comm_expr.connected:
             self.tracker.abort()
