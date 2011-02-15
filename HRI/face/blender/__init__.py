@@ -38,8 +38,6 @@ from math import cos, sin, pi
 
 import GameLogic as G
 
-from face import float_to_AUname
-
 MAX_FPS = 50
 
 # A word on threading:
@@ -141,6 +139,7 @@ def update(faceServer, time_diff):
     """
     """
     global INFO_PERIOD
+    from face import float_to_AUname
 
     cont = G.getCurrentController()
     eyes_done = False
@@ -188,13 +187,12 @@ def update(faceServer, time_diff):
 # Main loop
 #
 
-def main(addr_port):
+def main():
     if not hasattr(G, "initialized"):
         try:
 # standalone version:
 #            import face, comm, conf; conf.load()
 #            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
-
             import HRI
             G.server = HRI.initialize(THREAD_INFO)
             G.face_server = G.server['face']

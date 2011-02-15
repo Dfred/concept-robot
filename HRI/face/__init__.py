@@ -20,7 +20,6 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-
 #
 # FACE MODULE
 #
@@ -38,16 +37,16 @@ import time
 import thread
 import random
 import collections
-import asyncore
 import logging
 import numpy
 
 import comm
 import conf
 
-logging.basicConfig(level=logging.DEBUG)
-LOG = logging.getLogger("face-srv")
-LOG.setLevel(logging.DEBUG)
+LOG = logging.getLogger(__package__)
+conf.load()
+if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+    LOG.setLevel(logging.DEBUG)
 
 # conversion table for float-based AU identification
 float_to_AUname = { 
@@ -217,23 +216,24 @@ class Face_Server(object):
         """Here we can set additional checks (eg. AU1 vs AU4, ...)
         """
 
-
 try:
-    from face.backend import main
+    conf.load()
+    backend = getattr(__import__('face.'+conf.face_backend),conf.face_backend)
+    main = backend.main
 except ImportError, e:
     print 
     print '*** FACE MISCONFIGURATION ***'
-    print 'Make sure the FACE backend link points to your backend!'
+    print 'check in your config file for the value of face_backend !'
     print 'for your information:', e
-    raise 
-    
+    sys.exit(-1)    # crude but avoids loads of further output.
+
 
 if __name__ == '__main__':
     conf.name = sys.argv[-1]
-    conf.load()
+
     try:
-        server = comm.create_server(FaceServer, FaceClient, conf.conn_face,
-                                    (False,False))
+        server = comm.create_server(backend.FaceServer, backend.FaceClient,
+                                    conf.conn_face, (False,False))
     except UserWarning, err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
         exit(-1)

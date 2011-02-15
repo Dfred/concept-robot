@@ -10,12 +10,10 @@
 import comm, conf
 import logging
 
+LOG = logging.getLogger(__package__)
+conf.load()
 if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
-    comm.set_default_logging(debug=True)
-    LOG = comm.LOG
-else:
-    LOG = logging.getLogger(__package__)
-
+    LOG.setLevel(logging.DEBUG)
 
 class SpineProtocolError(comm.ProtocolError):
     pass
@@ -230,7 +228,6 @@ if __name__ == '__main__':
     import sys
     try:
         comm.set_default_logging(debug=True)
-        conf.load()
         server = comm.create_server(Spine, SpineComm, conf.conn_spine,
                                     (False,False))
     except (conf.LoadException, UserWarning), err:
