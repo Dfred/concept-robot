@@ -44,6 +44,16 @@ if test -z "$CONF_FILE"; then
     exit 1
 fi
 
+# handle MinGW and Windows suffix
+case `uname -s` in
+    MINGW*)
+        BIN_SUFFIX=".exe"
+        ;;
+    *)
+        BIN_SUFFIX=""
+        ;;
+esac
+
 
 # Now launch
 getopts "w" OPTS
@@ -56,7 +66,7 @@ if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 
 if [ "$OPTS" = "w" ]; then
-    ./$PROJECT_NAME-window $@ "$PROJECT_NAME"
+    ./$PROJECT_NAME-window$BIN_SUFFIX $@ "$PROJECT_NAME"
 else
-    ./$PROJECT_NAME $@ "$PROJECT_NAME"
+    ./$PROJECT_NAME$BIN_SUFFIX $@ "$PROJECT_NAME"
 fi

@@ -16,7 +16,7 @@ if test -z "$CONCEPT_DIR"; then
 fi
 
 # override PROJECT_NAME if given an argument
-if test $0 != './start_face.sh' && test -n "$1"; then
+if test "$0" != './start_face.sh' && test -n "$1"; then
     PROJECT_NAME=$1
 fi
 
@@ -28,26 +28,23 @@ elif test -z "$PROJECT_NAME"; then
 else
     echo "Setting environment for project: $PROJECT_NAME"
 
-    DIST_PACKS_PATH=/usr/lib/python2.6/dist-packages
-
+    MODULES_PATH="$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
-	    MODULES_PATH="$CONCEPT_DIR;$CONCEPT_DIR/common;$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
-	    PYTHONPATH="$MODULES_PATH"
-	    ;;
+            DIST_PACKS_PATH=/c/Python26/lib/site-packages
+            ;;
 	*)
-	    MODULES_PATH="$CONCEPT_DIR:$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
-            PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
+            DIST_PACKS_PATH=/usr/lib/python2.6/dist-packages
 	    ;;
     esac
-    export PYTHONPATH
+    export PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
 
     # Load helper functions (calling python)
     . $CONCEPT_DIR/common/source_me.sh
 
     CONF_FILE=$(get_python_conf $PROJECT_NAME)
-    if test $? != 0 ; then
+    if test "$?" != 0 ; then
 	echo "$CONF_FILE"
 	unset CONF_FILE
     else
