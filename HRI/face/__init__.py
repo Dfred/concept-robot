@@ -90,7 +90,8 @@ class Face_Handler(object):
                 raise FaceProtocolError("[AU] invalid float (%s)", e)
             except KeyError, e:
                 if not AUname_to_float.has_key(au_name+'R'):
-                    raise FaceProtocolError("[AU] invalid float (%s)", e)
+                    LOG.warning("[AU] invalid AU (%s)", au_name)
+                    return
                 self.fifo.append((AUname_to_float[au_name+'R'],value,duration))
                 self.fifo.append((AUname_to_float[au_name+'L'],value,duration))
         else:
