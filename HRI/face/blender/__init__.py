@@ -213,6 +213,7 @@ def main():
             # update blender with fresh face data
             update(G.face_server, time.time() - G.last_update_time)
         except:
+            import conf; conf.load()
             if hasattr(conf,'DEBUG') and conf.DEBUG:
                 import pdb; pdb.post_mortem()
         G.last_update_time = time.time()
