@@ -11,7 +11,7 @@
 #  * sets the edit_face alias
 #
 if test -z "$CONCEPT_DIR"; then
-    echo '$CONCEPT_DIR' not set, assuming '$PWD' "($PWD)"
+    echo '$CONCEPT_DIR' not set, assuming $PWD
     CONCEPT_DIR=$PWD
 fi
 
@@ -27,21 +27,24 @@ elif test -z "$PROJECT_NAME"; then
 	echo "missing argument or "'$PROJECT_NAME'" not set: cannot continue."
 else
     echo "Setting environment for project: $PROJECT_NAME"
+    # Load helper functions (calling python)
+    . $CONCEPT_DIR/common/source_me.sh
+    # reset CONCEPT_DIR (minGW paths are screwing python's os.path)
+    CONCEPT_DIR=$(get_CWD)
 
-    MODULES_PATH="$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
-            DIST_PACKS_PATH=/c/Python26/lib/site-packages
+            _SEP_=';'
+            DIST_PACKS_PATH='c:\Python26\lib\site-packages'
             ;;
 	*)
-            DIST_PACKS_PATH=/usr/lib/python2.6/dist-packages
+            _SEP_=':'
+            DIST_PACKS_PATH='/usr/lib/python2.6/dist-packages'
 	    ;;
     esac
-    export PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
-
-    # Load helper functions (calling python)
-    . $CONCEPT_DIR/common/source_me.sh
+    MODULES_PATH="$CONCEPT_DIR/common$_SEP_$CONCEPT_DIR/HRI$_SEP_$CONCEPT_DIR/ext/"
+    export PYTHONPATH="$PYTHONPATH$_SEP_$DIST_PACKS_PATH$_SEP_$MODULES_PATH"
 
     CONF_FILE=$(get_python_conf $PROJECT_NAME)
     if test "$?" != 0 ; then
@@ -57,6 +60,7 @@ else
 	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
 
+        echo "Checking conf"
 	MISSING=$(check_python_conf $PROJECT_NAME)
 	if test -n "$MISSING"; then
 	    echo "missing required entries in conf: $MISSING"

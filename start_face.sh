@@ -35,15 +35,6 @@ fi
 
 . ./source_me_to_set_env.sh
 
-if ! test -x ./$PROJECT_NAME; then
-    echo "Could not find executable file '$PROJECT_NAME' in this directory."
-    exit 1
-fi
-
-if test -z "$CONF_FILE"; then
-    exit 1
-fi
-
 # handle MinGW and Windows suffix
 case `uname -s` in
     MINGW*)
@@ -54,6 +45,14 @@ case `uname -s` in
         ;;
 esac
 
+if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
+    echo "Could not find executable file '$PROJECT_NAME' in this directory."
+    exit 1
+fi
+
+if test -z "$CONF_FILE"; then
+    exit 1
+fi
 
 # Now launch
 getopts "w" OPTS
