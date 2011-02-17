@@ -62,12 +62,6 @@ float_to_AUname = {
 }
 AUname_to_float = dict(zip(float_to_AUname.values(),float_to_AUname.keys()))
 
-class FaceProtocolError(comm.ProtocolError):
-    pass
-
-class FaceError(comm.CmdError):
-    pass
-
 class Face_Handler(object):
     """Remote connection handler: protocol parser."""
     
@@ -82,12 +76,16 @@ class Face_Handler(object):
             try:
                 au_name, value, duration = argline.split()[:3]
             except ValueError, e:
-                raise FaceProtocolError("[AU] wrong number of arguments (%s)",e)
+                LOG.error("[AU] wrong number of arguments (%s)",e)
             try:
                 value, duration = float(value), float(duration)
+                if duration < self.server.MIN_ATTACK_TIME:
+                    LOG.warning("attack time (%s) too short, setting at %s.",
+                                duration, self.server.MIN_ATTACK_TIME)
+                    duration = self.server.MIN_ATTACK_TIME
                 self.fifo.append((AUname_to_float[au_name], value, duration))
             except ValueError,e:
-                raise FaceProtocolError("[AU] invalid float (%s)", e)
+                LOG.error("[AU] invalid float (%s)", e)
             except KeyError, e:
                 if not AUname_to_float.has_key(au_name+'R'):
                     LOG.warning("[AU] invalid AU (%s)", au_name)
@@ -133,10 +131,11 @@ class Face_Server(object):
     On target overwrite, interpolation starts from current value.
     """
 
-    COLS = 6
+    COLS = 5
+    MIN_ATTACK_TIME = 0.001     # in seconds.
 
     def __init__(self):
-        # array of : AU_name(in float), coeff, , duration, elapsed, value
+        # array of : AU_name(in float), target, remaining, coeff, value
         self.AUs = None
         self.updates = []
         self.thread_id = thread.get_ident()
@@ -177,41 +176,33 @@ class Face_Server(object):
         """
         if self.thread_id != thread.get_ident():
             self.threadsafe_start()
-        for AU, target_value, duration in iterable:
-            duration = max(duration, .001)
+        for AU, target, attack in iterable:
             try:
                 AU_data = self.AUs[self.index(AU),:]
             except IndexError:
                 LOG.warning('AU %s not found', AU)
             else:
-                AU_data[1:5] = ((target_value-AU_data[3])/duration, AU_data[3],
-                                duration, 0)
+                AU_data[1:4] = target, attack, (target-AU_data[4])/attack
         if self.thread_id != thread.get_ident():
             self.threadsafe_stop()
 
     def update(self, time_step):
         """Update AU values. This function shall be called for each frame.
          time_step: time in seconds elapsed since last call.
+        #TODO: motion dynamics
         """
         if self.thread_id != thread.get_ident():
             self.threadsafe_start()
-        #TODO: motion dynamics
-        to_update = collections.deque()
-        self.AUs[:,4] += time_step
-        for AU, coeff, offset, duration, elapsed, value in self.AUs:
-            target = coeff * duration + offset
-            if elapsed >= duration:      # keep timing
-                if value != target:
-                    self.AUs[AU][4:] = duration, target
-                    to_update.append((AU, target))
-                continue
-
-            up_value = coeff * elapsed + offset
-            self.AUs[AU][4:] = elapsed, up_value
-            to_update.append((AU, up_value))
+        actives_idx = self.AUs[:,2] > 0  # AUs with remaining time
+        self.AUs[actives_idx,4] += self.AUs[actives_idx,3] * time_step
+        self.AUs[:,2] -= time_step
+        # don't wait for next step to finish off shortest activations
+        overgone_idx = self.AUs[:,2]< self.MIN_ATTACK_TIME
+        self.AUs[overgone_idx, 2] = 0
+        self.AUs[overgone_idx, 4] = self.AUs[overgone_idx, 1]
         if self.thread_id != thread.get_ident():
             self.threadsafe_start()
-        return to_update
+        return self.AUs[actives_idx,0::4]
 
     def solve(self):
         """Here we can set additional checks (eg. AU1 vs AU4, ...)
