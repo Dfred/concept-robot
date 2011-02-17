@@ -864,7 +864,7 @@ class BaseClient(BaseComm):
         BaseComm.__init__(self)
         self.family, self.addr_port = get_conn_infos(addr_port)
         self.socket = None
-        self.connect_timeout = 0
+        self.connect_timeout = None	# blocking
 
     def set_connect_timeout(self, timeout):
         """Sets the timeout connecting to a server.
@@ -905,8 +905,9 @@ class BaseClient(BaseComm):
         Returns: 
         """
         assert self.connected is False, 'connecting while connected ?'
-        LOG.debug('connecting to %s:%s (for %ss.)', self.addr_port[0],
-                  self.addr_port[1], self.connect_timeout)
+        LOG.debug('connecting to %s:%s (for %s)', self.addr_port[0],
+                  self.addr_port[1], (self.connect_timeout is None and 'ever')
+		  or str(self.connect_timeout)+'s.')
         try:
             self.socket = socket.socket(self.family)
             self.socket.settimeout(self.connect_timeout)
