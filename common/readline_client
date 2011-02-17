@@ -33,10 +33,7 @@ import cmd
 import os
 
 import comm
-
-# set logging verbosity
-# TODO: set it for the module only
-logging.basicConfig(level=logging.WARNING, format=comm.LOGFORMAT)
+comm.set_default_logging(True)
 
 # readline history
 try:
