@@ -1,8 +1,9 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Lighthead-bot programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -22,23 +23,24 @@
 """
 comm package for python.
 versions >= 2.5
-Copyright (C) 2009 frederic DELAUNAY, University of Plymouth (UK).
-"""
-"""
+
 A fully functional template server and associated client talking ASCII:
 Provides async socket-based communication layer for modules + logging support.
 Also allows user classes to inherit from nothing (see create_server() )
 Look at exemple.py for an overview.
 
-recognized module communication arguments:
-client mode: [module_id=ip_address:port]
-server mode: [interface_address:port]
+The server definitions of this module has been largely inspired by SocketServer.
+However, significant modifications make it more usable than the original.
 """
 
-__author__  = "frederic Delaunay f dot d at chx-labs dot org"
-__status__  = "beta"
-__version__ = "0.3"
-__date__    = "$$"
+__author__    = "Frédéric Delaunay"
+__license__   = "GPL"
+__version__   = "0.4b"
+__status__    = "Prototype"
+__date__      = "Thu. 17 Feb 2011"
+__maintainer__= "Frédéric Delaunay"
+__email__     = "f dot d at chx-labs dot org"
+__credits__   = ["University of Plymouth and EPSRC"]
 
 import os
 import socket
@@ -57,11 +59,13 @@ class ProtocolError(Exception):
     """
     pass
 
+
 class CmdError(Exception):
     """Base Exception class for error in command processing.
     Failed commands shall raise exceptions inherting from this class.
     """
     pass
+
 
 class ClassError(Exception):
     """Exception for dealing with type generation.
@@ -189,8 +193,8 @@ class BaseServer(object):
     def serve_forever(self):
         """Blocking call. Inspired from SocketServer.
         """
-	if not self.running:
-	    self.start()
+        if not self.running:
+            self.start()
         if self.threaded:
             self.__is_shut_down.clear()
         try:
@@ -256,33 +260,6 @@ class BaseServer(object):
         del self.polling_sockets[self.polling_sockets.index(sock)]
         del self.clients[sock]
         self.update_poll_timeout()
-
-    def set_auto(self):
-        """Restores functions hooked by set_manual
-        """
-        self.handler_looping = True
-        if hasattr(self, '_fr'):
-            self.finish_request = self._fr
-            self.close_request = self._cr
-
-    def set_manual(self):
-        """Hooks finish_request and close_request for SocketServer to behave as
-        we want:
-        * not blocking in the Handler's __init__
-        * not closing connection after __init__
-        """
-        self.handler_looping = False
-        self._fr = self.finish_request
-        self.finish_request = self._finish_request
-        self._cr = self.close_request
-        self.close_request  = self._close_request
-        # obj = self
-        # cls = obj.__class__
-        # import types
-        # # disable closing of socket while we're still on it (ugly, I know..)
-        # obj.finish_request = types.MethodType(BaseServer._finish_request,obj,cls)
-        # obj.close_request  = types.MethodType(BaseServer._close_request, obj,cls)
-        LOG.debug('overriden finish_request and close_request')
 
     def threadsafe_start(self):
         """Transparent threading support.
@@ -391,6 +368,7 @@ class UDPServer(TCPServer):
         # No need to close anything.
         BaseServer.close_request(self, socket)
 
+
 class ForkingMixIn:
     """Mix-in class to handle each request in a new process.
     """
@@ -463,6 +441,7 @@ class ForkingMixIn:
                 finally:
                     os._exit(1)
 
+
 class ThreadingMixIn:
     """Mix-in class to handle each request in a new thread.
     """
@@ -498,10 +477,8 @@ class ForkingTCPServer(ForkingMixIn, TCPServer): pass
 class ThreadingUDPServer(ThreadingMixIn, UDPServer): pass
 class ThreadingTCPServer(ThreadingMixIn, TCPServer): pass
 
-#
-# addition
+
 # { type of port : { proto : { threading : class } } }
-#
 SERVER_CLASSES = { type(42): {'udp': { True : ThreadingUDPServer,
                                        False: UDPServer },
                               'tcp': { True : ThreadingTCPServer,
@@ -518,7 +495,7 @@ if hasattr(socket, 'AF_UNIX'):
         address_family = socket.AF_UNIX
         def __del__(self):
             clear_unix_socket(self.addr_port)
-        
+
     class UnixDatagramServer(UDPServer):
         address_family = socket.AF_UNIX
         def __del__(self):
@@ -526,14 +503,14 @@ if hasattr(socket, 'AF_UNIX'):
 
     class ThreadingUnixStreamServer(ThreadingMixIn, UnixStreamServer): pass
     class ThreadingUnixDatagramServer(ThreadingMixIn, UnixDatagramServer): pass
-#
-# And of pure reuse
-#
+
+
     SERVER_CLASSES[type('')] = { 'tcp': { True : ThreadingUnixStreamServer,
                                           False: UnixStreamServer },
                                  'udp': { True : ThreadingUnixDatagramServer,
                                           False: UnixDatagramServer }
                                  }
+
 
 def getBaseServerClass(addr_port, threaded):
     """Returns the appropriate base class for server according to addr_port.
@@ -572,7 +549,7 @@ def create_RequestHandlerClass(handler_class, threaded=False):
     if handler_class == RequestHandler:
         raise ClassError("handler_class (%s) must be your own class" %
                          handler_class)
-        
+
     def handler_init(self, server, sock, client_addr):
         """Call initializers properly + runtime support for threading.
         """
@@ -609,12 +586,12 @@ def create_server(ext_class, handler_class, addr_port, thread_info):
         self.set_addrPort(addr_port)
         ext_class.__init__(self)
 
-    return type(ext_class.__name__+base_class.__name__, 
+    return type(ext_class.__name__+base_class.__name__,
                 (ext_class, base_class),{'__init__':init_server})()
 
 
 ###
-# Protocol Level: Request Handlers and Remote Clients 
+# Protocol Level: Request Handlers and Remote Clients
 ###
 
 class BaseComm(object):
@@ -622,15 +599,14 @@ class BaseComm(object):
      base class for a local client connecting to a server (BaseClient) or for a
      handler of a remote client connecting to the local server (RequestHandler).
     This class mainly relies on socket's fileno() function.
-    There's no 
+    There's no
     To implement a binary protocol, you'd override process() and parse_cmd().
     """
 
     CMD_PREFIX = "cmd_"
 
     def __init__(self):
-        self.command = ''
-        self.buffered = ''
+        self.unprocessed = ''
         self.connected = False
         self.running = False
 
@@ -665,14 +641,13 @@ class BaseComm(object):
         Returns: False on socket error, True otherwise.
         """
         try:
-            buff = self.socket.recv(1024)
+            buff = self.socket.recv(2048)
             if not buff:
                 return self.abort()
-            self.command += buff
         except socket.error, e:
             self.handle_error(e)
             return self.abort()
-        self.command = self.command[self.process(self.command):]
+        self.unprocessed = self.process(self.unprocessed + buff)
         return True
 
     def read_while_running(self, timeout=0.01):
@@ -686,22 +661,6 @@ class BaseComm(object):
             if not self.read_once(timeout):
                 return False
         return True
-
-    def handle_error(self, e):
-        """Callback for connection error.
-        """
-        LOG.warning("Connection error :%s", e)
-
-    def handle_disconnect(self):
-        """Callback after client disconnection to (remote) server.
-        """
-        LOG.debug('client disconnected from remote server %s', self.addr_port)
-
-    def handle_notfound(self, cmd, args):
-        """When a method (a command) is not found in self. See process().
-        To be overriden.
-        """
-        LOG.debug("function %s not found in %s [args: '%s']", cmd, self, args)
 
     def parse_cmd(self, cmdline):
         """To be overriden for implementation of a different protocol.
@@ -724,40 +683,38 @@ class BaseComm(object):
                 raise
 
     def process(self, command):
-        """Command dispatcher function. (Override for different protocol)
-
+        """Command dispatcher function. (Override for different protocol).
         Tokenize command and calls 'cmd_ + 1st_token' function defined in self.
-         Calls self.handle_notfound if the built function name isn't defined.
-         Function is called with remaining tokens (array) as one argument.
-         Simultaneous commands (called within the same step) can be issued
-          linking them with '&&'.
-
-        command: string of text to be parsed
-        Returns: number of bytes read.
+        Calls self.handle_notfound if the built function name isn't defined.
+        Function is called with remaining tokens (array) as one argument.
+        Simultaneous commands (called within the same step) can be issued
+         linking them with '&&'.
+        command: (multiline) text data to process
+        Returns: unread last bits, not finishing with a \n
         """
-        length = 0
         LOG.debug("%s> command [%iB]: '%s'",
                   self.socket.fileno(), len(command), command)
-
+        buffered = ''
         for cmdline in command.splitlines(True):
-            length += len(cmdline)
-            cmdline = cmdline.lstrip()
-            if cmdline.startswith('#'):
+            # comment
+            if cmdline.lstrip().startswith('#'):
                 continue
-            elif not cmdline.endswith('\n'):
-                self.buffered += cmdline[:-1]
-                continue
+            # escaped multiline (useful for batchs)
             elif cmdline.endswith('\\\n'):
-                self.buffered += cmdline[:-2]
+                buffered += cmdline[:-2]
                 continue
-            cmdline = cmdline.rstrip()
+            # unfinished line
+            elif not cmdline.endswith('\n'):
+                # may be an issue here with windows \r
+                return cmdline
+            cmdline = buffered + cmdline
+            buffered = ''
+            cmdline = cmdline.strip()
             if not cmdline:
                 continue
-            cmdline = self.buffered + cmdline
-            self.buffered = ''
             for cmd in cmdline.split('&&'):
                 self.parse_cmd(cmd)
-        return length
+        return buffered
 
     def send_msg(self, msg):
         """Sends msg with a trailing \\n as required by the protocol.
@@ -765,12 +722,28 @@ class BaseComm(object):
         LOG.debug("sending %s\n", msg)
         self.socket.send(msg+'\n')
 
+    def handle_error(self, e):
+        """Callback for connection error.
+        """
+        LOG.warning("Connection error :%s", e)
+
+    def handle_disconnect(self):
+        """Callback after client disconnection to (remote) server.
+        """
+        LOG.debug('client disconnected from remote server %s', self.addr_port)
+
+    def handle_notfound(self, cmd, args):
+        """When a method (a command) is not found in self. See process().
+        To be overriden.
+        """
+        LOG.debug("function %s not found in %s [args: '%s']", cmd, self, args)
+
     def cmd_bye(self, args):
         """Disconnects that client.
         """
         self.running = False
     cmd_EOF = cmd_bye
-        
+
 
 class RequestHandler(BaseComm):
     """Instancied on successful connection to the server: a remote client.
@@ -839,7 +812,7 @@ class RequestHandler(BaseComm):
         for client_info in clients_infos:
             obuffer += "\\\n> %s:  %5s  %s" % client_info
         self.send_msg(obuffer)
-        
+
     def cmd_verb(self, args):
         """Changes LOG verbosity level.
         """
@@ -868,7 +841,7 @@ class BaseClient(BaseComm):
 
     def set_connect_timeout(self, timeout):
         """Sets the timeout connecting to a server.
-        Use 
+        Use
         """
         self.connect_timeout = timeout
         # self.socket.settimeout(timeout)
@@ -902,12 +875,12 @@ class BaseClient(BaseComm):
 
     def connect(self):
         """Creates a new connection to a server.
-        Returns: 
+        Returns:
         """
         assert self.connected is False, 'connecting while connected ?'
         LOG.debug('connecting to %s:%s (for %s)', self.addr_port[0],
                   self.addr_port[1], (self.connect_timeout is None and 'ever')
-		  or str(self.connect_timeout)+'s.')
+                  or str(self.connect_timeout)+'s.')
         try:
             self.socket = socket.socket(self.family)
             self.socket.settimeout(self.connect_timeout)
@@ -934,13 +907,13 @@ class BaseClient(BaseComm):
             pass
         if not self.connected:
             return False
-	try:
-	    self.read_while_running(timeout)
+        try:
+            self.read_while_running(timeout)
             ret = True
-	except select.error, e:
-	    self.handle_error(e)
+        except select.error, e:
+            self.handle_error(e)
             ret = False
-	finally:
+        finally:
             if self.socket:
                 self.socket.close()
             self.connected = False
@@ -958,6 +931,7 @@ def set_default_logging(debug=False):
     LOG.info('Logger[%s] set log level to %s',
              LOG.name, debug and 'DEBUG' or 'INFO')
 
+
 def get_conn_infos(addr_port):
     """
     """
@@ -970,7 +944,7 @@ def get_conn_infos(addr_port):
 
 
 if __name__ == '__main__':
-    THREADED_SERVER  = False 
+    THREADED_SERVER  = False
     THREADED_CLIENTS = False
     THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 
