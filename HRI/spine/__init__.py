@@ -213,11 +213,12 @@ class SpineBase(object):
 
 
 try:
-    from spine.backend import SpineHW as Spine_Server
+    backend= getattr(__import__('spine.'+conf.spine_backend),conf.spine_backend)
+    Spine_Server = backend.SpineHW 
 except ImportError, e:
     print 
     print '*** SPINE MISCONFIGURATION ***'
-    print 'Make sure the SPINE backend link points to your backend!'
+    print 'Check in your config file for the value of spine_backend !'
     print 'for your information:', e
     raise 
 
