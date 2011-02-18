@@ -1,15 +1,17 @@
+#!/bin/bash
+
 # just checks if conf can be loaded automatically (env / filepath)
-function get_CWD
+get_CWD ()
 {
 python -c 'import os; print os.getcwd()'
 }
 
-function get_paths
+get_paths ()
 {
     python -c 'import sys; print sys.path'
 }
 
-function get_python_conf
+get_python_conf ()
 {
 python -c 'import conf;
 conf.set_name("'$1'")
@@ -24,7 +26,7 @@ exit(0)'
 }
 
 # checks if there's missing definitions in the conf file
-function check_python_conf
+check_python_conf ()
 {
 python -c 'import conf;
 conf.set_name("'$1'")
@@ -41,7 +43,7 @@ exit(0)'
 }
 
 # get search path and files checked for conf
-get_python_conf_candidates()
+get_python_conf_candidates ()
 {
 python -c 'import conf;
 conf.set_name("'$1'")
