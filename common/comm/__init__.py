@@ -724,8 +724,17 @@ class BaseComm(object):
 
     def handle_error(self, e):
         """Callback for connection error.
+        Installs an interactive pdb session if logger is at DEBUG level.
         """
+        import traceback
         LOG.warning("Connection error :%s", e)
+        if LOG.getEffectiveLevel() != logging.DEBUG:
+            print 'use debug mode to spawn post-mortem analysis with pdb'
+        else:
+            import pdb
+            print '===EXCEPTION CAUGHT'+'='*60
+            traceback.print_exc()
+            pdb.post_mortem()
 
     def handle_disconnect(self):
         """Callback after client disconnection to (remote) server.
