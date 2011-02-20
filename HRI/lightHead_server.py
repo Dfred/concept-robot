@@ -90,7 +90,7 @@ class lightHeadHandler(MetaRequestHandler):
 #        for k,v in self.server.FP.get_snapshot(origins).iteritems():
 #            self.send_msg(k+' '+' '.join(v))
         for o in origins:
-            self.send_msg('snapshot %s %s' % (o, self.server.FP[o]))
+            self.send_msg('snapshot %s\n%s' % (o, self.server.FP[o]))
         self.send_msg('end_snapshot')
 
 
