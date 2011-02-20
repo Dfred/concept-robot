@@ -1,9 +1,9 @@
 #!/usr/bin/python
 
-# Lighthead-bot programm is a HRI PhD project at 
+# Lighthead-bot programm is a HRI PhD project at
 #  the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -24,7 +24,7 @@
 # FACE MODULE
 #
 # This module handles motion of the facial features.
-# 
+#
 # MODULES IO:
 #===========
 # INPUT: - vision (eye orientation for eyelid position) [event]
@@ -48,23 +48,9 @@ conf.load()
 if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
     LOG.setLevel(logging.DEBUG)
 
-# conversion table for float-based AU identification
-float_to_AUname = { 
-    -1:'01L', 1:'01R', -2:'02L', 2:'02R', -4:'04L', 4:'04R', -5:'05L', 5:'05R',
-     -6:'06L', 6:'06R', -7:'07L', 7:'07R', -8:'08L', 8:'08R', -9:'09L', 9:'09R',
-     -10:'10L', 10:'10R', -11:'11L', 11:'11R', -12:'12L', 12:'12R',
-     -13:'13L', 13:'13R', -14:'14L', 14:'14R', -15:'15L', 15:'15R',
-     -16:'16L', 16:'16R', .17:'17', -18:'18L', 18:'18R', -20:'20L', 20:'20R',
-     -21:'21L', 21:'21R', -22:'22L', 22:'22R', -23:'23L', 23:'23R',
-     -24:'24L', 24:'24R', .25:'25' , 26:'26', -28:'28L', 28:'28R', .31:'31',
-     -32:'32L', 32:'32R', -33:'33L', 33:'33R', -38:'38L', 38:'38R',
-     -39:'39L', 39:'39R', -61.5:'61.5L', 61.5:'61.5R', .635:'63.5'
-}
-AUname_to_float = dict(zip(float_to_AUname.values(),float_to_AUname.keys()))
-
 class Face_Handler(object):
     """Remote connection handler: protocol parser."""
-    
+
     def __init__(self, *args):
         self.fifo = collections.deque()
 
@@ -72,26 +58,30 @@ class Face_Handler(object):
         """if empty, returns current values. Otherwise, set them.
          argline: sending_module AU_name  target_value  duration.
         """
+        argline = argline.strip()
         if len(argline):
             try:
                 au_name, value, duration = argline.split()[:3]
             except ValueError, e:
                 LOG.error("[AU] wrong number of arguments (%s)",e)
+                return
             try:
                 value, duration = float(value), float(duration)
-                if duration < self.server.MIN_ATTACK_TIME:
-                    LOG.warning("attack time (%s) too short, setting at %s.",
-                                duration, self.server.MIN_ATTACK_TIME)
-                    duration = self.server.MIN_ATTACK_TIME
-                self.fifo.append((AUname_to_float[au_name], value, duration))
             except ValueError,e:
                 LOG.error("[AU] invalid float (%s)", e)
-            except KeyError, e:
-                if not AUname_to_float.has_key(au_name+'R'):
-                    LOG.warning("[AU] invalid AU (%s)", au_name)
-                    return
-                self.fifo.append((AUname_to_float[au_name+'R'],value,duration))
-                self.fifo.append((AUname_to_float[au_name+'L'],value,duration))
+                return
+            if duration < self.server.MIN_ATTACK_TIME:
+                LOG.warning("attack time (%s) too short, setting at %s.",
+                            duration, self.server.MIN_ATTACK_TIME)
+                duration = self.server.MIN_ATTACK_TIME
+            if self.server.AUs.has_key(au_name):
+                self.fifo.append((au_name, value, duration))
+            elif self.server.AUs.has_key(au_name+'R'):
+                self.fifo.append((au_name+'R',value,duration))
+                self.fifo.append((au_name+'L',value,duration))
+            else:
+                LOG.warning("[AU] invalid AU (%s)", au_name)
+                return
         else:
             msg = ""
             AU_info = self.server.get_all_AU()
@@ -106,21 +96,6 @@ class Face_Handler(object):
         self.server.set_AUs(self.fifo)
         self.fifo.clear()
 
-    # def cmd_start(self, argline):
-    #     try:
-    #         start = float(argline.strip())
-    #     except Exception, e:
-    #         LOG.warning("[origin] bad argument line:'%s', caused: %s" %
-    #                     (argline,e) )
-
-    #     self.start_time = float(start)
-    #     if self.start_time - time.time() < 0:
-    #         LOG.warning("[origin] time received is elapsed: [r:%s c:%f]" %
-    #                     (start, time.time()) )
-    #     if self.start_time - time.time() > 30:
-    #         LOG.warning("[origin] time received > 30s in future %s" % start)
-
-
 
 class Face_Server(object):
     """Main facial feature animation module
@@ -131,11 +106,11 @@ class Face_Server(object):
     On target overwrite, interpolation starts from current value.
     """
 
-    COLS = 5
+    COLS = 4
     MIN_ATTACK_TIME = 0.001     # in seconds.
 
     def __init__(self):
-        # array of : AU_name(in float), target, remaining, coeff, value
+        # { AU_name : numpy array [target, remaining, coeff, value] }
         self.AUs = None
         self.updates = []
         self.thread_id = thread.get_ident()
@@ -146,15 +121,6 @@ class Face_Server(object):
         """
         self.FP = feature_pool
 
-    def index(self, AU):
-        """Returns index of specified AU or raises IndexError if not found.
-        AU: float
-        """
-        return numpy.nonzero(self.AUs[:,0] == AU)[0][0]
-
-    def get_AU(self, AU):
-        return self.AUs[numpy.where(self.AUs[:,0] == AU)[0][0],:]
-
     def get_all_AU(self):
         return self.AUs
 
@@ -162,13 +128,15 @@ class Face_Server(object):
         """Define list of AUs available for a specific face.
          available_AUs: list of AUs (floats)
         """
-        self.AUs = numpy.zeros((len(available_AUs), self.COLS), 
-                               dtype=numpy.float32)
-        self.AUs[:,0] = sorted([AUname_to_float[au] for au in available_AUs])
+        a = numpy.zeros((len(available_AUs), self.COLS), dtype=numpy.float32)
+        self.AUs = dict(zip(sorted(available_AUs),a))
+        # set region-based AUs
 #        for name in SUPPORTED_ORIGINS:
 #            self.FP.add_feature(name, self.subarray_from_origin(name))
-        self.FP['face'] = self.AUs
-        LOG.info("Available AUs:\n%s" % self.AUs[:,0])
+        self.FP['face'] = a
+        LOG.info("Available AUs:\n")
+        for key in sorted(self.AUs.keys()):
+            LOG.info("%5s : %s", key, self.AUs[key])
 
     def set_AUs(self, iterable):
         """Set targets for a specific AU, giving priority to specific inputs.
@@ -178,11 +146,9 @@ class Face_Server(object):
             self.threadsafe_start()
         for AU, target, attack in iterable:
             try:
-                AU_data = self.AUs[self.index(AU),:]
+                self.AUs[AU][:-1]= target,attack,(target-self.AUs[AU][3])/attack
             except IndexError:
-                LOG.warning('AU %s not found', AU)
-            else:
-                AU_data[1:4] = target, attack, (target-AU_data[4])/attack
+                LOG.warning("AU '%s' not found", AU)
         if self.thread_id != thread.get_ident():
             self.threadsafe_stop()
 
@@ -193,16 +159,19 @@ class Face_Server(object):
         """
         if self.thread_id != thread.get_ident():
             self.threadsafe_start()
-        actives_idx = self.AUs[:,2] > 0  # AUs with remaining time
-        self.AUs[actives_idx,4] += self.AUs[actives_idx,3] * time_step
-        self.AUs[:,2] -= time_step
-        # don't wait for next step to finish off shortest activations
-        overgone_idx = self.AUs[:,2]< self.MIN_ATTACK_TIME
-        self.AUs[overgone_idx, 2] = 0
-        self.AUs[overgone_idx, 4] = self.AUs[overgone_idx, 1]
+        data = self.FP['face']
+        actives_idx = data[:,1] > 0  # AUs with remaining time
+        if not any(actives_idx):
+            return {}
+        data[actives_idx,3] += data[actives_idx,2] * time_step
+        data[:,1] -= time_step
+        # finish off shortest activations
+        overgone_idx = data[:,1]< self.MIN_ATTACK_TIME
+        data[overgone_idx, 1] = 0
+        data[overgone_idx, 3] = data[overgone_idx, 0]
         if self.thread_id != thread.get_ident():
-            self.threadsafe_start()
-        return self.AUs[actives_idx,0::4]
+            self.threadsafe_stop()
+        return self.AUs
 
     def solve(self):
         """Here we can set additional checks (eg. AU1 vs AU4, ...)
@@ -213,7 +182,7 @@ try:
     backend = getattr(__import__('face.'+conf.face_backend),conf.face_backend)
     main = backend.main
 except ImportError, e:
-    print 
+    print
     print '*** FACE MISCONFIGURATION ***'
     print 'check in your config file for the value of face_backend !'
     print 'for your information:', e
