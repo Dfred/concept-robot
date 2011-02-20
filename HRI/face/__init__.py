@@ -42,6 +42,7 @@ import numpy
 
 import comm
 import conf
+import HRI
 
 LOG = logging.getLogger(__package__)
 conf.load()
@@ -59,37 +60,30 @@ class Face_Handler(object):
          argline: sending_module AU_name  target_value  duration.
         """
         argline = argline.strip()
-        if len(argline):
-            try:
-                au_name, value, duration = argline.split()[:3]
-            except ValueError, e:
-                LOG.error("[AU] wrong number of arguments (%s)",e)
-                return
-            try:
-                value, duration = float(value), float(duration)
-            except ValueError,e:
-                LOG.error("[AU] invalid float (%s)", e)
-                return
-            if duration < self.server.MIN_ATTACK_TIME:
-                LOG.warning("attack time (%s) too short, setting at %s.",
-                            duration, self.server.MIN_ATTACK_TIME)
-                duration = self.server.MIN_ATTACK_TIME
-            if self.server.AUs.has_key(au_name):
-                self.fifo.append((au_name, value, duration))
-            elif self.server.AUs.has_key(au_name+'R'):
-                self.fifo.append((au_name+'R',value,duration))
-                self.fifo.append((au_name+'L',value,duration))
-            else:
-                LOG.warning("[AU] invalid AU (%s)", au_name)
-                return
+        if not len(argline):
+            return
+        try:
+            au_name, value, duration = argline.split()[:3]
+        except ValueError, e:
+            LOG.error("[AU] wrong number of arguments (%s)",e)
+            return
+        try:
+            value, duration = float(value), float(duration)
+        except ValueError,e:
+            LOG.error("[AU] invalid float (%s)", e)
+            return
+        if duration < self.server.MIN_ATTACK_TIME:
+            LOG.warning("attack time (%s) too short, setting at %s.",
+                        duration, self.server.MIN_ATTACK_TIME)
+            duration = self.server.MIN_ATTACK_TIME
+        if self.server.AUs.has_key(au_name):
+            self.fifo.append((au_name, value, duration))
+        elif self.server.AUs.has_key(au_name+'R'):
+            self.fifo.append((au_name+'R',value,duration))
+            self.fifo.append((au_name+'L',value,duration))
         else:
-            msg = ""
-            AU_info = self.server.get_all_AU()
-            AU_info.sort()
-            # name, target, duration
-            for triplet in AU_info:
-                msg += "AU {0[0]:5s} {0[1]} {0[2]:.3f}\n".format(triplet)
-            self.send_msg(str(msg))
+            LOG.warning("[AU] invalid AU (%s)", au_name)
+            return
 
     def cmd_commit(self, argline):
         """Commit buffered updates"""
@@ -106,29 +100,20 @@ class Face_Server(object):
     On target overwrite, interpolation starts from current value.
     """
 
-    COLS = 4
     MIN_ATTACK_TIME = 0.001     # in seconds.
 
     def __init__(self):
-        # { AU_name : numpy array [target, remaining, coeff, value] }
         self.AUs = None
         self.updates = []
         self.thread_id = thread.get_ident()
-
-    def set_featurePool(self, feature_pool):
-        """Attach the feature_pool for further registration of self.AUs .
-        feature_pool: a dict of { origin : numpy.array }
-        """
-        self.FP = feature_pool
-
-    def get_all_AU(self):
-        return self.AUs
+        self.FP = HRI.FeaturePool()         # dict of { origin : numpy.array }
 
     def set_available_AUs(self, available_AUs):
         """Define list of AUs available for a specific face.
          available_AUs: list of AUs (floats)
         """
-        a = numpy.zeros((len(available_AUs), self.COLS), dtype=numpy.float32)
+        a = numpy.zeros((len(available_AUs), 4), dtype=numpy.float32)
+        # { AU_name : numpy array [target, remaining, coeff, value] }
         self.AUs = dict(zip(sorted(available_AUs),a))
         # set region-based AUs
 #        for name in SUPPORTED_ORIGINS:

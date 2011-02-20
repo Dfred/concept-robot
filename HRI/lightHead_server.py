@@ -1,7 +1,7 @@
-# LightHead-bot programm is a HRI PhD project at 
+# LightHead-bot programm is a HRI PhD project at
 #  the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -85,7 +85,7 @@ class lightHeadHandler(MetaRequestHandler):
         argline: origins identifying arrays to be sent.
         """
         origins = ( argline.strip() and [ o.strip() for o in argline.split()
-                                        if o in self.server.FP.keys() ] 
+                                        if o in self.server.FP.keys() ]
                     ) or self.server.FP.keys()
 #        for k,v in self.server.FP.get_snapshot(origins).iteritems():
 #            self.send_msg(k+' '+' '.join(v))
@@ -123,10 +123,6 @@ class lightHeadServer(MetaServer):
                   server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
                                                            req_handler_class)
-        # Servers shall call feature_pool.add_feature with appropriate origin(s)
-        #  identifying their internal numpy array. We just can't predict when
-        #  their array will be created.
-        server.set_featurePool(self.FP)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.

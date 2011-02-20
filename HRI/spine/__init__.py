@@ -7,8 +7,10 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-import comm, conf
 import logging
+
+import comm, conf
+import HRI
 
 LOG = logging.getLogger(__package__)
 conf.load()
@@ -128,12 +130,7 @@ class SpineBase(object):
         self._tolerance = 0.0    # in radians
         self._motors_on = False
         self._lock_handler = None
-
-    def set_featurePool(self, feature_pool):
-        """Attach the feature pool for our viewable internal data.
-        feature_pool: a dict of { origin : numpy.array }
-        """
-        self.FP = feature_pool
+        self.FP = HRI.FeaturePool() # dict of { origin : numpy.array }
 
     # Note: property decorators are great but don't allow child class to define
     #       just the setter...
@@ -157,7 +154,7 @@ class SpineBase(object):
     def set_lock_handler(self, handler):
         """function to call upon collision detection locking"""
         self._lock_handler = handler
-    
+
     def set_neck_orientation(self, axis3):
         """Absolute orientation:"""
         raise NotImplemented()
@@ -214,13 +211,13 @@ class SpineBase(object):
 
 try:
     backend= getattr(__import__('spine.'+conf.spine_backend),conf.spine_backend)
-    Spine_Server = backend.SpineHW 
+    Spine_Server = backend.SpineHW
 except ImportError, e:
-    print 
+    print
     print '*** SPINE MISCONFIGURATION ***'
     print 'Check in your config file for the value of spine_backend !'
     print 'for your information:', e
-    raise 
+    raise
 
 __all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 

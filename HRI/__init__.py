@@ -55,9 +55,8 @@ class FeaturePool(dict):
         Returns: all context (default) or subset from specified features.
         """
         features = features or features.iterkeys()
-        return dict( (f,
-                      isinstance(self[f],np.ndarray) and self[f] or 
-                      self[f].get_feature() )
+        return dict( (f, isinstance(self[f],np.ndarray) and self[f] or
+                         self[f].get_feature() )
                      for f in features )
 
 
@@ -77,7 +76,7 @@ def initialize(thread_info):
             # set system-wide logging level
             import comm; comm.set_default_logging(debug=True)
     except conf.LoadException, e:
-        fatal('in file {0[0]}: {0[1]}'.format(e)) 
+        fatal('in file {0[0]}: {0[1]}'.format(e))
 
     # Initializes the system
     import comm
