@@ -21,7 +21,8 @@
 
 
 import threading, time
-import comm
+
+from utils import comm
 
 comm.set_default_logging(True)
 LOG = comm.LOG

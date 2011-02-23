@@ -34,7 +34,7 @@ from pyvision.types.Video import Webcam
 from pyvision.edge.canny import canny
 
 from HRI import FeaturePool
-from common import fps
+from utils import fps
 
 
 class VisionException(Exception):

@@ -23,8 +23,7 @@ import math
 import time
 import random
 
-import conf
-import comm
+from utils import conf, comm
 from HRI import vision
 from control.interfaces.communication import ExpressionComm
 from control import Behaviour as FSM

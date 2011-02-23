@@ -18,7 +18,7 @@
 import math
 import logging
 
-import comm, conf
+from utils import comm, conf
 
 __author__ = "Frédéric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
