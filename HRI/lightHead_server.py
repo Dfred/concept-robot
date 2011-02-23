@@ -1,7 +1,7 @@
-# LightHead-bot programm is a HRI PhD project at 
+# LightHead-bot programm is a HRI PhD project at
 #  the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -36,7 +36,7 @@ import logging
 
 import numpy
 
-from comm.meta_server import MetaRequestHandler, MetaServer
+from utils.comm.meta_server import MetaRequestHandler, MetaServer
 from HRI import FeaturePool
 
 LOG = logging.getLogger(__package__)
@@ -61,11 +61,12 @@ class lightHeadHandler(MetaRequestHandler):
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
         if argline:
+            argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
                 self.updated.append(argline)
             except KeyError:
-                LOG.warning('unknown origin: %s', argline)
+                LOG.warning("unknown origin: '%s'", argline)
         else:
             self.send_msg("origin is %s" % self.curr_handler)
 
@@ -84,12 +85,12 @@ class lightHeadHandler(MetaRequestHandler):
         argline: origins identifying arrays to be sent.
         """
         origins = ( argline.strip() and [ o.strip() for o in argline.split()
-                                        if o in self.server.FP.keys() ] 
+                                        if o in self.server.FP.keys() ]
                     ) or self.server.FP.keys()
 #        for k,v in self.server.FP.get_snapshot(origins).iteritems():
 #            self.send_msg(k+' '+' '.join(v))
         for o in origins:
-            self.send_msg('snapshot %s %s' % (o, self.server.FP[o]))
+            self.send_msg('snapshot %s\n%s' % (o, self.server.FP[o]))
         self.send_msg('end_snapshot')
 
 
@@ -122,10 +123,6 @@ class lightHeadServer(MetaServer):
                   server, req_handler_class, origin)
         self.origins[origin] = server, MetaServer.register(self, server,
                                                            req_handler_class)
-        # Servers shall call feature_pool.add_feature with appropriate origin(s)
-        #  identifying their internal numpy array. We just can't predict when
-        #  their array will be created.
-        server.set_featurePool(self.FP)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
@@ -135,16 +132,16 @@ class lightHeadServer(MetaServer):
 #TODO:        See more info in the documentation.
 #        """
         # conf's specifics should have been sorted out much earlier
-        import conf; conf.load()
+        from utils import conf; conf.load()
 
         # check for mod_... attributes, allowing a submodule to register more
         #  than one ORIGIN keyword with its extra_origins attribute.
         for info, name in [ (getattr(conf,name), name[4:]) for name in dir(conf)
                             if name.startswith('mod_') ]:
             try:
-                module = __import__(name)
-            except ImportError:
-                LOG.info("Found %s's config but couldn't load that HRI module",
+                module = __import__('HRI.'+name, fromlist=['HRI'])
+            except ImportError, e:
+                LOG.info("Found config for '%s' but couldn't import the module",
                          name)
                 continue
             try:

@@ -11,43 +11,44 @@
 #  * sets the edit_face alias
 #
 if test -z "$CONCEPT_DIR"; then
-    echo '$CONCEPT_DIR' not set, assuming '$PWD' "($PWD)"
+    echo '$CONCEPT_DIR' not set, assuming $PWD
     CONCEPT_DIR=$PWD
 fi
 
-# override PROJECT_NAME if given an argument
-if test $0 != './start_face.sh' && test -n "$1"; then
+# set PROJECT_NAME if given an argument
+if test -z "$PROJECT_NAME" && test "$0" != './start_face.sh' && test -n "$1";
+ then
     PROJECT_NAME=$1
+    echo "set PROJECT_NAME to $1"
 fi
 
-# test known errors 1st
-if ! test -d "$CONCEPT_DIR/common"; then
-	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
-elif test -z "$PROJECT_NAME"; then
+# test common errors 1st
+if test -z "$PROJECT_NAME"; then
 	echo "missing argument or "'$PROJECT_NAME'" not set: cannot continue."
 else
     echo "Setting environment for project: $PROJECT_NAME"
-
-    DIST_PACKS_PATH=/usr/lib/python2.6/dist-packages
+    # Load helper functions (calling python)
+    . $CONCEPT_DIR/common/source_me_python_conf_fcts.sh
+    # reset CONCEPT_DIR (minGW paths are screwing python's os.path)
+    CONCEPT_DIR=$(get_CWD)
 
     # Platform dependent paths (handles the famous nagger thanks to minGW)
     case `uname -s` in
 	MINGW*)
-	    MODULES_PATH="$CONCEPT_DIR;$CONCEPT_DIR/common;$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
-	    PYTHONPATH="$MODULES_PATH"
-	    ;;
+            PATH_S_=';'
+            DIST_PACKS_P='c:\Python26\lib\site-packages'
+            ;;
 	*)
-	    MODULES_PATH="$CONCEPT_DIR:$CONCEPT_DIR/common:$CONCEPT_DIR/HRI:$CONCEPT_DIR/ext/"
-            PYTHONPATH="$PYTHONPATH:$DIST_PACKS_PATH:$MODULES_PATH"
+            PATH_S_=':'
+            DIST_PACKS_P='/usr/lib/python2.6/dist-packages'
 	    ;;
     esac
-    export PYTHONPATH
-
-    # Load helper functions (calling python)
-    . $CONCEPT_DIR/common/source_me.sh
+    EXTRA="$CONCEPT_DIR/HRI/face/$PATH_S_$CONCEPT_DIR/ext"
+    MODULES_PATH="$CONCEPT_DIR/$PATH_S_$EXTRA"
+    export PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
 
     CONF_FILE=$(get_python_conf $PROJECT_NAME)
-    if test $? != 0 ; then
+    if test "$?" != 0 ; then
 	echo "$CONF_FILE"
 	unset CONF_FILE
     else
@@ -60,9 +61,12 @@ else
 	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
 
-	MISSING= check_python_conf $PROJECT_NAME
+        echo -n "Checking conf... "
+	MISSING=$(check_python_conf $PROJECT_NAME)
 	if test -n "$MISSING"; then
 	    echo "missing required entries in conf: $MISSING"
+	else
+	    echo "OK"
 	fi
     fi
     alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"

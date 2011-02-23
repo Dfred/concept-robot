@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-# Lighthead-bot programm is a HRI PhD project at
-#  the University of Plymouth,
+# LightHead programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.  
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk

@@ -1,7 +1,7 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
-# Lighthead-bot and this programm is part of a HRI PhD project at
-#  the University of Plymouth,
+# LightHead programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.  
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
@@ -19,6 +19,7 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
 #
 # Windows users: you need pyreadline from PyPI (http://pypi.python.org/pypi).
 #
@@ -33,10 +34,7 @@ import cmd
 import os
 
 import comm
-
-# set logging verbosity
-# TODO: set it for the module only
-logging.basicConfig(level=logging.WARNING, format=comm.LOGFORMAT)
+comm.set_default_logging(False)#True)
 
 # readline history
 try:
@@ -129,8 +127,11 @@ class commConsClient(comm.BaseClient):
             self.ui.redraw_prompt()
 
     def handle_error(self, e):
-        print "\n - Communication error:", e,"\n - press enter to finish"
-        self.handle_disconnect()
+        if self.ui:
+            self.ui.done = True
+        comm.BaseClient.handle_error(self,ex)
+        #print "\n - Communication error:", e,"\n - press enter to finish"
+        #self.handle_disconnect()
 
     def handle_timeout(self):
         """Called when timeout waiting for data has expired."""
@@ -144,14 +145,11 @@ class commConsClient(comm.BaseClient):
                     self.running = False
                     return
 
-    def process(self, line):
+    def handle_notfound(self, cmd, args):
         """method that handles incoming data (line by line)."""
-        if not line:
-            return 0
-        print "\n", line
+        print cmd[4:], args,
         if self.ui:
             self.ui.redraw_prompt()
-        return len(line)
 
 
 if __name__ == "__main__":

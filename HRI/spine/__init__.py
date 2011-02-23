@@ -1,3 +1,25 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# LightHead programm is a HRI PhD project at the University of Plymouth,
+#  a Robotic Animation System including face, eyes, head and other
+#  supporting algorithms for vision and basic emotions.
+# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+
+#  This program is free software: you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License as
+#   published by the Free Software Foundation, either version 3 of the
+#   License, or (at your option) any later version.
+
+#  This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
 #
 # The spine module controls orientation and position of the robot torso and neck
 # It provides a high-level API and relies on the backend implemented in the
@@ -7,15 +29,15 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-import comm, conf
 import logging
 
-if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
-    comm.set_default_logging(debug=True)
-    LOG = comm.LOG
-else:
-    LOG = logging.getLogger(__package__)
+import comm, conf
+import HRI
 
+LOG = logging.getLogger(__package__)
+conf.load()
+if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+    LOG.setLevel(logging.DEBUG)
 
 class SpineProtocolError(comm.ProtocolError):
     pass
@@ -130,6 +152,7 @@ class SpineBase(object):
         self._tolerance = 0.0    # in radians
         self._motors_on = False
         self._lock_handler = None
+        self.FP = HRI.FeaturePool() # dict of { origin : numpy.array }
 
     # Note: property decorators are great but don't allow child class to define
     #       just the setter...
@@ -153,7 +176,7 @@ class SpineBase(object):
     def set_lock_handler(self, handler):
         """function to call upon collision detection locking"""
         self._lock_handler = handler
-    
+
     def set_neck_orientation(self, axis3):
         """Absolute orientation:"""
         raise NotImplemented()
@@ -209,13 +232,14 @@ class SpineBase(object):
 
 
 try:
-    from spine.backend import SpineHW as Spine_Server
+    backend= __import__(conf.spine_backend, fromlist=['HRI.spine'])
+    Spine_Server = backend.SpineHW
 except ImportError, e:
-    print 
+    print
     print '*** SPINE MISCONFIGURATION ***'
-    print 'Make sure the SPINE backend link points to your backend!'
+    print 'Check in your config file for the value of spine_backend !'
     print 'for your information:', e
-    raise 
+    raise
 
 __all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
@@ -224,7 +248,6 @@ if __name__ == '__main__':
     import sys
     try:
         comm.set_default_logging(debug=True)
-        conf.load()
         server = comm.create_server(Spine, SpineComm, conf.conn_spine,
                                     (False,False))
     except (conf.LoadException, UserWarning), err:

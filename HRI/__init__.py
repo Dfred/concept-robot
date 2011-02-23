@@ -55,9 +55,8 @@ class FeaturePool(dict):
         Returns: all context (default) or subset from specified features.
         """
         features = features or features.iterkeys()
-        return dict( (f,
-                      isinstance(self[f],np.ndarray) and self[f] or 
-                      self[f].get_feature() )
+        return dict( (f, isinstance(self[f],np.ndarray) and self[f] or
+                         self[f].get_feature() )
                      for f in features )
 
 
@@ -70,17 +69,17 @@ def initialize(thread_info):
 
     # check configuration
     try:
-        import conf; missing = conf.load()
+        from utils import conf; missing = conf.load()
         if missing:
             fatal('missing configuration entries: %s' % missing)
         if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
             # set system-wide logging level
-            import comm; comm.set_default_logging(debug=True)
+            from utils import comm; comm.set_default_logging(debug=True)
     except conf.LoadException, e:
-        fatal('in file {0[0]}: {0[1]}'.format(e)) 
+        fatal('in file {0[0]}: {0[1]}'.format(e))
 
     # Initializes the system
-    import comm
+    from utils import comm
     from lightHead_server import lightHeadServer, lightHeadHandler
     server = comm.create_server(lightHeadServer, lightHeadHandler,
                                 conf.lightHead_server, thread_info)

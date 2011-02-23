@@ -2,7 +2,7 @@
 
 # LightHead programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -38,10 +38,6 @@ from math import cos, sin, pi
 
 import GameLogic as G
 
-from face import float_to_AUname
-
-MAX_FPS = 50
-
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
 #  their own. With standard python VM, no threading is supposedly faster.
@@ -58,12 +54,11 @@ THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
-EXTRA_PROPS = ['61.5L', '61.5R', '63.5']        # eyes
-RESET_ORIENTATION = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
+MAX_FPS = 60
 INFO_PERIOD = 0
 
 def exiting():
-    #We check if there is a valid "server" object because its possible that 
+    #We check if there is a valid "server" object because its possible that
     #we were unable to create it, and therefore we are shutting down
     if hasattr(G, "server"):
       G.server.shutdown()
@@ -73,7 +68,7 @@ atexit.register(exiting)
 def fatal(error):
     """Common function to gracefully quit."""
     print '*** Fatal Error ***', error
-    import conf; conf.load()
+    from utils import conf; conf.load()
     if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
         import traceback; traceback.print_exc()
     shutdown(G.getCurrentController())
@@ -88,7 +83,8 @@ def shutdown(cont):
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
-    keys = [ act.name for act in acts] + EXTRA_PROPS
+    keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
+
     for name in keys:
         if not owner.has_key('p'+name):
             raise Exception('missing property p%s' % name)
@@ -126,36 +122,40 @@ def initialize(server):
     server.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
 
     # ok, startup
-    G.initialized = True	
-    G.setMaxLogicFrame(1)       # relative to rendering
+    G.initialized = True
     G.setLogicTicRate(MAX_FPS)
+    G.setMaxLogicFrame(1)       # relative to rendering
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    Rasterizer.setBackgroundColor([.0, .0, .0, 1.0])
     print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
-    G.last_update_time = time.time()    
+    G.last_update_time = time.time()
     return cont
 
 
-def update(faceServer, time_diff):
+def update():
     """
     """
     global INFO_PERIOD
 
+    srv = G.face_server
     cont = G.getCurrentController()
     eyes_done = False
+    time_diff = time.time() - G.last_update_time
 
     # threaded server is thread-safe
-    for au, value in faceServer.update(time_diff):
-        if int(abs(au/10)) == 6:# XXX: yes, 6 is an eye prefix (do better ?)
+    face_map = srv.update(time_diff)
+
+    for au, values in face_map.iteritems():
+        # XXX: yes, 6 is an eye prefix (do better ?)
+        if au.startswith('6'):
             if eyes_done:
                 continue
             # The model is supposed to look towards negative Y values
             # Also Up is positive Z values
-            ax  = -faceServer.get_AU( 63.5)[3]
-            az0 =  faceServer.get_AU( 61.5)[3]
-            az1 =  faceServer.get_AU(-61.5)[3]
-            # No ACTION for eyes
+            ax  = -face_map['63.5'][3]
+            az0 =  face_map['61.5R'][3]
+            az1 =  face_map['61.5L'][3]
+            # No blender ACTION for eyes
             G.eye_L.localOrientation = [
                 [cos(az0),        -sin(az0),         0],
                 [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
@@ -165,15 +165,16 @@ def update(faceServer, time_diff):
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
-        elif au/10 == 9:        # XXX: yes, 9 is a tongue prefix (do better ?)
-            G.tongue[au] = SH_ACT_LEN * value
-        elif au == 26:
+        # XXX: yes, 9 is a tongue prefix (do better ?)
+        elif au.startswith('9'):
+            G.tongue[au] = SH_ACT_LEN * values[3]
+        elif au == '26':
             # TODO: try with G.setChannel
-            G.jaw['p26'] = SH_ACT_LEN * value    # see always sensor in .blend
+            G.jaw['p26'] = SH_ACT_LEN * values[3]   # see always sensor in .blend
         else:
-            au = float_to_AUname[au]
-            cont.owner['p'+au] = value * SH_ACT_LEN
+            cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
+    G.last_update_time = time.time()
 
     INFO_PERIOD += time_diff
     if INFO_PERIOD > 5:
@@ -188,13 +189,9 @@ def update(faceServer, time_diff):
 # Main loop
 #
 
-def main(addr_port):
+def main():
     if not hasattr(G, "initialized"):
         try:
-# standalone version:
-#            import face, comm, conf; conf.load()
-#            G.server = G.face_server = comm.create_server(face.Face_Server, face.Face_Handler, conf.mod_face, THREAD_INFO)
-
             import HRI
             G.server = HRI.initialize(THREAD_INFO)
             G.face_server = G.server['face']
@@ -204,13 +201,20 @@ def main(addr_port):
             G.server.start()
         except:
             fatal("initialization error")
-        cont.activate(cont.actuators["- wakeUp -"])
+        else:
+            cont.activate(cont.actuators["- wakeUp -"])
     else:
         if not THREADED_SERVER:
             # server handles channels explicitly
             if not G.server.serve_once():
                 print 'server returned an error'
                 G.server.shutdown()
-        # update blender with fresh face data
-        update(G.face_server, time.time() - G.last_update_time)
-        G.last_update_time = time.time()
+        try:
+            # update blender with fresh face data
+            update()
+        except Exception,e:
+            import conf; conf.load()
+            if hasattr(conf,'DEBUG') and conf.DEBUG:
+                import pdb; pdb.post_mortem()
+            else:
+                raise

@@ -1,12 +1,13 @@
 import types
 import logging
 
-import comm
+from . import BaseComm, BaseServer
 
 LOG = logging.getLogger(__package__)
 
 class MetaRequestHandler(object):
-    """
+    """Remote Client Handler.
+    Represents a single remote client, so no thread-safety issues here.
     """
 
     def __init__(self):
@@ -14,13 +15,13 @@ class MetaRequestHandler(object):
 
     def create_subhandler(self, srv, subhandler_class):
         """Equivalent of create_subserver.
-        Basically we emulate the basics of SocketServer.BaseRequestHandler and 
+        Basically we emulate the basics of SocketServer.BaseRequestHandler
         """
         subhandler = subhandler_class()
         subhandler.socket = self.socket
         subhandler.addr_port = self.addr_port
         subhandler.server = srv
-        subhandler.send_msg = types.MethodType(comm.BaseComm.send_msg,
+        subhandler.send_msg = types.MethodType(BaseComm.send_msg,
                                                subhandler, subhandler_class)
         return subhandler
 
@@ -69,11 +70,11 @@ class MetaServer(object):
         def meta_subhandler_init(self):
             """Provides the handler with BaseComm.send_msg()"""
             LOG.debug('initializing compound handler %s', self.__class__)
-            comm.BaseComm.__init__(self)
+            BaseComm.__init__(self)
             handler_class.__init__(self)
 
         commHandler_class = type(handler_class.__name__+'BaseComm',
-                                 (handler_class, comm.BaseComm),
+                                 (handler_class, BaseComm),
                                  {'__init__':meta_subhandler_init,
                                   'server':server} )
         self.servers_SHclasses[server] = commHandler_class
@@ -93,9 +94,9 @@ class MetaServer(object):
         """
         def meta_subserver_init(self):
             LOG.debug('initializing compound server %s', self.__class__)
-            comm.BaseServer.__init__(self)
+            BaseServer.__init__(self)
             server_class.__init__(self)
 
         return type(server_class.__name__+'BaseServer',
-                    (server_class, comm.BaseServer),
+                    (server_class, BaseServer),
                     {'__init__':meta_subserver_init} )()

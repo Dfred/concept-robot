@@ -33,15 +33,30 @@ if ! python -c 'print'; then
     exit 1
 fi
 
-. ./source_me_to_set_env.sh
+if ! test -d "./common"; then
+	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
+	exit 1
+fi
+# set environment
+. ./common/source_me_to_set_env.sh
 
-if ! test -x ./$PROJECT_NAME; then
+# handle MinGW and Windows suffix
+case `uname -s` in
+    MINGW*)
+        BIN_SUFFIX=".exe"
+        ;;
+    *)
+        BIN_SUFFIX=""
+        ;;
+esac
+
+if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
-    exit 1
+    exit 2
 fi
 
 if test -z "$CONF_FILE"; then
-    exit 1
+    exit 3
 fi
 
 # Now launch
@@ -55,7 +70,7 @@ if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 
 if [ "$OPTS" = "w" ]; then
-    ./$PROJECT_NAME-window $@ "$PROJECT_NAME"
+    ./$PROJECT_NAME-window$BIN_SUFFIX $@ "$PROJECT_NAME"
 else
-    ./$PROJECT_NAME $@ "$PROJECT_NAME"
+    ./$PROJECT_NAME$BIN_SUFFIX $@ "$PROJECT_NAME"
 fi
