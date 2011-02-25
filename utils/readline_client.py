@@ -129,7 +129,7 @@ class commConsClient(comm.BaseClient):
     def handle_error(self, e):
         if self.ui:
             self.ui.done = True
-        comm.BaseClient.handle_error(self,ex)
+        comm.BaseClient.handle_error(self,e)
         #print "\n - Communication error:", e,"\n - press enter to finish"
         #self.handle_disconnect()
 
