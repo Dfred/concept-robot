@@ -8,18 +8,25 @@ class SimpleFPS(object):
     def __init__(self, rate = 5):
         """
         """
+        self.fps = 0
         self.rate = rate
-        self.print_nbr = 0
+        self.update_nbr = 0
         self.prev_time = time.time()
 
     def update(self):
         """
         """
-        now = time.time()
-        if self.print_nbr >= self.rate:
-            sys.stdout.write('FPS: %s\r' % (1.0/(now - self.prev_time)))
-            sys.stdout.flush()
-            self.print_nbr = 1
+        if self.update_nbr >= self.rate:
+            now = time.time()
+            self.fps = self.update_nbr/(now - self.prev_time)
+            self.update_nbr = 0
+            self.prev_time = now
         else:
-            self.print_nbr += 1
-        self.prev_time = now
+            self.update_nbr += 1
+        return self.fps
+
+    def show(self):
+        """
+        """
+        sys.stdout.write('FPS: %s\r' % self.fps)
+        sys.stdout.flush()

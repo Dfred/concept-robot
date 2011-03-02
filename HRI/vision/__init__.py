@@ -147,10 +147,17 @@ class CamCapture(object):
         """
         self.gui = CamGUI()
 
+    def gui_show(self):
+        """
+        """
+        if self.gui:
+            self.gui.show_frame(self.frame)
+
     def gui_destroy(self):
         """
         """
-        self.gui.destroy()
+        if self.gui:
+            self.gui.destroy()
 
 
 class CamFaceFinder(CamCapture):
@@ -462,7 +469,7 @@ def run(cap):
           
             # if config.face_d:    # face detection
         faces = cap.find_faces()
-        cap.mark_faces(faces)
+        cap.mark_areas(faces)
         
             # if config.colour_s:
             #     cap.find_colour(frame, 10)
@@ -483,12 +490,22 @@ def run(cap):
             #     frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
             #     cv.Copy(frame, frame_org)
             #     frame = cap.detect_edge(frame)
-        sys.stdout.write('FPS: %s\r' % my_fps.get())
-        sys.stdout.flush()
+        cap.gui_show()
+        my_fps.update()
+        my_fps.show()
            
  
 if __name__ == "__main__":
-    import conf; conf.load()
-    cap = CamFaceFinder(conf.haar_cascade_path)
+    import sys
+    if len(sys.argv) > 1:
+        try:
+            r = int(sys.argv[1]), int(sys.argv[2])
+        except:
+            print sys.argv[0], ': [horiz_resolution] [vert_resolution]'
+            exit(1)
+    else:
+        r = (640,480)
+    from utils import conf; conf.load()
+    cap = CamFaceFinder(conf.haar_cascade_path, resolution=r)
     cap.gui_create()
     run(cap)
