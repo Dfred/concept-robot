@@ -1,13 +1,15 @@
 Abstract:
 =========
 
-This software is part of the CONCEPT project from the University of Plymouth, under supervision of Dr tony Belpaeme.
+This software is part of the CONCEPT project from the University of Plymouth,
+ under supervision of Dr tony Belpaeme.
 
 The team involves :
 - frederic Delaunay, human-robot interaction
 - joachim De Greeff, conceptual modeling
 
-The project is part of frederic Delaunay's PhD, under supervision of Dr tony Belpaeme.
+The project is part of frederic Delaunay's PhD, under supervision of
+ Dr Tony Belpaeme.
 This PhD is expected to end in late 2011.
 In the meantime, you are welcomed to try the software and submit bugfixes.
 
@@ -20,8 +22,10 @@ Requirements (In this order):
 - python 2.6 or 2.7
 - blender 2.49b
 - for Windows:
-* Microsoft Visual C++ 2008 SP1 Redistributable Package x86 (if you use blender backend)
-* readline (if you want to use the readline client, http://newcenturycomputers.net/projects/download.cgi/Readline-1.7.win32-py2.6.exe)
+* Microsoft Visual C++ 2008 SP1 Redistributable Package x86 (if you use blender
+ backend)
+* readline (if you want to use the readline client,
+ http://newcenturycomputers.net/projects/download.cgi/Readline-1.7.win32-py2.6.exe)
 
 
 Running the software:
@@ -30,8 +34,10 @@ Running the software:
 Windows:
 -------
 Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/ .
-Then run start_face.bat, if it fails because you have non-default installation, check the file and edit the paths.
-If it still fails, you'll have to make sure each dependency works using the command line (cmd.exe) ...
+Then run start_face.bat, if it fails because you have non-default installation,
+ check the file and edit the paths.
+If it still fails, you'll have to make sure each dependency works using the
+ command line (cmd.exe) ...
 
 
 Open people would just:
@@ -43,24 +49,33 @@ Open people would just:
 
   2.1) you can load environment variables (supposedly for development):
 
-       $ . source_me_to_set_env.sh
+       $ . common/source_me_to_set_env.sh  lightHead
+
 	or using bash:
-       $ source source_me_to_set_env.sh
+       $ source common/source_me_to_set_env.sh  lightHead
+
+       lightHead is the project name, setting the search for a system
+        configuration file to lightHead.conf.
+       This also allows multiple variations of a configuration.
 
   2.2) open the blend file to generate a standalone version for your platform:
 
        $ edit_face
 
-       Use blender menu: File > Save Game as Runtime, and save it as: "lightHead"
+       Use blender menu: File > Save Game as Runtime, and save it in this folder
+        as: "lightHead"
 
 3) start the facial animation system with:
  
    $ ./start_face.sh
 
-   By default the graphical interface is in full-screen; use option -w to enjoy window mode.
+   By default the graphical interface is in full-screen;
+    use option -w to enjoy window mode.
 
 
-Now you can connect and start setting Action Units according to the protocol definition.
+Now you can connect and start setting Action Units according to the protocol
+ definition. Rather you could use the expression datablock specification for
+ higher-level animation.
 
 
 Contact: frederic.delaunay@plymouth.ac.uk
