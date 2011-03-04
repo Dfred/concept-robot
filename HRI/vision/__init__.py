@@ -99,8 +99,33 @@ class CamGUI(object):
 
     def change_value4(self, new_value):
         self.edge_threshold4 = new_value
-    
 
+    
+class Camera(Webcam):
+    """Additionaly stores camera specifics.
+    """
+
+    def __init__(self, name, dev_index, resolution):
+        Webcam.__init__(self, dev_index, resolution)
+        self.gain = None, None
+        self.name = name
+ 
+    def set_gain(self, x, y):
+        """Set the gain to convert relative coordinates to real coordinates.
+        """
+        self.gain = x, y
+
+    def get_relative(self, x, y):
+        """Return relative coordinates from absolute"""
+        return float(x)/self.w, float(y)/self.h
+
+    def get_resolution(self):
+        """
+        Returns: (width,height) of camera frames.
+        """
+        return self.size
+
+        
 class CamCapture(object):
     """Captures video stream from camera and performs various detections (face,
      edge, circle).
@@ -112,8 +137,8 @@ class CamCapture(object):
         dev_index: specify camera number for multiple camera configurations.
         resolution: (width,height) of the frames to grab.
         """
-        self.webcam = Webcam(dev_index,resolution)
-        if not self.webcam.grab():
+        self.camera = Camera('eye', dev_index, resolution)
+        if not self.camera.grab():
             raise VisionException("Can't get camera, check previous messages.")
         self.gui = None
 
@@ -131,16 +156,10 @@ class CamCapture(object):
         """
         return numpy.asarray(self.frame)
 
-    def get_resolution(self):
-        """
-        Returns: (width,height) of camera frames.
-        """
-        return self.webcam.size
-
     def update(self):
         """
         """
-        self.frame = self.webcam.query()
+        self.frame = self.camera.query()
 
     def gui_create(self):
         """
@@ -161,7 +180,7 @@ class CamCapture(object):
 
 
 class CamFaceFinder(CamCapture):
-    """
+    """This class detects faces and return them as rects (width, height and pos)
     """
     
     def __init__(self, haar_cascade_path, index=0, resolution=(320,240)):
@@ -181,19 +200,40 @@ class CamFaceFinder(CamCapture):
         return self.face_detector.detect(self.frame)
 
     def find_eyes(self, faces):
+        """Extract the eyes from the list of faces.
+        faces: absolute rects as returned by find_faces().
+        Return: list of eyes coordinates or tuple if faces is just a rect.
+        """
         eyes = []
-        for rect in rects:
-            affine = pv.AffineFromRect(rect,(1,1))
-            eyes.append( (affine.invertPoint(AVE_LEFT_EYE),
-                          affine.invertPoint(AVE_RIGHT_EYE)) )
-        return eyes
+        if hasattr(faces, '__iter__'):
+            for r in faces:
+                affine = pv.AffineFromRect(r,(1,1))
+                eyes.append( (affine.invertPoint(AVE_LEFT_EYE),
+                              affine.invertPoint(AVE_RIGHT_EYE)) )
+                return eyes
+        else:
+            aff = pv.AffineFromRect(faces,(1,1))
+            return aff.invertPoint(AVE_LEFT_EYE), aff.invertPoint(AVE_RIGHT_EYE)
 
-    def mark_areas(self, areas, with_eyes=False):
-        """Outlines the areas given in our video stream.
+    def mark_rects(self, rects, with_eyes=False):
+        """Outlines the rects given in our video stream.
+        rects: absolute rects as returned by find_faces().
         Return: None
         """
-        for rect in areas:
+        for rect in rects:
             self.frame.annotateRect(rect, color='blue')    # draw square around
+
+    def get_3Dfocus(self, rects):
+        """Generates gaze coordinates, estimating depth from a rect's area.
+        rects: list of absolute rects as returned by find_... functions.
+        Return: list of the same length as rects.
+        """
+        w, h = self.camera.size
+        return [ (w - (r.x + r.w/2.0),
+                  h - (r.y + r.h/2.0),
+                  # reuse numbers from Joachim's magic hat ;P
+                  self.CAM_ZOFF * math.log(r.w) + 538.3782)
+                 for r in rects ]
 
     # def follow_face_with_gaze(self, x, y, width):
     #     """adjust coordinates of detected faces to mask
@@ -469,7 +509,7 @@ def run(cap):
           
             # if config.face_d:    # face detection
         faces = cap.find_faces()
-        cap.mark_areas(faces)
+        cap.mark_rects(faces)
         
             # if config.colour_s:
             #     cap.find_colour(frame, 10)
@@ -500,8 +540,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         try:
             r = int(sys.argv[1]), int(sys.argv[2])
-        except:
+        except Exception, e:
             print sys.argv[0], ': [horiz_resolution] [vert_resolution]'
+            print e
             exit(1)
     else:
         r = (640,480)
@@ -509,3 +550,4 @@ if __name__ == "__main__":
     cap = CamFaceFinder(conf.haar_cascade_path, resolution=r)
     cap.gui_create()
     run(cap)
+    print "done"
