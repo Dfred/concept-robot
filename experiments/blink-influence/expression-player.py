@@ -99,24 +99,24 @@ class IntelligentPlayer():
         """
         Returns: 'FOUND_PART'
         """
-        self.vision.update()
         self.faces = self.vision.find_faces()
         if self.vision.gui:
-            self.vision.mark_areas(self.faces)
+            self.vision.mark_rects(self.faces)
             self.vision.gui.show_frame(self.vision.frame)
         return self.faces and 'FOUND_PART' or None
 
-    def adjust_head(self):
+    def adjust_gaze_neck(self):
         """
         Returns: 'ADJUSTED'
         """
-        area = self.faces[0]
-        relative_x = (self.vision_area[0] - (area.x + (area.w/2.0)) )
-        relative_y = (self.vision_area[1] - (area.y + (area.h/2.0)) )
-        gaze = (.0,.0,.0)#self.follow_face_with_gaze(relative_x, relative_y)
-        neck = (gaze,(.0,.0,.0))#self.follow_face_with_neck(relative_x, relative_y, gaze[1])
-        # reuse numbers from Joachim's magic hat ;P
-        face_distance = ((-88.4832 * math.log(self.vision_area[0])) + 538.3782)
+        eyes = self.vision.find_eyes(self.faces[0])
+        print dir(eyes)
+        center = (eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2
+        gaze_xyz = self.vision.get_3Dfocus(eyes[0])
+        # TODO: ideally, we would not have to set the neck if gaze is enough to
+        #  drive the neck (an expr2 instinct could do it).
+        if not self.vision.is_within(eyes, self.tolerance_frame):
+            neck = (gaze,(.0,.0,.0))
         self.comm_expr.set_gaze(gaze)
         self.comm_expr.set_neck(*neck)
         tag = self.comm_expr.send_datablock('gaze_neck')
@@ -142,7 +142,7 @@ class IntelligentPlayer():
                    )
     
         FACETRACKER_DEF = ( ((FSM.STARTED,'ADJUSTED'), self.search_participant),
-                            ('FOUND_PART', self.adjust_head),
+                            ('FOUND_PART', self.adjust_gaze_neck),
                             (FSM.STOPPED, self.finish),
                         )
                       
@@ -151,7 +151,6 @@ class IntelligentPlayer():
         conf.load()
         try:
             self.vision = vision.CamFaceFinder(conf.haar_cascade_path,dev_index)
-            self.vision_area = self.vision.get_resolution()
             self.vision.gui_create()
             self.vision.update()
         except vision.VisionException, e:
@@ -182,10 +181,12 @@ class IntelligentPlayer():
         self.performance.close()
         self.comm_expr.done()
 
-    def check_channels(self, machines):
-        """Will die on disconnection with expression.
+    def step_callback(self, machines):
+        """Will die on disconnection with expression, also updates webcam.
         Return: None
         """
+        self.vision.update()
+        self.vision.gui_show()
         if not self.comm_expr.connected:
             self.tracker.abort()
             self.player.abort()
@@ -196,7 +197,7 @@ class IntelligentPlayer():
         try:
             while not self.comm_expr.connected:
                 time.sleep(1)
-            self.player.run(self.check_channels)
+            self.player.run(self.step_callback)
         except KeyboardInterrupt:
             print 'aborting player'
             self.player.abort()
