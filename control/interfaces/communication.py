@@ -99,6 +99,7 @@ class LightHeadComm(ThreadedComm):
     def end_snapshot(self):
         return (self.lips_info, self.gaze_info, self.face_info)
 
+
 class ExpressionComm(ThreadedComm):
     """Class dedicated for communication with expression server.
     """
@@ -119,19 +120,19 @@ class ExpressionComm(ThreadedComm):
         self.tag = argline.strip()
     
     def cmd_NACK(self, argline):
+        LOG.warning('expression reports bad message (%s).', self.tag)
         self.status = self.ST_NACK
         self.tag = argline.strip()
-        LOG.warning('expression reports bad message (%s).', self.tag)
         
     def cmd_INT(self, argline):
+        LOG.warning('expression reports animation interruption!')
         self.status = self.ST_INT
         self.tag = argline.strip()
-        LOG.warning('expression reports animation interruption!')
 
     def cmd_DSC(self, argline):
+        LOG.warning('expression reports disconnection from lightHead!')
         self.status = self.ST_DSC
         self.tag = None
-        LOG.warning('expression reports disconnection from lightHead!')
 
     def reset_datablock(self):
         """Forgets values previously stored with set_ functions.
@@ -198,9 +199,9 @@ class ExpressionComm(ThreadedComm):
         db = '{0};"{1}";{2};{3};{4};'.format(*self.datablock)
         self.tag_count += 1
         tag += str(self.tag_count)
-        self.send_msg(db+tag)
-        self.reset_datablock()
         self.status = None
+        self.reset_datablock()
+        self.send_msg(db+tag)
         return tag
 
     def wait_reply(self, tag):
