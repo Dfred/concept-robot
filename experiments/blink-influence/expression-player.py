@@ -23,7 +23,7 @@ import math
 import time
 import random
 
-from utils import conf, comm
+from utils import conf, comm, Frame
 from HRI import vision
 from control.interfaces.communication import ExpressionComm
 from control import Behaviour as FSM
@@ -110,14 +110,14 @@ class IntelligentPlayer():
         Returns: 'ADJUSTED'
         """
         eyes = self.vision.find_eyes(self.faces[0])
-        print dir(eyes)
-        center = (eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2
-        gaze_xyz = self.vision.get_3Dfocus(eyes[0])
+        center = Frame(((eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2,
+                        self.faces[0].w, self.faces[0].h))
+        gaze_xyz = self.vision.camera.get_3Dfocus(center)
         # TODO: ideally, we would not have to set the neck if gaze is enough to
         #  drive the neck (an expr2 instinct could do it).
-        if not self.vision.is_within(eyes, self.tolerance_frame):
-            neck = (gaze,(.0,.0,.0))
-        self.comm_expr.set_gaze(gaze)
+        if not self.vision_frame.is_within(center.x, center.y):
+            neck = (gaze_xyz,(.0,.0,.0))
+        self.comm_expr.set_gaze(gaze_xyz)
         self.comm_expr.set_neck(*neck)
         tag = self.comm_expr.send_datablock('gaze_neck')
         self.comm_expr.wait_reply(tag)
@@ -150,12 +150,14 @@ class IntelligentPlayer():
         self.tracker = FSM('tracker',FACETRACKER_DEF, self.player)
         conf.load()
         try:
-            self.vision = vision.CamFaceFinder(conf.haar_cascade_path,dev_index)
+            self.vision = vision.CamFaceFinder(conf.haar_cascade_path)
+            self.vision.use_camera(conf.camera)
             self.vision.gui_create()
             self.vision.update()
         except vision.VisionException, e:
             print e
             exit(1)
+        self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
         self.performance = file('./performance.txt', 'r', 1)
         self.replies = {'rep' : [], 'int': [], 'nod' : []}
         self._read_replies()
