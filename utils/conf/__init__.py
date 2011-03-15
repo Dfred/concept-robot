@@ -102,10 +102,10 @@ def set_name(project_name):
     NAME = filter(lambda x: x.isalnum() and x or '_', project_name)
     return NAME
 
-def get_name():
+def get_name(required=False):
     """Tries to fetch NAME and (optional) REQUIRED from project_def.py"""
-    global NAME
-    if NAME:
+    global NAME, REQUIRED
+    if NAME and not required:
         return NAME
     try:
         from project_def import NAME, REQUIRED
@@ -121,8 +121,8 @@ def check_missing():
     Returns: [missing_definitions]
     """
     global NAME, REQUIRED
-    if not NAME:
-        get_name()
+    if not NAME and not REQUIRED:
+        get_name(True)
     if not REQUIRED:
         return []
     return [ i for i in REQUIRED if i not in dir(sys.modules[__name__]) ]
