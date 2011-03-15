@@ -168,7 +168,11 @@ class CamCapture(object):
         """
         name: identifier of camera as found in conf.
         """
-        cam_props = getattr(conf, name)
+        try:
+            cam_props = getattr(conf, name)
+        except AttributeError:
+            raise VisionException("Camera '%s' has no definition in your "
+                                   "configuration file." % name)
         self.set_device(cam_props['dev_index'], cam_props['resolution'])
         self.camera.set_factors(*cam_props['factors'])
 
