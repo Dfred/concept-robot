@@ -39,7 +39,7 @@ __email__ = "frederic.delaunay@plymouth.ac.uk"
 __status__ = "Prototype" # , "Development" or "Production"
 
 
-def error(msg):
+def fatal(msg):
     print msg
     exit(1)
 
@@ -149,14 +149,16 @@ class IntelligentPlayer():
         self.player = FSM('player', PLAYER_DEF)
         self.tracker = FSM('tracker',FACETRACKER_DEF, self.player)
         conf.load()
+        missing = conf.check_missing()
+        if missing:
+            fatal('missing entries in config file:'+str(missing))
         try:
             self.vision = vision.CamFaceFinder(conf.haar_cascade_path)
             self.vision.use_camera(conf.camera)
             self.vision.gui_create()
             self.vision.update()
         except vision.VisionException, e:
-            print e
-            exit(1)
+            fatal(e)
         self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
         self.performance = file('./performance.txt', 'r', 1)
         self.replies = {'rep' : [], 'int': [], 'nod' : []}
