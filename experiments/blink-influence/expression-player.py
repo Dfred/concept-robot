@@ -109,7 +109,7 @@ class IntelligentPlayer():
         """
         Returns: 'ADJUSTED'
         """
-        eyes = self.vision.find_eyes(self.faces[0])
+        eyes = self.vision.find_eyes([self.faces[0]])[0]
         center = Frame(((eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2,
                         self.faces[0].w, self.faces[0].h))
         gaze_xyz = self.vision.camera.get_3Dfocus(center)
