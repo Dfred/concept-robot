@@ -19,6 +19,10 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#
+# Most feature detections are provided by the (very nice) pyvision module.
+# For a list of all of them, check: http://pyvision.sourceforge.net/api/
+#
 
 import math
 import threading
@@ -29,8 +33,11 @@ import cv
 import pyvision as pv
 pv.disableCommercialUseWarnings()
 
-from pyvision.face.CascadeDetector import CascadeDetector, AVE_LEFT_EYE, AVE_RIGHT_EYE
+from pyvision.face.CascadeDetector import CascadeDetector
+from pyvision.face.FilterEyeLocator import FilterEyeLocator
+#, AVE_LEFT_EYE, AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
+from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
 from HRI import FeaturePool
@@ -48,24 +55,17 @@ class CamGUI(object):
     """
     """
 
-    edge_threshold1 = 50
-    edge_threshold2 = 90
-    edge_threshold3 = 11
-    edge_threshold4 = 0
-    
-    def __init__(self):
+    def __init__(self, name='Camera'):
         """
         """
-        cv.NamedWindow('Camera', cv.CV_WINDOW_AUTOSIZE)
-        cv.CreateTrackbar('edge threshold','Camera',50,100, self.change_value1)
-        cv.CreateTrackbar('circle threshold','Camera',90,100,self.change_value2)
-        cv.CreateTrackbar('gaussian blur', 'Camera', 11, 50, self.change_value3)
-        cv.CreateTrackbar('hue', 'Camera', 0, 100, self.change_value4)
+        self.name = name
+        self.quit_request = None
+        cv.NamedWindow(self.name, cv.CV_WINDOW_AUTOSIZE)
 
     def destroy(self):
         """
         """
-        cv.DestroyWindow('Camera')
+        cv.DestroyWindow(self.name)
 
     def show_frame(self, camFrame, delay = 30):
         """
@@ -73,33 +73,30 @@ class CamGUI(object):
         delay: in ms.
         """
         # cv.WaitKey processes GUI events. value in ms.
-        cv.WaitKey(delay)
-        pil = camFrame.asAnnotated()      # get image as PIL
-        rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
-        cv.SetData(rgb, pil.tostring())
+        if cv.WaitKey(delay) == 1048603:
+            self.quit_request = True
+
+        # pil = camFrame.asAnnotated()      # get image as PIL
+        # rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
+        # cv.SetData(rgb, pil.tostring())
         
-        frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)
-        if frame is None:
-            print "error creating openCV frame for gui"
+        # Frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)
+        # if frame is None:
+        #     print "error creating openCV frame for gui"
 
-        cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
-        cv.Flip(frame, None, 1)
-        cv.ShowImage('Camera', frame)
+        # cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
+        camFrame = camFrame.asOpenCV()
+        cv.Flip(camFrame, None, 1)
+        cv.ShowImage(self.name, camFrame)
 
-    def change_value1(self, new_value):
-        self.edge_threshold1 = new_value
-
-    def change_value2(self, new_value):
-        self.edge_threshold2 = new_value
-
-    def change_value3(self, new_value):
-        if new_value % 2:
-            self.edge_threshold3 = new_value
-        else:
-            self.edge_threshold3 = new_value+1
-
-    def change_value4(self, new_value):
-        self.edge_threshold4 = new_value
+    def add_slider(self, label, min_v, max_v, callback):
+        """Adds a slider.
+        label: label for the slider.
+        min_v: minimum value for the slider.
+        max_v: maximum value for the slider.
+        callback: function (bound or not) to be called upon slider change.
+        """
+        cv.CreateTrackbar(label, self.name, min_v, max_v, callback)
 
     
 class Camera(Webcam):
@@ -144,9 +141,8 @@ class Camera(Webcam):
 
 
 class CamCapture(object):
-    """Captures video stream from camera and performs various detections (face,
-     edge, circle).
-    A visualisation of the video stream is also available.
+    """Captures video stream from camera.
+    A visualisation of the video stream is also available through the gui.
     """
     
     def __init__(self):
@@ -162,7 +158,8 @@ class CamCapture(object):
         """
         self.camera = Camera('eye', dev_index, resolution)
         if not self.camera.grab():
-            raise VisionException("Can't get camera, check previous messages.")
+            raise VisionException("Can't get camera at device index: %i" %
+                                  dev_index)
 
     def use_camera(self, name):
         """
@@ -170,11 +167,14 @@ class CamCapture(object):
         """
         try:
             cam_props = getattr(conf, name)
+            self.set_device(cam_props['dev_index'], cam_props['resolution'])
+            self.camera.set_factors(*cam_props['factors'])
         except AttributeError:
-            raise VisionException("Camera '%s' has no definition in your "
-                                   "configuration file." % name)
-        self.set_device(cam_props['dev_index'], cam_props['resolution'])
-        self.camera.set_factors(*cam_props['factors'])
+            raise VisionException("Camera '%s' has no definition in your"
+                                   " configuration file." % name)
+        except KeyError, e:
+            raise VisionException("Definition of camera '%s' has no %s property"
+                                  " in your configuration file." % (name, e))
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -188,12 +188,21 @@ class CamCapture(object):
         """Polling mode for the feature Pool.
         Return: numpy.ndarray
         """
-        return numpy.asarray(self.frame)
+        return self.frame.asMatrix3D()
 
     def update(self):
         """
         """
         self.frame = self.camera.query()        # grab ?
+
+    def mark_rects(self, rects, color='blue', with_eyes=False):
+        """Outlines the rects given in our video stream.
+        rects: absolute Rects.
+        color: string, #rrggbb (in hexa) or color name.
+        Return: None
+        """
+        for rect in rects:
+            self.frame.annotateRect(rect, color='blue')    # draw square around
 
     def gui_create(self):
         """
@@ -226,14 +235,7 @@ class CamFaceFinder(CamCapture):
         CamCapture.__init__(self)
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
                                              min_size=(50,50), image_scale=0.5)
-
-    def mark_rects(self, rects, with_eyes=False):
-        """Outlines the rects given in our video stream.
-        rects: absolute rects as returned by find_faces().
-        Return: None
-        """
-        for rect in rects:
-            self.frame.annotateRect(rect, color='blue')    # draw square around
+        self.eyes_detector = FilterEyeLocator()
 
     def find_faces(self):
         """Run the face detection algorithm
@@ -243,18 +245,25 @@ class CamFaceFinder(CamCapture):
 
     def find_eyes(self, faces):
         """Extract the eyes from the list of faces.
+         Warning: calling self.update() after find_faces() is not supported!!!
+
         faces: absolute rects as returned by find_faces().
-        Return: list of eyes coordinates or tuple if faces is just a rect.
+        Return: list (of list) of the same length as faces. Each sublist
+         contains the rect produced by the face detector and the right and left
+         eye coordinates produced by the filters.
         """
-        eyes = []
-        if hasattr(faces, '__iter__'):
-            for r in faces:
-                affine = pv.AffineFromRect(r,(1,1))
-                eyes.append( (affine.invertPoint(AVE_LEFT_EYE),
-                              affine.invertPoint(AVE_RIGHT_EYE)) )
-                return eyes
-        aff = pv.AffineFromRect(faces,(1,1))
-        return aff.invertPoint(AVE_LEFT_EYE), aff.invertPoint(AVE_RIGHT_EYE)
+        return self.eyes_detector(self.frame, faces)
+        # eyes = []
+        # if hasattr(faces, '__iter__'):
+        #     for r in faces:
+        #         affine = pv.AffineFromRect(r,(1,1))
+        #         eyes.append( (affine.invertPoint(AVE_LEFT_EYE),
+        #                       affine.invertPoint(AVE_RIGHT_EYE)) )
+        #         return eyes
+        # aff = pv.AffineFromRect(faces,(1,1))
+        # return aff.invertPoint(AVE_LEFT_EYE), aff.invertPoint(AVE_RIGHT_EYE)
+
+
 
     # def follow_face_with_gaze(self, x, y, width):
     #     """adjust coordinates of detected faces to mask
@@ -321,13 +330,6 @@ class CamFaceFinder(CamCapture):
 #         return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
                 
     
-    # def detect_edge(self, image):
-    #     grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
-    #     cv.CvtColor(image, grayscale, cv.CV_BGR2GRAY)
-    #     cv.Canny(grayscale, grayscale, edge_threshold1, edge_threshold1 * 3, 3)
-    #     return grayscale
-    
-    
     # def detect_circle(self, image, image_org):
     #     grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
     #     grayscale_smooth = cv.CreateImage(cv.GetSize(image), 8, 1)
@@ -338,6 +340,7 @@ class CamFaceFinder(CamCapture):
     #     mat = cv.CreateMat(100, 1, cv.CV_32FC3 )
     #     cv.SetZero(mat)
     #     cv.HoughCircles(grayscale_smooth, mat, cv.CV_HOUGH_GRADIENT, 2, 50, 200, (edge_threshold2 + 150) )
+
     #     circles_simple = []
     #     gazing = None
     #     if mat.rows != 0:
