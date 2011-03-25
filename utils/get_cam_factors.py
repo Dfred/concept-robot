@@ -7,7 +7,7 @@ from HRI import vision
 
 class MyCameraCalib(object):
 
-    target_size = 146
+    target_size = 296
 
     def __init__(self, capture):
         self.factors = None
@@ -31,19 +31,19 @@ class MyCameraCalib(object):
         self.max = val
 
     def run(self):
-        
         while not self.cap.gui.quit_request:
             self.cap.update()
             if self.check_pattern():
                 break
-            self.cap.mark_rects([self.target])
+            self.cap.mark_rects([self.target], thickness=2, color='green')
             cap.gui_show()
         if self.factors:
             print self.factors
 
     def check_pattern(self):
-        #self.cap.frame = 
-        vision.canny(self.cap.frame, self.min, self.max)
+        self.cap.frame = vision.canny(self.cap.frame, self.min, self.max)
+        buff = self.cap.frame.asMatrix2D()
+        print buff.sum(axis=0), buff.sum(axis=1)
         return False
 
 

@@ -76,18 +76,16 @@ class CamGUI(object):
         if cv.WaitKey(delay) == 1048603:
             self.quit_request = True
 
-        # pil = camFrame.asAnnotated()      # get image as PIL
-        # rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
-        # cv.SetData(rgb, pil.tostring())
+        pil = camFrame.asAnnotated()    # get image with annotations (PIL)
+        rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
+        cv.SetData(rgb, pil.tostring())
         
-        # Frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)
-        # if frame is None:
-        #     print "error creating openCV frame for gui"
-
-        # cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
-        camFrame = camFrame.asOpenCV()
-        cv.Flip(camFrame, None, 1)
-        cv.ShowImage(self.name, camFrame)
+        frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)
+        if frame is None:
+            print "error creating openCV frame for gui"
+        cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
+        cv.Flip(frame, None, 1)
+        cv.ShowImage(self.name, frame)
 
     def add_slider(self, label, min_v, max_v, callback):
         """Adds a slider.
@@ -195,14 +193,22 @@ class CamCapture(object):
         """
         self.frame = self.camera.query()        # grab ?
 
-    def mark_rects(self, rects, color='blue', with_eyes=False):
+    def mark_rects(self, rects, thickness=1, color='blue'):
         """Outlines the rects given in our video stream.
         rects: absolute Rects.
+        thickness: in pixels.
         color: string, #rrggbb (in hexa) or color name.
         Return: None
         """
+        args = [color]
+        if thickness > 1:
+            fct = self.frame.annotateThickRect
+            args.append(thickness)
+        else:
+            fct = self.frame.annotateRect
+
         for rect in rects:
-            self.frame.annotateRect(rect, color='blue')    # draw square around
+            fct(rect, *args)
 
     def gui_create(self):
         """
