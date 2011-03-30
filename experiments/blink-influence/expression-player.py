@@ -133,7 +133,7 @@ class IntelligentPlayer():
         """
         dev_index: camera device index
         """
-        PLAYER_DEF = ( (('FOUND_PART', 'REPLIED'), self.read_section),
+        PLAYER_DEF = ( ((FSM.STARTED, 'FOUND_PART', 'REPLIED'), self.read_section),
                        ('EOSECTION',  self.listenTo_participant),
                        ('P_QUESTION', self.answer_participant),
                        ('P_STATEMENT', self.nodTo_participant),
@@ -145,9 +145,9 @@ class IntelligentPlayer():
                             ('FOUND_PART', self.adjust_gaze_neck),
                             (FSM.STOPPED, self.finish),
                         )
-                      
+        
         self.player = FSM('player', PLAYER_DEF)
-        self.tracker = FSM('tracker',FACETRACKER_DEF, self.player)
+#        self.tracker = FSM('tracker',FACETRACKER_DEF, self.player)
         conf.load()
         missing = conf.check_missing()
         if missing:
@@ -192,7 +192,7 @@ class IntelligentPlayer():
         self.vision.update()
         self.vision.gui_show()
         if not self.comm_expr.connected:
-            self.tracker.abort()
+            # self.tracker.abort()
             self.player.abort()
 
     def run(self):
