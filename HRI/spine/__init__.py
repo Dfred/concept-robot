@@ -31,8 +31,10 @@
 #
 import logging
 
-import comm, conf
+from utils import comm, conf
 import HRI
+
+__all__ = ['SpineHW', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 LOG = logging.getLogger(__package__)
 conf.load()
@@ -232,24 +234,22 @@ class SpineBase(object):
 
 
 try:
-    backend= __import__(conf.spine_backend, fromlist=['HRI.spine'])
+    backend= __import__(conf.spine_backend, globals(), fromlist=['HRI.spine'])
     Spine_Server = backend.SpineHW
 except ImportError, e:
-    print
+    print 
     print '*** SPINE MISCONFIGURATION ***'
     print 'Check in your config file for the value of spine_backend !'
     print 'for your information:', e
     raise
-
-__all__ = ['SpineHw', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
 
 if __name__ == '__main__':
     import sys
     try:
         comm.set_default_logging(debug=True)
-        server = comm.create_server(Spine, SpineComm, conf.conn_spine,
-                                    (False,False))
+        server = comm.create_server(Spine_Server, Spine_Handler,
+                                    conf.mod_spine['conn'], (False,False))
     except (conf.LoadException, UserWarning), err:
         comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
         exit(-1)

@@ -11,12 +11,14 @@ import math
 import logging
 LOG = logging.getLogger(__package__)
 
+__all__ = ['SpineHW']
+
 try:
     import KNI
 except ImportError:
     raise ImportError('The KNI module is not included in this release and shall'
                       ' be built from source.')
-from spine import SpineError, SpineBase
+from HRI.spine import SpineError, SpineBase
 
 
 def showTPos(tpos):
@@ -28,7 +30,7 @@ class SpineHW(SpineBase):
 
     # The configuration file has other references, but this one maximizes 
     #  the range of movements from origin (based on ideal pose for our setup).
-    # Another approach would have been to use these references and use offsets.
+    # Another approach would have been to use their references and offsets.
 
     AXIS_LIMITS = ( None,                               # indices like KNI
         #  min    max  mean(0rad)   factor
@@ -119,7 +121,9 @@ class SpineHW(SpineBase):
         """Mandatory 1st call after hardware is switched on.
         Starts calibration if needed.
         """
-        if False in self.check_motors():
+        m_status = self.check_motors()
+        LOG.debug("motor status: %s", m_status)
+        if False in m_status:
             self.calibrate()
         self.switch_auto()
         self.set_neck_orientation((0,0,0))
@@ -228,7 +232,7 @@ class SpineHW(SpineBase):
 def init_arm():
     # Just initializes the arm
     import os.path
-    import conf
+    from utils import conf
     KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
     LOG.info('trying to connect to Katana400s-6m on %s', conf.spine_hardware)
     if KNI.initKatana(KatHD400s_6m, conf.spine_hardware) == -1:
@@ -236,3 +240,11 @@ def init_arm():
                          ' failed to connect to hardware', KatHD400s_6m)
     else:
         print 'loaded config file', KatHD400s_6m, 'and now connected'
+
+if __name__ == '__main__':
+    __path__ = ['.']
+    # just set the arm in manual mode and print motors' values upon key input.
+    s = SpineHW()
+    s.switch_off()
+    while not raw_input('press any key then Enter to finish > '):
+        print [ (m,KNI.getEncoder(m)) for m in range(1,len(s.AXIS_LIMITS)) ]
