@@ -61,6 +61,12 @@ class SpineHW(SpineBase):
                                      self.hardware_name)
         update = [ (mi,ma,(ma-mi)/2,f) for mi,ma,f in loaded_AXIS_LIMITS ]
         self.AXIS_LIMITS = tuple([None,]+update)
+        try:
+            loaded_POSE_REST = conf.mod_spine['POSE_REST']
+        except:
+            raise conf.LoadException("mod_spine has no 'POSE_REST' key")
+        self.POSE_REST = tuple([ val or self.AXIS_LIMITS[i+1][2] for i, val in
+                                 enumerate(loaded_POSE_REST) ])
         import os.path
         self.KNI_cfg_file = __path__[0]+os.path.sep+"katana6M90T.cfg"
 
@@ -235,6 +241,8 @@ def init_arm(name, KNI_cfg_file, address):
 
 if __name__ == '__main__':
     __path__ = ['.']
+    from utils import comm
+    comm.set_default_logging(True)
     # just set the arm in manual mode and print motors' values upon key input.
     s = SpineHW()
     s.switch_off()
