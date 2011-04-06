@@ -32,6 +32,7 @@
 # INPUT: - learning (for context retrieval)
 #
 
+import sys
 import logging
 
 import numpy
@@ -141,15 +142,17 @@ class lightHeadServer(MetaServer):
             try:
                 module = __import__('HRI.'+name, fromlist=['HRI'])
             except ImportError, e:
-                LOG.info("Found config for '%s' but couldn't import the module",
-                         name)
-                continue
+                LOG.error("Found config for '%s' but cannot import the module."
+                          " Error: %s", name, e)
+                sys.exit(3)
             try:
                 subserv_class = getattr(module, name.capitalize()+'_Server')
                 handler_class = getattr(module, name.capitalize()+'_Handler')
             except AttributeError, e:
-                raise conf.LoadException("Module %s: Missing mandatory classes"
-                                         "(%s)" % (name, e))
+                # Consider that missing class just means no subserver
+                LOG.warning("Module %s: Missing mandatory classes (%s)" %
+                            (name, e))
+                continue
             subserver = self.create_subserver(subserv_class)
             self.register(subserver, handler_class, name)
             if info.has_key(EXTRA_ORIGINS):

@@ -234,13 +234,14 @@ class SpineBase(object):
 
 
 try:
-    backend= __import__(conf.spine_backend, globals(), fromlist=['HRI.spine'])
+    backend= __import__(conf.mod_spine['backend'], globals(),
+                        fromlist=['HRI.spine'])
     Spine_Server = backend.SpineHW
 except ImportError, e:
-    print 
-    print '*** SPINE MISCONFIGURATION ***'
-    print 'Check in your config file for the value of spine_backend !'
-    print 'for your information:', e
+    print """
+    *** SPINE MISCONFIGURATION ***
+    Check in your config file for the value of mod_spine['backend'] !
+    for your information:""", e
     raise
 
 

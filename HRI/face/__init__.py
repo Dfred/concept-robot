@@ -162,7 +162,7 @@ class Face_Server(object):
 
 try:
     conf.load()
-    backend = __import__(conf.face_backend, fromlist=['HRI.face'])
+    backend = __import__(conf.mod_face['backend'], fromlist=['HRI.face'])
 except ImportError, e:
     print
     print '*** FACE MISCONFIGURATION ***'

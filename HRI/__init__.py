@@ -4,6 +4,7 @@
 Animation System.
 """
 
+import sys
 import logging
 
 import numpy as np
@@ -64,19 +65,20 @@ def initialize(thread_info):
     """Initialize the system.
     thread_info: tuple of booleans setting threaded_server and threaded_clients
     """
-    import sys
     print "LIGHTHEAD Animation System, python version:", sys.version_info
 
     # check configuration
     try:
         from utils import conf; missing = conf.load()
         if missing:
-            fatal('missing configuration entries: %s' % missing)
+            print '\nmissing configuration entries: %s' % missing
+            sys.exit(1)
         if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
             # set system-wide logging level
             from utils import comm; comm.set_default_logging(debug=True)
     except conf.LoadException, e:
-        fatal('in file {0[0]}: {0[1]}'.format(e))
+        print 'in file {0[0]}: {0[1]}'.format(e)
+        sys.exit(2)
 
     # Initializes the system
     from utils import comm

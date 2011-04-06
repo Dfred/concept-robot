@@ -3,8 +3,6 @@
 
 NAME='lightHead'
 REQUIRED=('lightHead_server',   # connection to server: ('ip_address', port)
-          'face_backend',
-          'spine_backend',
-          'camera'
+#          'mod_face', 'mod_spine', 'mod_vision'
           )
 

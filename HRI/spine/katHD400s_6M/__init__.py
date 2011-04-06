@@ -28,58 +28,53 @@ def showTPos(tpos):
 class SpineHW(SpineBase):
     """Spine implementation for the Katana400s-6m"""
 
-    # The configuration file has other references, but this one maximizes 
-    #  the range of movements from origin (based on ideal pose for our setup).
-    # Another approach would have been to use their references and offsets.
+    def __init__(self):
+        SpineBase.__init__(self)
+        self.load_conf()
+        self.has_torso = True
+        self._speed = 50
+        self._accel = 1                 
+        self._tolerance = 50
+        #TODO: fill self.neck_info and self.torso_info
+        init_arm(self.hardware_name, self.KNI_cfg_file, self.KNI_address)
+        self.switch_on()
 
-    AXIS_LIMITS = ( None,                               # indices like KNI
-        #  min    max  mean(0rad)   factor
-        (-18300, 31000,  6350, -12750/(math.pi/2)),
-        (-31000,  5900, -9850, -23900/(math.pi/2)),     # real 0: -21800
-        (-31000,  1900, -2450,  11850/(math.pi/2)),     # real 0: -14300
-        ( 14700, 27500, 21100,  12800/(math.pi/2)),     # neck x
-        (    50, 12950,  6500,  12900/(math.pi/2)),     # neck y
-        (-15600,  -400, -8000,  12750/(math.pi/2)) )    # neck z
+    def load_conf(self):
+        from utils import conf
+        try:
+            self.hardware_name = conf.mod_spine['backend']
+        except:
+            raise conf.LoadException("mod_spine has no 'backend' key")
+        try:
+            self.KNI_address = conf.mod_spine['hardware_addr']
+        except:
+            raise conf.LoadException("mod_spine has no 'hardware_addr' key")
+        try:
+            hardware = conf.lib_spine[self.hardware_name]
+        except:
+            raise conf.LoadException("lib_spine has no '%s' key" %
+                                     self.hardware_name)
+        try:
+            loaded_AXIS_LIMITS = hardware['AXIS_LIMITS']
+        except:
+            raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
+                                     self.hardware_name)
+        update = [ (mi,ma,(ma-mi)/2,f) for mi,ma,f in loaded_AXIS_LIMITS ]
+        self.AXIS_LIMITS = tuple([None,]+update)
+        import os.path
+        self.KNI_cfg_file = __path__[0]+os.path.sep+"katana6M90T.cfg"
 
-    SPEED_LIMITS = ( (0,255), (1,2) )   # 1: long accel, 2: short accel
-    
-
-#POSE_REST = [23500, 5600, 1800, 25100, 6500, 6900]     
-# vertical, calibrate OK but unstable
-    # POSE_REST = ( AXIS_LIMITS[1][2],
-    #               -18000, -15600, 30900,
-    #               AXIS_LIMITS[5][2],
-    #               AXIS_LIMITS[6][2] )
-# folded, but calibration from this position makes it collide slightly
-    POSE_REST = ( AXIS_LIMITS[1][2],
-                  5600, 1800, 25100,
-                  AXIS_LIMITS[5][2],
-                  AXIS_LIMITS[6][2] )
-
-    @staticmethod
-    def rad2enc(axis, rad):
-        info = SpineHW.AXIS_LIMITS[axis]
+    def rad2enc(self, axis, rad):
+        info = self.AXIS_LIMITS[axis]
         e = int(info[3]*rad) + info[2]
         f = min(max(info[0], e), info[1])
         if e != f:
             LOG.warning('axis %i limited value %i to %i %s', axis,e,f,info[:2])
         return f
 
-    @staticmethod
-    def enc2rad(axis, enc):
-        info = SpineHW.AXIS_LIMITS[axis]
+    def enc2rad(self, axis, enc):
+        info = self.AXIS_LIMITS[axis]
         return 1.0/info[3]*(enc - info[2])
-
-
-    def __init__(self):
-        SpineBase.__init__(self)
-        self.has_torso = True
-        self._speed = 50
-        self._accel = 1                 
-        self._tolerance = 50
-        #TODO: fill self.neck_info and self.torso_info
-        init_arm()
-        self.switch_on()
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -99,9 +94,9 @@ class SpineHW(SpineBase):
 
     def get_torso_info(self):
         """Returns TorsoInfo instance"""
-        self._torso_info.rot= self.round([SpineHW.enc2rad(2,KNI.getEncoder(2)),
+        self._torso_info.rot= self.round([self.enc2rad(2,KNI.getEncoder(2)),
                                           0.0,
-                                          SpineHW.enc2rad(1,KNI.getEncoder(1))])
+                                          self.enc2rad(1,KNI.getEncoder(1))])
         return self._torso_info
 
     def get_neck_info(self):
@@ -113,7 +108,7 @@ class SpineHW(SpineBase):
 #        self._neck_info.rot= self.round([tp.phi, tp.theta, tp.psi])
 
         self._neck_info.rot = self.round( \
-            [ SpineHW.enc2rad(i, KNI.getEncoder(i)) for i in \
+            [ self.enc2rad(i, KNI.getEncoder(i)) for i in \
                   xrange(4, len(self.AXIS_LIMITS)) ])
         return self._neck_info
 
@@ -183,7 +178,7 @@ class SpineHW(SpineBase):
     def set_neck_orientation(self, xyz, wait=True):
         """Absolute orientation:
         Our own version since the IK is useless (ERROR: No solution found)"""
-        encs = [ (4+i, SpineHW.rad2enc(4+i, v)) for i,v in enumerate(xyz) ]
+        encs = [ (4+i, self.rad2enc(4+i, v)) for i,v in enumerate(xyz) ]
         for axis, enc in encs:
             LOG.debug('moving axis %i to encoder %i', axis, enc)
             if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
@@ -197,9 +192,9 @@ class SpineHW(SpineBase):
     def set_torso_orientation(self, xyz, wait=True):
         """Absolute orientation:
         Our own version since the IK is useless (ERROR: No solution found)"""
-        encs = [ (1, SpineHW.rad2enc(1, xyz[2])),
-                 (2, SpineHW.rad2enc(2, xyz[0])),
-                 (3, SpineHW.rad2enc(3, 0)) ]
+        encs = [ (1, self.rad2enc(1, xyz[2])),
+                 (2, self.rad2enc(2, xyz[0])),
+                 (3, self.rad2enc(3, 0)) ]
         for axis, enc in encs:
             LOG.debug('moving axis %i to encoder %i', axis, enc)
             if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
@@ -229,17 +224,14 @@ class SpineHW(SpineBase):
         return True
 
 
-def init_arm():
+def init_arm(name, KNI_cfg_file, address):
     # Just initializes the arm
-    import os.path
-    from utils import conf
-    KatHD400s_6m = __path__[0]+os.path.sep+"katana6M90T.cfg"
-    LOG.info('trying to connect to Katana400s-6m on %s', conf.spine_hardware)
-    if KNI.initKatana(KatHD400s_6m, conf.spine_hardware) == -1:
-        raise SpineError('configuration file not found or'
-                         ' failed to connect to hardware', KatHD400s_6m)
+    LOG.info('trying to connect to %s on %s', name, address)
+    if KNI.initKatana(KNI_cfg_file, address) == -1:
+        raise SpineError('KNI configuration file not found or'
+                         ' failed to connect to hardware', KNI_cfg_file)
     else:
-        print 'loaded config file', KatHD400s_6m, 'and now connected'
+        print 'loaded config file', KNI_cfg_file, 'and now connected'
 
 if __name__ == '__main__':
     __path__ = ['.']
