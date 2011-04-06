@@ -51,7 +51,7 @@ from threading import Thread, Lock
 LOGFORMAT = "%(asctime)s %(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
 # let users set log format themselves (see set_default_logging)
 LOG = logging.getLogger(__package__)
-
+# TODO: wouldn't `assert not LOG.debug('blah')` be optimized ?
 
 class ProtocolError(Exception):
     """Base Exception class for protocol error.
@@ -554,13 +554,9 @@ def create_RequestHandlerClass(handler_class, threaded=False):
         """Call initializers properly + runtime support for threading.
         """
         RequestHandler.__init__(self, server, sock, client_addr)
-        # add runtime support for threading (sending clients)
+        # enable runtime support for threading (sending clients)
         if threaded:
-            self._threading_lock = Lock()
-            def th_send_msg(self, msg):
-                self._threading_lock.acquire()
-                BaseComm.send_msg(self, msg)
-                self._threading_lock.release()
+            self.set_threading(True)
         handler_class.__init__(self)
 
     return type(handler_class.__name__+'RequestHandler',
@@ -609,6 +605,7 @@ class BaseComm(object):
         self.unprocessed = ''
         self.connected = False
         self.running = False
+        self._th_save = {}      # see set_threading
 
     def abort(self):
         """Completely abort any loop or connection.
@@ -753,6 +750,29 @@ class BaseComm(object):
         self.running = False
     cmd_EOF = cmd_bye
 
+    def set_threading(self, threaded):
+        """Enable threading for thread-safe sections. Seldom use recommended.
+        It's not the best design, but it allows transparent threading.
+        Also, it should be ok for child classes to add entries.
+        threaded: True => set thread-safe
+        """
+        if threaded:
+            self._th_save['send_msg'] = self.send_msg
+            self._threading_lock = Lock()
+            def th_send_msg(self, msg):
+                """Thread safe version of send_msg().
+                """
+                self._threading_lock.acquire()
+                BaseComm.send_msg(self, msg)
+                self._threading_lock.release()
+            self.send_msg = th_send_msg
+            LOG.debug('client in thread-safe. send_msg is %s', self.send_msg)
+        else:
+            for name, member in self._th_save:
+                setattr(self, name, member)
+            self._th_save.clear()
+            LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
+                
 
 class RequestHandler(BaseComm):
     """Instancied on successful connection to the server: a remote client.
@@ -929,7 +949,7 @@ class BaseClient(BaseComm):
             self.handle_disconnect()
         return ret
 
-
+# TODO: remove parameter and let us use __debug__ instead
 def set_default_logging(debug=False):
     """This function does nothing if the root logger already has
     handlers configured.
