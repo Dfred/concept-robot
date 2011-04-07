@@ -19,8 +19,7 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 LOG = logging.getLogger("gaze-srv")
 
-import comm
-import conf
+from utils import comm, conf
 
 
 class GazeClient(comm.RequestHandler):
