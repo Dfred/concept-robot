@@ -55,32 +55,29 @@ class SpineHW(SpineBase):
             raise conf.LoadException("lib_spine has no '%s' key" %
                                      self.hardware_name)
         try:
-            loaded_AXIS_LIMITS = hardware['AXIS_LIMITS']
+            self.AXIS_LIMITS = hardware['AXIS_LIMITS']
         except:
             raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                      self.hardware_name)
-        update = [ (mi,ma,(ma-mi)/2,f) for mi,ma,f in loaded_AXIS_LIMITS ]
-        self.AXIS_LIMITS = tuple([None,]+update)
         try:
-            loaded_POSE_REST = conf.mod_spine['POSE_REST']
+            self.pose_off = hardware['POSE_OFF']
         except:
-            raise conf.LoadException("mod_spine has no 'POSE_REST' key")
-        self.POSE_REST = tuple([ val or self.AXIS_LIMITS[i+1][2] for i, val in
-                                 enumerate(loaded_POSE_REST) ])
+            raise conf.LoadException("lib_spine['%s'] has no 'POSE_OFF' key" %
+                                     self.hardware_name)
         import os.path
         self.KNI_cfg_file = __path__[0]+os.path.sep+"katana6M90T.cfg"
 
     def rad2enc(self, axis, rad):
-        info = self.AXIS_LIMITS[axis]
-        e = int(info[3]*rad) + info[2]
-        f = min(max(info[0], e), info[1])
+        mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
+        e = int(factor*rad) + neutral
+        f = min(max(mn, e), mx)
         if e != f:
-            LOG.warning('axis %i limited value %i to %i %s', axis,e,f,info[:2])
+            LOG.warning('axis %i: limited value %i to %i %s', axis,e,f,(mn,mx))
         return f
 
     def enc2rad(self, axis, enc):
-        info = self.AXIS_LIMITS[axis]
-        return 1.0/info[3]*(enc - info[2])
+        mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
+        return 1.0/factor*(enc - neutral)
 
     def get_speed(self):
         return float(self._speed)/self.SPEED_LIMITS[0][1]
@@ -114,8 +111,8 @@ class SpineHW(SpineBase):
 #        self._neck_info.rot= self.round([tp.phi, tp.theta, tp.psi])
 
         self._neck_info.rot = self.round( \
-            [ self.enc2rad(i, KNI.getEncoder(i)) for i in \
-                  xrange(4, len(self.AXIS_LIMITS)) ])
+            [ self.enc2rad(i, KNI.getEncoder(i+1)) for i in \
+                  xrange(3, len(self.AXIS_LIMITS)) ])
         return self._neck_info
 
     def switch_on(self):
@@ -157,14 +154,14 @@ class SpineHW(SpineBase):
     def check_motors(self):
         """Test each motor status"""
         motors = [None]*len(self.AXIS_LIMITS)
-        for i in xrange(1, len(self.AXIS_LIMITS)):
-            LOG.debug('checking motor %i', i)
-            enc = KNI.getEncoder(i)
-            motors[i] = KNI.moveMot(i, enc, self._speed, self._accel) != -1
+        for i in xrange(len(self.AXIS_LIMITS)):
+            LOG.debug('checking motor %i', i+1)
+            enc = KNI.getEncoder(i+1)
+            motors[i] = KNI.moveMot(i+1, enc, self._speed, self._accel) != -1
         return motors
 
     def reach_pose(self, pose):
-        """This pose is defined so that the hardware is safe to switch-off.
+        """Set the motors to an absolute position.
         pose: a *list* of encoder values for each spine axis
         """
         # no wait
@@ -173,13 +170,24 @@ class SpineHW(SpineBase):
             raise SpineError('failed to reach pose')
 
     def pose_rest(self):
-        self.reach_pose(list(self.POSE_REST))
+        """Set the robot in a pose so that hardware is safe to switch-off.
+        """
+        self.reach_pose(list(self.pose_off))
+#        neck, torso = self.pose_off
+#        self.set_neck_orientation(neck)
+#        self.set_torso_orientation(torso)
+
+    def pose_zeros(self):
+        """Set the robot in a pose where all axis are a 0rad.
+        """
+        self.reach_pose([0]*len(self.AXIS_LIMITS))
 
     def pose_average(self):
         """This pose is defined according to the mean value of each axis.
         Use this function to pose the robot so it has an even range of possible
-        movements."""
-        self.reach_pose([(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS[1:]])
+        movements.
+        """
+        self.reach_pose([(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS])
 
     def set_neck_orientation(self, xyz, wait=True):
         """Absolute orientation:
@@ -247,4 +255,4 @@ if __name__ == '__main__':
     s = SpineHW()
     s.switch_off()
     while not raw_input('press any key then Enter to finish > '):
-        print [ (m,KNI.getEncoder(m)) for m in range(1,len(s.AXIS_LIMITS)) ]
+        print [ (m+1,KNI.getEncoder(m+1)) for m in range(len(s.AXIS_LIMITS)) ]
