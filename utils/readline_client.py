@@ -153,13 +153,16 @@ class commConsClient(comm.BaseClient):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print "[--pipe] address and port not given!"
+    if len(sys.argv) < 2:
+        print "%s [--pipe] [address:]port" % sys.argv[0]
         exit(-1)
 
-    pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
-    port = sys.argv[2].isdigit() and int(sys.argv[2]) or sys.argv[2]
-    ADDR_PORT = (sys.argv[1], port)
+    pipe_mode = sys.argv[1] == '--pipe' and sys.argv.pop(1)
+    ADDR_PORT = sys.argv[1].split(':')
+    if len(ADDR_PORT) == 1:
+        ADDR_PORT.insert(0, 'localhost')
+    if ADDR_PORT[1].isdigit():
+        ADDR_PORT[1] = int(ADDR_PORT[1])
 
     cnx = commConsClient()
     if not pipe_mode :
@@ -174,4 +177,4 @@ if __name__ == "__main__":
         ui.cnx = cnx
         cnx.ui = ui
         threading.Thread(target=ui.cmdloop, name='UI').start()
-    cnx.loop_forever(ADDR_PORT)
+    cnx.loop_forever(tuple(ADDR_PORT))
