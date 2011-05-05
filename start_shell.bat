@@ -1,3 +1,5 @@
-python readline_client localhost 4242
-
-set /p wait=press enter to quit
+@echo off
+echo.
+IF "%PYTHON%" == "" (echo you must define PYTHON environment variable.) ELSE (
+%PYTHON% utils\readline_client.py localhost 4242 )
+pause

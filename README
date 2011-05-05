@@ -19,11 +19,10 @@ More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
 Requirements (In this order):
 =============
 
-- python 2.6 or 2.7
+- python 2.6
 - blender 2.49b
 - for Windows:
-* Microsoft Visual C++ 2008 SP1 Redistributable Package x86 (if you use blender
- backend)
+* Microsoft Visual C++ 2008 SP1 Redistributable Package x86
 * readline (if you want to use the readline client,
  http://newcenturycomputers.net/projects/download.cgi/Readline-1.7.win32-py2.6.exe)
 
@@ -33,15 +32,13 @@ Running the software:
 
 Windows:
 -------
-Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/ .
-Then run start_face.bat, if it fails because you have non-default installation,
- check the file and edit the paths.
-If it still fails, you'll have to make sure each dependency works using the
- command line (cmd.exe) ...
+Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/.
+Then run start.bat. If it fails, backtrack in the terminal window to check the
+ first error message. You may need to edit your configuration file.
 
 
-Open people would just:
-----------------------
+Open source people would:
+------------------------
 
 1) Open a shell and change into the directory containing this file.
 
@@ -60,22 +57,22 @@ Open people would just:
 
   2.2) open the blend file to generate a standalone version for your platform:
 
-       $ edit_face
+       $ edit_face        (if you have followed 2.1)
 
        Use blender menu: File > Save Game as Runtime, and save it in this folder
         as: "lightHead"
 
 3) start the facial animation system with:
- 
-   $ ./start_face.sh
+
+   $ ./start.sh
 
    By default the graphical interface is in full-screen;
     use option -w to enjoy window mode.
 
 
 Now you can connect and start setting Action Units according to the protocol
- definition. Rather you could use the expression datablock specification for
- higher-level animation.
+ definition. Rather, you could use the Expression server along with its
+ datablock specification for higher-level animation.
 
 
 Contact: frederic.delaunay@plymouth.ac.uk
