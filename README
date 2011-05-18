@@ -19,12 +19,19 @@ More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
 Requirements (In this order):
 =============
 
-- python 2.6
-- blender 2.49b
+- Python 2.6 		(http://www.python.org/getit/releases/)
+- NumPy for Python 2.6 	(http://www.scipy.org/Download)
+- blender 2.49b 	(http://download.blender.org/release/)
+
 - for Windows:
 * Microsoft Visual C++ 2008 SP1 Redistributable Package x86
 * readline (if you want to use the readline client,
- http://newcenturycomputers.net/projects/download.cgi/Readline-1.7.win32-py2.6.exe)
+ http://newcenturycomputers.net/
+ projects/download.cgi/Readline-1.7.win32-py2.6.exe)
+
+This distribution includes pyvision_0.9.0 for the vision module. This requires:
+- PIL for Python 2.6	(http://www.pythonware.com/products/pil/)
+- SciPy for Python 2.6	(http://www.scipy.org/Download)
 
 
 Running the software:
@@ -32,7 +39,12 @@ Running the software:
 
 Windows:
 -------
-Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/.
+1) Make sure you have a PYTHONPATH environment variable containing
+ Lib\site-packages.
+Otherwise, importing Numpy in a python shell could work, but not from the
+ blender backend.
+
+2) Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/.
 Then run start.bat. If it fails, backtrack in the terminal window to check the
  first error message. You may need to edit your configuration file.
 

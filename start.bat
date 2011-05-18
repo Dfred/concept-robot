@@ -11,10 +11,8 @@ IF "%PYTHONPATH%" == "" (
     echo you must define PYTHONPATH environment variable.
     GOTO :END
 )
+set PYTHONPATH=%PYTHONPATH%;%cd%;%cd%\HRI\face;%cd%\common\;%cd%\ext\pyvision_0.9.0\src;
 echo PYTHONPATH is %PYTHONPATH%
-
-set BASE_DIR=%cd%
-set PYTHONPATH=%PYTHONPATH%\site-packages;%BASE_DIR%\HRI;%BASE_DIR%\HRI\face;%BASE_DIR%\common\;
 
 IF "%HOME%" == "" (
     set LIGHTHEAD=common\lightHead.conf
