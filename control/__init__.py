@@ -77,7 +77,7 @@ class Behaviour(object):
         """Add a rule in the machine.
         in_state: input state
         action: function returning a new state (or None for no state change)
-        inp/out: 
+        inp/out:
         """
         if not self.actions.has_key(in_state):
                 self.actions[in_state] = action
@@ -127,7 +127,7 @@ class Behaviour(object):
             # XXX: needed ?
             for m in machines:
                 assert m.current_state in all_states, '[%s] unknown state %s' %\
-                    (self.name, s)
+                    (self.name, self.current_state)
             if callback:
                 callback(machines)
 
