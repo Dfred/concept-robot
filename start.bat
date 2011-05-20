@@ -11,7 +11,7 @@ IF "%PYTHONPATH%" == "" (
     echo you must define PYTHONPATH environment variable.
     GOTO :END
 )
-set PYTHONPATH=%PYTHONPATH%;%cd%;%cd%\HRI\face;%cd%\common\;%cd%\ext\pyvision_0.9.0\src;
+set PYTHONPATH=%PYTHONPATH%;%cd%;%cd%\HRI\face;%cd%\common\;%cd%\extern\pyvision_0.9.0\src;
 echo PYTHONPATH is %PYTHONPATH%
 
 IF "%HOME%" == "" (
