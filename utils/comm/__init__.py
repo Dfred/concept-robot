@@ -48,7 +48,7 @@ import select
 import logging
 from threading import Thread, Lock
 
-LOGFORMAT="%(asctime)s %(lineno)4d:%(filename).21s-%(levelname)s-\t%(message)s"
+LOGFORMAT="%(asctime)s %(filename).21s:%(lineno)-4d-%(levelname)s-\t%(message)s"
 # let users set log format themselves (see set_default_logging)
 LOG = logging.getLogger(__package__)
 # TODO: wouldn't `assert not LOG.debug('blah')` be optimized ?
