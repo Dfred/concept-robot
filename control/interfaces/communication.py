@@ -28,7 +28,7 @@ comm.set_default_logging(True)
 LOG = comm.LOG
 
 class ThreadedComm(comm.BaseClient):
-    """
+    """A communication class based on the comm protocol with threaded polling.
     """
 
     CONNECT_TIMEOUT = 3
@@ -74,7 +74,7 @@ class ThreadedComm(comm.BaseClient):
 class LightHeadComm(ThreadedComm):
     """Class dedicated for communication with lightHead server.
     """
-    
+
     def __init__(self, srv_addrPort):
         """
         """
@@ -86,12 +86,12 @@ class LightHeadComm(ThreadedComm):
 
     def cmd_lips(self, argline):
         self.lips_info = argline
-        
+
     def cmd_gaze(self, argline):
         self.gaze_info = argline
-        
+
     def cmd_face(self, argline):
-        self.face_info = argline  
+        self.face_info = argline
 
     def get_snapshot(self):
         self.send_msg("get_snapshot")
@@ -114,24 +114,43 @@ class ExpressionComm(ThreadedComm):
         self.tag_count = 0
         self.status = None
         self.reset_datablock()
+        self.on_reply = {}
+
+    def on_reply_fct(self, tag, fct):
+        """Installs a callback on reply from Expression.
+        Use the same function with argument None to unset.
+        """
+        if not fct:
+            del self.on_reply[tag]
+            return
+        assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
+        self.on_reply[tag] = fct
 
     def cmd_ACK(self, argline):
         self.status = self.ST_ACK
         self.tag = argline.strip()
-    
+        try: self.on_reply[self.tag]('ACK', self.tag)
+        except KeyError: pass
+
     def cmd_NACK(self, argline):
         self.status = self.ST_NACK
         self.tag = argline.strip()
+        try: self.on_reply[self.tag]('NACK', self.tag)
+        except KeyError: pass
         LOG.warning('expression reports bad message (%s).', self.tag)
-        
+
     def cmd_INT(self, argline):
         self.status = self.ST_INT
         self.tag = argline.strip()
+        try: self.on_reply[self.tag]('INT', self.tag)
+        except KeyError: pass
         LOG.warning('expression reports animation interruption! (%s)', self.tag)
 
     def cmd_DSC(self, argline):
         self.status = self.ST_DSC
         self.tag = None
+        try: self.on_reply[self.tag]('DSC', self.tag)
+        except KeyError: pass
         LOG.warning('expression reports disconnection from lightHead!')
 
     def reset_datablock(self):
@@ -196,13 +215,17 @@ class ExpressionComm(ThreadedComm):
         tag: string identifying your datablock.
         Returns: tag, part of it is generated. You may need it for wait_reply().
         """
-        db = '{0};"{1}";{2};{3};{4};'.format(*self.datablock)
+        datablock = '{0};"{1}";{2};{3};{4};'.format(*self.datablock)
         self.tag_count += 1
         tag += str(self.tag_count)
         self.status = None
         self.reset_datablock()
-        self.send_msg(db+tag)
+        self.send_msg(datablock+tag)
         return tag
+
+    def send_my_datablock(self, datablock, tag):
+        self.status = None
+        self.send_msg(datablock+tag)
 
     def wait_reply(self, tag):
         """Wait for a reply from the server.

@@ -34,10 +34,11 @@ class Utterances(object):
             if line.startswith('EOSECTION'):
                 return 'EOSECTION'
             min_dur, datablock = line.split(None,1)
-            return float(min_dur), datablock.strip(), datablock.split(';')[-1]
+            return (float(min_dur), datablock[:datablock.rindex(';')+1],
+                    datablock[datablock.rindex(';')+1:])
         return None
 
-    def lock(self, duration):
+    def lock_for(self, duration):
         """Lock iterating over the file for duration seconds.
         """
         self.next_time = time.time() + duration
@@ -52,16 +53,22 @@ class MonologuePlayer(FSM_Builder):
         """
         Returns: 'EOSECTION', Behaviour.STOPPED
         """
+        if self.wait_reply:
+            return
         line = self.utterances.next()
         if line == 'EOSECTION':
             return line
         if line == 'EOF':
             return Behaviour.STOPPED
         if line:
-            pause, datablock, tag = line
-            self.comm_expr.send_msg(datablock+'read')
-            self.comm_expr.wait_reply(tag+'read')
-            self.utterances.lock(pause)
+            def got_reply(status, tag):
+                self.wait_reply = False
+                self.comm_expr.on_reply_fct(self.tag, None)
+                self.utterances.lock_for(pause)
+            pause, datablock, self.tag = line
+            self.wait_reply = True
+            self.comm_expr.on_reply_fct(self.tag, got_reply)
+            self.comm_expr.send_my_datablock(datablock, self.tag)
 
     def search_participant(self):
         """
@@ -107,6 +114,7 @@ class MonologuePlayer(FSM_Builder):
                     )
         FSM_Builder.__init__(self, [('player',PLAYER_DEF,None)])
         self.utterances = Utterances()
+        self.wait_reply = False
 
 if __name__ == '__main__':
     m = MonologuePlayer()
