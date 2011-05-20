@@ -39,6 +39,13 @@ Running the software:
 
 Windows:
 -------
+
+Foreword: avoid using MinGW (if you can). Python doesn't like minGW or cygWin
+ paths (ie: starting with /c/..).
+ On a similar note, Python26/Lib/ and Python26/lib point at the same location
+ *but* is considered different (FYI, the PIL package will crash python if the
+ path has both Python26/lib/ and Python26/Lib/)
+
 1) Make sure you have a PYTHONPATH environment variable containing
  Lib\site-packages.
 Otherwise, importing Numpy in a python shell could work, but not from the

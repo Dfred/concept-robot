@@ -5,6 +5,7 @@ Animation System.
 """
 
 import sys
+import site
 import logging
 
 __version__ = "0.0.1"
@@ -77,6 +78,7 @@ def initialize(thread_info):
             sys.exit(1)
         if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
             # set system-wide logging level
+            print 'python paths:', sys.path
             from utils import comm; comm.set_default_logging(debug=True)
     except conf.LoadException, e:
         print 'in file {0[0]}: {0[1]}'.format(e)

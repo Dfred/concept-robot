@@ -35,8 +35,6 @@
 import sys
 import logging
 
-import numpy
-
 from utils.comm.meta_server import MetaRequestHandler, MetaServer
 from HRI import FeaturePool
 
