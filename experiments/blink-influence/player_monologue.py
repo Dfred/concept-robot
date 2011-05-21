@@ -31,9 +31,11 @@ class Utterances(object):
             print "time", time.time()
             if not line:
                 return 'EOF'
-            if line.startswith('EOSECTION'):
-                return 'EOSECTION'
-            min_dur, datablock = line.split(None,1)
+            try:
+                min_dur, datablock = line.split(None,1)
+            except ValueError:
+                print 'UTTERRANCES ERROR - line: %s' % line
+                return None
             return (float(min_dur), datablock[:datablock.rindex(';')+1],
                     datablock[datablock.rindex(';')+1:])
         return None
@@ -51,13 +53,11 @@ class MonologuePlayer(FSM_Builder):
 
     def read(self):
         """
-        Returns: 'EOSECTION', Behaviour.STOPPED
+        Returns: Behaviour.STOPPED
         """
         if self.wait_reply:
             return
         line = self.utterances.next()
-        if line == 'EOSECTION':
-            return line
         if line == 'EOF':
             return Behaviour.STOPPED
         if line:
@@ -108,8 +108,7 @@ class MonologuePlayer(FSM_Builder):
     def __init__(self):
         """
         """
-        PLAYER_DEF= ( ((Behaviour.STARTED, 'FOUND_PART', 'REPLIED'), self.read),
-                      ('EOSECTION',  self.finish),
+        PLAYER_DEF= ( (Behaviour.STARTED, self.read),
                       (Behaviour.STOPPED, self.finish),
                     )
         FSM_Builder.__init__(self, [('player',PLAYER_DEF,None)])
