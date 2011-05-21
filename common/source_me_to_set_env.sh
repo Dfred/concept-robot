@@ -36,14 +36,14 @@ else
     case `uname -s` in
 	MINGW*)
             PATH_S_=';'
-            DIST_PACKS_P='c:\Python26\lib\site-packages'
+#            DIST_PACKS_P='c:\Python26\lib\site-packages'
             ;;
 	*)
             PATH_S_=':'
-            DIST_PACKS_P='/usr/lib/python2.6/dist-packages'
+#            DIST_PACKS_P='/usr/lib/python2.6/dist-packages'
 	    ;;
     esac
-    EXTRA="$CONCEPT_DIR/HRI/face/$PATH_S_$CONCEPT_DIR/ext"
+    EXTRA="$CONCEPT_DIR/HRI/face/$PATH_S_$CONCEPT_DIR/extern"
     MODULES_PATH="$CONCEPT_DIR/$PATH_S_$EXTRA"
     export PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
 
