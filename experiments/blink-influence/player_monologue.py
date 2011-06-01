@@ -25,12 +25,15 @@ class Utterances(object):
         if not self.next_time:
             self.next_time = time.time()
         if time.time() >= self.next_time:
-            line = self.file.readline().strip()
+            line = self.file.readline()
+            if not line:
+                return 'EOF'
+            line = line.strip()
+            if not line:
+                return
             while line.startswith('#'):
                 line = self.file.readline().strip()
             print "time", time.time()
-            if not line:
-                return 'EOF'
             try:
                 min_dur, datablock = line.split(None,1)
             except ValueError:
