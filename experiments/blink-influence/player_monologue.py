@@ -7,7 +7,7 @@ from os.path import dirname, join
 from utils.expression_player import FSM_Builder
 from control import Behaviour
 
-UTTERANCES = join(dirname(__file__),'./performance.txt')
+UTTERANCES = join(dirname(__file__),'./monologue.txt')
 
 class Utterances(object):
     def __init__(self):
