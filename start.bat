@@ -21,7 +21,7 @@ IF "%HOME%" == "" (
 )
 echo LIGHTHEAD is %LIGHTHEAD%
 
-rem lightHead-window.exe
- HALA-window.exe
+lightHead-window.exe
+rem HALA-window.exe
 :END
 pause
