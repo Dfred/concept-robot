@@ -25,6 +25,7 @@
 #
 import math
 import threading
+import logging
 
 import numpy
 
@@ -41,7 +42,9 @@ from pyvision.edge.canny import canny
 
 from HRI import FeaturePool
 from utils import conf, Frame, fps
+
 conf.load()
+LOG = logging.getLogger(__package__)
 
 # Assume conf has member mod_vision
 if not conf.mod_vision.has_key('haar_cascade'):
@@ -105,28 +108,27 @@ class Camera(Webcam):
     """Additionaly stores camera specifics.
     """
 
-    def __init__(self, name, dev_index, resolution):
+    def __init__(self, name, dev_index, resolution, tolerance=1):
         Webcam.__init__(self, dev_index, resolution)
         self.factors = None, None, None
+        self.tolerance = tolerance
         self.name = name
 
+    def set_tolerance(self, value):
+        self.tolerance = value
+        
     def set_factors(self, x, y, z):
         """Set the gain to convert relative coordinates to real coordinates.
         """
         self.factors = x, y, z
-
+        
     def get_resolution(self):
         """
         Returns: (width,height) of camera frames.
         """
         return self.size
 
-    def get_tolerance_frame(self, tolerance):
-        """Retreive the frame
-        """
-        values = 0, 0, self.size[0], self.size[1]
-        return Frame(values).get_tolerance(tolerance)
-
+    # TODO: see TODO in CamCapture.use_camera()
     def get_3Dfocus(self, rects):
         """Generates gaze vector, using a Frame's origin and estimating depth
          from its width.
@@ -140,6 +142,12 @@ class Camera(Webcam):
             return [( (c.x/w-.5) * fw, (c.y/h-.5) * fh, math.log(r.w/w * fz) )
                     for c in rects ]
         return (rects.x/w-.5) * fw, (rects.y/h-.5)* fh, math.log(rects.w/w * fz)
+
+    def is_within_tolerance(self, x, y):
+        """Return True if point is in tolerance frame.
+        """
+        values = 0, 0, self.size[0]*self.tolerance, self.size[1]*self.tolerance
+        return Frame(values).is_within(x,y)
 
 
 class CamCapture(object):
@@ -167,17 +175,27 @@ class CamCapture(object):
         """
         name: identifier of camera as found in conf.
         """
+        # Required attributes
         try:
-            # assume lib_vision is in the conf
             cam_props = conf.lib_vision[name]
-            self.set_device(cam_props['dev_index'], cam_props['resolution'])
-            self.camera.set_factors(*cam_props['factors'])
+            cam_props_req = (cam_props['dev_index'], cam_props['resolution'])
         except AttributeError:
             raise VisionException("Camera '%s' has no definition in your"
                                    " configuration file." % name)
         except KeyError, e:
             raise VisionException("Definition of camera '%s' has no %s property"
                                   " in your configuration file." % (name, e))
+        self.set_device(*cam_props_req)
+        if cam_props.has_key('tolerance'):
+            self.camera.set_tolerance(cam_props['tolerance'])
+        else:
+            LOG.info("no tolerance configured for camera %s", name)
+        
+        # TODO: create a calibration tool so factors is mandatory (for 3d info)
+        if cam_props.has_key('factors'):
+            self.camera.set_factors(*cam_props['factors'])
+        else:
+            LOG.info("no factors configured for camera %s", name)
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -248,7 +266,7 @@ class CamFaceFinder(CamCapture):
             haar_cascade_path = conf.mod_vision['haar_cascade']
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
                                              min_size=(50,50), image_scale=0.5)
-#        self.eyes_detector = FilterEyeLocator()
+        self.eyes_detector = FilterEyeLocator()
 
     def find_faces(self):
         """Run the face detection algorithm

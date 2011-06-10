@@ -35,12 +35,12 @@ class Frame(object):
     def __repr__(self):
         return __repr__(tuple(self.x, self.y, self.w, self.h))
 
-    def get_tolerance(self, tolerance):
-        """Returns a frame with dimensions cropped by 'tolerance'.
-        tolerance: normal value (float), e.g: 0.66 -> 66% tolerance.
+    def get_inner(self, factor):
+        """Returns a Frame with dimensions cropped by 'factor'.
+        factor: normal value (float), e.g: 0.66 => 66% from width and height.
         """
-        assert tolerance > 0, 'tolerance cannot be negative'
-        w,h = tolerance * self.w, tolerance * self.h
+        assert factor > 0, 'factor cannot be negative'
+        w,h = factor * self.w, factor * self.h
         x,y = (self.w - w)/2, (self.h - h)/2
         return Frame((x,y,w,h))
 
@@ -48,3 +48,4 @@ class Frame(object):
         """Return True if coordinates are on or within the frame boundaries.
         """
         return self.w - self.x - x >= 0 and self.h - self.y - y >= 0
+        

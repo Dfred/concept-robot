@@ -21,7 +21,6 @@
 
 import time
 
-
 __author__ = "Frédéric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
 __credits__ = [""]
@@ -41,11 +40,12 @@ class FSM_Builder():
     """A generic framework for specifying behaviour through FSM objects.
     """
 
-    def __init__(self, machine_defs):
+    def __init__(self, machine_defs, with_vision=True):
         """
         """
         import conf
-        from HRI import vision
+        if with_vision:
+                from HRI import vision
         from control.interfaces.communication import ExpressionComm
         from control import Behaviour as FSM
 
@@ -65,28 +65,31 @@ class FSM_Builder():
             if not hasattr(self, 'root_fsm'):
                 self.root_fsm = fsm
 
-        try:
-            self.vision = vision.CamFaceFinder()
-            self.vision.use_camera(conf.mod_vision['camera'])
-#put that to conf for vision to read        self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
-            self.vision.gui_create()
-            self.vision.update()
-        except vision.VisionException, e:
-            fatal(e)
+        if with_vision:
+            try:
+                self.vision = vision.CamFaceFinder()
+                self.vision.use_camera(conf.mod_vision['camera'])
+    #put that to conf for vision to read        self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
+                self.vision.gui_create()
+                self.vision.update()
+            except vision.VisionException, e:
+                fatal(e)
         self.comm_expr = ExpressionComm(conf.expression_server)
 
     def cleanup(self):
         """
         """
-        self.vision.gui_destroy()
+        if hasattr(self,'vision'):
+            self.vision.gui_destroy()
         self.comm_expr.done()
 
     def step_callback(self, machines):
         """Will die on disconnection with expression, also updates webcam.
         Return: None
         """
-        self.vision.update()
-        self.vision.gui_show()
+        if hasattr(self,'vision'):
+            self.vision.update()
+            self.vision.gui_show()
         if not self.comm_expr.connected:
             self.root_fsm.abort()
 
