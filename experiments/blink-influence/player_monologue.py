@@ -5,6 +5,7 @@ import random
 from os.path import dirname, join
 
 from utils.expression_player import FSM_Builder
+from utils import Frame
 from control import Behaviour
 
 UTTERANCES = join(dirname(__file__),'./monologue.txt')
@@ -91,9 +92,10 @@ class MonologuePlayer(FSM_Builder):
         center = Frame(((eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2,
                         self.faces[0].w, self.faces[0].h))
         gaze_xyz = self.vision.camera.get_3Dfocus(center)
+        neck = ((.0,.0,.0),(.0,.0,.0))
         # TODO: ideally, we would not have to set the neck if gaze is enough to
         #  drive the neck (an expr2 instinct could do it).
-        if not self.vision_frame.is_within(center.x, center.y):
+        if not self.vision.camera.is_within_tolerance(center.x, center.y):
             neck = (gaze_xyz,(.0,.0,.0))
         self.comm_expr.set_gaze(gaze_xyz)
         self.comm_expr.set_neck(*neck)
@@ -114,7 +116,12 @@ class MonologuePlayer(FSM_Builder):
         PLAYER_DEF= ( (Behaviour.STARTED, self.read),
                       (Behaviour.STOPPED, self.finish),
                     )
-        FSM_Builder.__init__(self, [('player',PLAYER_DEF,None)])
+        FTRACKER_DEF = ( ((Behaviour.STARTED,'ADJUSTED'), self.search_participant),
+                         ('FOUND_PART', self.adjust_gaze_neck),
+                         (Behaviour.STOPPED, self.finish),
+                       )
+        FSM_Builder.__init__(self, [('player',PLAYER_DEF,None),
+                                    ('tracker',FTRACKER_DEF,'player')])
         self.utterances = Utterances()
         self.wait_reply = False
 
