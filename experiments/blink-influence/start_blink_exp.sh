@@ -1,3 +1,5 @@
 cd ../..
 
-PYTHONPATH=$PYTHONPATH:./extern/ python ./experiments/blink-influence/player_monologue.py
+source ./common/source_me_to_set_env.sh lightHead
+
+python ./experiments/blink-influence/player_monologue.py
