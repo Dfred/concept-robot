@@ -56,6 +56,7 @@ CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
 INFO_PERIOD = 0
+RAD2DEG = 180/pi
 
 def exiting():
     #We check if there is a valid "server" object because its possible that
@@ -100,7 +101,7 @@ def initialize(server):
 
     # get driven objects
     objs = G.getCurrentScene().objects
-    for obj_name in ('eye_L', 'eye_R', 'jaw', 'tongue'):
+    for obj_name in ('eye_L', 'eye_R', 'skeleton', 'tongue'):
         try:
             setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
         except KeyError:
@@ -117,9 +118,16 @@ def initialize(server):
             not act.name.startswith('-') and act.action]
     check_defects(owner, acts)
 
-    # all properties must be set to the face mesh.
-    # TODO: p26 is copied on the 'jaw' bone too, use the one from face mesh.
-    server.set_available_AUs([n[1:] for n in owner.getPropertyNames()])
+    # properties must be set to 'Head' and 'skeleton'.
+    # BEWARE to not set props to these objects before, they'll be included here.
+    AUs =   [ n[1:] for n in owner.getPropertyNames()] + \
+            [ n[1:] for n in G.skeleton.getPropertyNames()]
+    server.set_available_AUs(AUs)
+
+    #TODO: get values directly from the blend file
+    G.skeleton.limits = {   '51.5' : (-15, 15),
+                            '53.5' : (-22, 25),
+                            '55.5' : (-15, 15) }
 
     # ok, startup
     G.initialized = True
@@ -148,7 +156,7 @@ def update():
     for au, values in face_map.iteritems():
         # XXX: yes, 6 is an eye prefix (do better ?)
         if au.startswith('6'):
-            if eyes_done:
+            if eyes_done:   # all in one pass
                 continue
             # The model is supposed to look towards negative Y values
             # Also Up is positive Z values
@@ -165,12 +173,22 @@ def update():
                 [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
                 [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
             eyes_done = True
+
         # XXX: yes, 9 is a tongue prefix (do better ?)
         elif au.startswith('9'):
             G.tongue[au] = SH_ACT_LEN * values[3]
+
+        # XXX: yes, 5 is a head prefix (do better ?)
+        elif au.startswith('5'):
+            if float(au) <= 55.5:   # pan, tilt, roll
+                a_min, a_max = G.skeleton.limits[au]
+                angle = RAD2DEG * values[3] + 25
+                G.skeleton['p'+au] = max(a_min, min(a_max, angle))
+
         elif au == '26':
-            # TODO: try with G.setChannel
-            G.jaw['p26'] = SH_ACT_LEN * values[3]   # see always sensor in .blend
+            # TODO: try with G.setChannel ?
+            G.skeleton['p26'] = SH_ACT_LEN * values[3]
+            
         else:
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
@@ -213,8 +231,5 @@ def main():
             # update blender with fresh face data
             update()
         except Exception,e:
-            import conf; conf.load()
-            if hasattr(conf,'DEBUG') and conf.DEBUG:
-                import pdb; pdb.post_mortem()
-            else:
-                raise
+            from utils import handle_exception_debug
+            handle_exception_debug()
