@@ -19,6 +19,18 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+def handle_exception_debug(force_pdb=False):
+    """This function starts pdb if the DEBUG_MODE is set to true in conf.
+    Otherwise, it just raises the latest exception.
+    """
+    import conf; conf.load()
+    if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+        print '===EXCEPTION CAUGHT'+'='*60
+        import traceback; traceback.print_exc()
+        import pdb; pdb.post_mortem()
+    else:
+        raise
+
 
 class Frame(object):
     """Object with 2D coordinates and length for each dimension.
@@ -48,4 +60,3 @@ class Frame(object):
         """Return True if coordinates are on or within the frame boundaries.
         """
         return self.w - self.x - x >= 0 and self.h - self.y - y >= 0
-        
