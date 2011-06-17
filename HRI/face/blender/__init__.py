@@ -100,7 +100,7 @@ def initialize(server):
 
     # get driven objects
     objs = G.getCurrentScene().objects
-    for obj_name in ('eye_L', 'eye_R', 'jaw', 'tongue'):
+    for obj_name in ('eye_L', 'eye_R', 'skeleton', 'tongue'):
         try:
             setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
         except KeyError:
