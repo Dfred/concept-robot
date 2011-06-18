@@ -158,20 +158,20 @@ def update():
         if au.startswith('6'):
             if eyes_done:   # all in one pass
                 continue
-            # The model is supposed to look towards negative Y values
-            # Also Up is positive Z values
+            # Up is positive Z values and the model is supposed to look towards
+            # negative Y values, Eye_L is the character's left eye.
             ax  = -face_map['63.5'][3]
-            az0 =  face_map['61.5R'][3]
-            az1 =  face_map['61.5L'][3]
+            azR =  face_map['61.5R'][3]
+            azL =  face_map['61.5L'][3]
             # No blender ACTION for eyes
             G.eye_L.localOrientation = [
-                [cos(az0),        -sin(az0),         0],
-                [cos(ax)*sin(az0), cos(ax)*cos(az0),-sin(ax)],
-                [sin(ax)*sin(az0), sin(ax)*cos(az0), cos(ax)] ]
+                [cos(azL),        -sin(azL),         0],
+                [cos(ax)*sin(azL), cos(ax)*cos(azL),-sin(ax)],
+                [sin(ax)*sin(azL), sin(ax)*cos(azL), cos(ax)] ]
             G.eye_R.localOrientation = [
-                [cos(az1),        -sin(az1),          0],
-                [cos(ax)*sin(az1), cos(ax)*cos(az1),-sin(ax)],
-                [sin(ax)*sin(az1), sin(ax)*cos(az1), cos(ax)] ]
+                [cos(azR),        -sin(azR),          0],
+                [cos(ax)*sin(azR), cos(ax)*cos(azR),-sin(ax)],
+                [sin(ax)*sin(azR), sin(ax)*cos(azR), cos(ax)] ]
             eyes_done = True
 
         # XXX: yes, 9 is a tongue prefix (do better ?)
@@ -188,7 +188,7 @@ def update():
         elif au == '26':
             # TODO: try with G.setChannel ?
             G.skeleton['p26'] = SH_ACT_LEN * values[3]
-            
+
         else:
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
