@@ -56,7 +56,7 @@ CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
 INFO_PERIOD = 0
-RAD2DEG = 180/pi
+DEG2RAD = pi/180
 
 def exiting():
     #We check if there is a valid "server" object because its possible that
@@ -120,14 +120,14 @@ def initialize(server):
 
     # properties must be set to 'Head' and 'skeleton'.
     # BEWARE to not set props to these objects before, they'll be included here.
-    AUs =   [ n[1:] for n in owner.getPropertyNames()] + \
-            [ n[1:] for n in G.skeleton.getPropertyNames()]
+    AUs = [(n[1:],getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
+          [(n[1:],getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
     server.set_available_AUs(AUs)
 
     #TODO: get values directly from the blend file
-    G.skeleton.limits = {   '51.5' : (-15, 15),
-                            '53.5' : (-22, 25),
-                            '55.5' : (-15, 15) }
+    G.skeleton.limits = {   '51.5' : (-15*DEG2RAD, 15*DEG2RAD),
+                            '53.5' : (-22*DEG2RAD, 25*DEG2RAD),
+                            '55.5' : (-15*DEG2RAD, 15*DEG2RAD) }
 
     # ok, startup
     G.initialized = True
@@ -182,8 +182,11 @@ def update():
         elif au.startswith('5'):
             if float(au) <= 55.5:   # pan, tilt, roll
                 a_min, a_max = G.skeleton.limits[au]
-                angle = RAD2DEG * values[3] + 25
-                G.skeleton['p'+au] = max(a_min, min(a_max, angle))
+                if values[3] >= 0:
+                    G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+                if values[3] < 0:
+                    G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+                print 'p%s:' % au, G.skeleton['p'+au], values
 
         elif au == '26':
             # TODO: try with G.setChannel ?
