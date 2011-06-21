@@ -127,7 +127,11 @@ def initialize(server):
     #TODO: get values directly from the blend file
     G.skeleton.limits = {   '51.5' : (-15*DEG2RAD, 15*DEG2RAD),
                             '53.5' : (-22*DEG2RAD, 25*DEG2RAD),
-                            '55.5' : (-15*DEG2RAD, 15*DEG2RAD) }
+                            '55.5' : (-15*DEG2RAD, 15*DEG2RAD),
+                            'ThY'  : (-17*DEG2RAD, 15*DEG2RAD),
+                            'ShYL' : (-17*DEG2RAD, 15*DEG2RAD),
+                            'ShYR' : (-17*DEG2RAD, 15*DEG2RAD)
+                        }
 
     # ok, startup
     G.initialized = True
@@ -186,15 +190,25 @@ def update():
                     G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
                 if values[3] < 0:
                     G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
-                print 'p%s:' % au, G.skeleton['p'+au], values
 
         elif au == '26':
             # TODO: try with G.setChannel ?
             G.skeleton['p26'] = SH_ACT_LEN * values[3]
 
-        else:
+        elif au[0].isdigit():
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
+
+        elif au == 'Th0':
+            cont.owner['p'+au] = SH_ACT_LEN * values[3]
+            cont.activate(cont.actuators[au])
+
+        else:
+            a_min, a_max = G.skeleton.limits[au]
+            if values[3] >= 0:
+                G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+            if values[3] < 0:
+                G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
     G.last_update_time = time.time()
 
     INFO_PERIOD += time_diff
