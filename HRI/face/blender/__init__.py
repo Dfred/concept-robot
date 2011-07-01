@@ -56,7 +56,6 @@ CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
 INFO_PERIOD = 0
-DEG2RAD = pi/180
 
 def exiting():
     #We check if there is a valid "server" object because its possible that
@@ -124,14 +123,9 @@ def initialize(server):
           [(n[1:],getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
     server.set_available_AUs(AUs)
 
-    #TODO: get values directly from the blend file
-    G.skeleton.limits = {   '51.5' : (-15*DEG2RAD, 15*DEG2RAD),
-                            '53.5' : (-22*DEG2RAD, 25*DEG2RAD),
-                            '55.5' : (-15*DEG2RAD, 15*DEG2RAD),
-                            'ThY'  : (-17*DEG2RAD, 15*DEG2RAD),
-                            'ShYL' : (-17*DEG2RAD, 15*DEG2RAD),
-                            'ShYR' : (-17*DEG2RAD, 15*DEG2RAD)
-                        }
+    #TODO: get values directly from the blend file ?
+    from utils import conf; conf.load()
+    G.skeleton.limits = conf.lib_spine[conf.CHARACTER]['AXIS_LIMITS']
 
     # ok, startup
     G.initialized = True
@@ -139,7 +133,7 @@ def initialize(server):
     G.setMaxLogicFrame(1)       # relative to rendering
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL ','GLSL_MATERIAL '][Rasterizer.getMaterialMode()]
+    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL','GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
     G.last_update_time = time.time()
     return cont
 
@@ -149,9 +143,17 @@ def update():
     """
     global INFO_PERIOD
 
+    def get_orientation_XZ(x,z):
+        """Up is positive Z values and the model is supposed to look towards
+         negative Y values.
+        """
+        return [ [cos(azL),        -sin(azL),         0],
+                 [cos(x)*sin(z), cos(ax)*cos(azL),-sin(ax)],
+                 [sin(x)*sin(z), sin(ax)*cos(azL), cos(ax)] ]
+
     srv = G.face_server
     cont = G.getCurrentController()
-    eyes_done = False
+    eyes_done, spine_done = False, False
     time_diff = time.time() - G.last_update_time
 
     # threaded server is thread-safe
@@ -160,23 +162,23 @@ def update():
     for au, values in face_map.iteritems():
         # XXX: yes, 6 is an eye prefix (do better ?)
         if au.startswith('6'):
-            if eyes_done:   # all in one pass
+            if eyes_done:                   # all in one pass
                 continue
-            # Up is positive Z values and the model is supposed to look towards
-            # negative Y values, Eye_L is the character's left eye.
-            ax  = -face_map['63.5'][3]
+            ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
             azR =  face_map['61.5R'][3]
             azL =  face_map['61.5L'][3]
-            # No blender ACTION for eyes
-            G.eye_L.localOrientation = [
-                [cos(azL),        -sin(azL),         0],
-                [cos(ax)*sin(azL), cos(ax)*cos(azL),-sin(ax)],
-                [sin(ax)*sin(azL), sin(ax)*cos(azL), cos(ax)] ]
-            G.eye_R.localOrientation = [
-                [cos(azR),        -sin(azR),          0],
-                [cos(ax)*sin(azR), cos(ax)*cos(azR),-sin(ax)],
-                [sin(ax)*sin(azR), sin(ax)*cos(azR), cos(ax)] ]
+            G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
+            G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
             eyes_done = True
+
+        elif au.startswith('Th'):
+            if au[-1] == '0':
+                cont.owner['p'+au] = SH_ACT_LEN * values[3]
+                cont.activate(cont.actuators[au])
+            else:
+                a_min, a_max = G.skeleton.limits[au]
+                a_bound = values[3] < 0 and a_min or a_max
+                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         # XXX: yes, 9 is a tongue prefix (do better ?)
         elif au.startswith('9'):
@@ -186,20 +188,15 @@ def update():
         elif au.startswith('5'):
             if float(au) <= 55.5:   # pan, tilt, roll
                 a_min, a_max = G.skeleton.limits[au]
-                if values[3] >= 0:
-                    G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
-                if values[3] < 0:
-                    G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+                a_bound = values[3] < 0 and a_min or a_max
+                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         elif au == '26':
             # TODO: try with G.setChannel ?
             G.skeleton['p26'] = SH_ACT_LEN * values[3]
-
-        elif au[0].isdigit():
-            cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
 
-        elif au == 'Th0':
+        elif au[0].isdigit():
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
 
