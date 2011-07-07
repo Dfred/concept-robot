@@ -194,7 +194,6 @@ def update():
         elif au == '26':
             # TODO: try with G.setChannel ?
             G.skeleton['p26'] = SH_ACT_LEN * values[3]
-            cont.activate(cont.actuators[au])
 
         elif au[0].isdigit():
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
@@ -234,7 +233,7 @@ def main():
         except:
             fatal("initialization error")
         else:
-            cont.activate(cont.actuators["- wakeUp -"])
+            print '--- initialization OK ---'
     else:
         if not THREADED_SERVER:
             # server handles channels explicitly
