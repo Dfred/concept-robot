@@ -50,6 +50,14 @@ case `uname -s` in
         ;;
 esac
 
+getopts "w" OPTS
+if [ "$OPTS" = "w" ]; then
+    shift;
+    if [ "$OPTS" = "w" ]; then
+    	PROJECT_NAME=$PROJECT_NAME-window
+    fi
+fi
+
 if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
     exit 2
@@ -60,17 +68,10 @@ if test -z "$CONF_FILE"; then
 fi
 
 # Now launch
-getopts "w" OPTS
-if [ "$OPTS" = "w" ]; then
-    shift;
-fi
 
 echo -n "--- launching face ---"
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 
-if [ "$OPTS" = "w" ]; then
-    ./$PROJECT_NAME-window$BIN_SUFFIX $@ "$PROJECT_NAME"
-else
-    ./$PROJECT_NAME$BIN_SUFFIX $@ "$PROJECT_NAME"
-fi
+./$PROJECT_NAME$BIN_SUFFIX $@ "$PROJECT_NAME"
+

@@ -19,6 +19,18 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+def handle_exception_debug(force_pdb=False):
+    """This function starts pdb if the DEBUG_MODE is set to true in conf.
+    Otherwise, it just raises the latest exception.
+    """
+    import conf; conf.load()
+    if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
+        print '===EXCEPTION CAUGHT'+'='*60
+        import traceback; traceback.print_exc()
+        import pdb; pdb.post_mortem()
+    else:
+        raise
+
 
 class Frame(object):
     """Object with 2D coordinates and length for each dimension.
@@ -35,12 +47,12 @@ class Frame(object):
     def __repr__(self):
         return __repr__(tuple(self.x, self.y, self.w, self.h))
 
-    def get_tolerance(self, tolerance):
-        """Returns a frame with dimensions cropped by 'tolerance'.
-        tolerance: normal value (float), e.g: 0.66 -> 66% tolerance.
+    def get_inner(self, factor):
+        """Returns a Frame with dimensions cropped by 'factor'.
+        factor: normal value (float), e.g: 0.66 => 66% from width and height.
         """
-        assert tolerance > 0, 'tolerance cannot be negative'
-        w,h = tolerance * self.w, tolerance * self.h
+        assert factor > 0, 'factor cannot be negative'
+        w,h = factor * self.w, factor * self.h
         x,y = (self.w - w)/2, (self.h - h)/2
         return Frame((x,y,w,h))
 

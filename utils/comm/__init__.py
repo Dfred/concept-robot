@@ -48,7 +48,7 @@ import select
 import logging
 from threading import Thread, Lock
 
-LOGFORMAT = "%(asctime)s %(lineno)4d:%(filename).21s\t-%(levelname)s-\t%(message)s"
+LOGFORMAT="%(asctime)s %(filename).21s:%(lineno)-4d-%(levelname)s-\t%(message)s"
 # let users set log format themselves (see set_default_logging)
 LOG = logging.getLogger(__package__)
 # TODO: wouldn't `assert not LOG.debug('blah')` be optimized ?
@@ -642,7 +642,9 @@ class BaseComm(object):
             if not buff:
                 return self.abort()
         except socket.error, e:
-            self.handle_error(e)
+            # On Windows7, disconnection is an exception.
+            if e.errno != 10054:
+                self.handle_error(e)
             return self.abort()
         self.unprocessed = self.process(self.unprocessed + buff)
         return True
@@ -772,7 +774,7 @@ class BaseComm(object):
                 setattr(self, name, member)
             self._th_save.clear()
             LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
-                
+
 
 class RequestHandler(BaseComm):
     """Instancied on successful connection to the server: a remote client.

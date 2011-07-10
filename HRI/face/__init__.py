@@ -108,11 +108,15 @@ class Face_Server(object):
 
     def set_available_AUs(self, available_AUs):
         """Define list of AUs available for a specific face.
-         available_AUs: list of AUs (floats)
+         available_AUs: list of AUs (floats) OR list of tuples (AU, init_value)
         """
+        available_AUs.sort()
         a = numpy.zeros((len(available_AUs), 4), dtype=numpy.float32)
+        if type(available_AUs[0]) == tuple:
+            available_AUs, init_values = zip(*available_AUs)
+            a[:,0] = a[:,3] = numpy.array(init_values)
         # { AU_name : numpy array [target, remaining, coeff, value] }
-        self.AUs = dict(zip(sorted(available_AUs),a))
+        self.AUs = dict(zip(available_AUs,a))
         # set region-based AUs
 #        for name in SUPPORTED_ORIGINS:
 #            self.FP.add_feature(name, self.subarray_from_origin(name))

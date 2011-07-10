@@ -23,9 +23,9 @@
 # Most feature detections are provided by the (very nice) pyvision module.
 # For a list of all of them, check: http://pyvision.sourceforge.net/api/
 #
-
 import math
 import threading
+import logging
 
 import numpy
 
@@ -42,8 +42,15 @@ from pyvision.edge.canny import canny
 
 from HRI import FeaturePool
 from utils import conf, Frame, fps
-conf.load()
 
+conf.load()
+LOG = logging.getLogger(__package__)
+
+# Assume conf has member mod_vision
+if not conf.mod_vision.has_key('haar_cascade'):
+    from os.path import dirname, join
+    conf.mod_vision['haar_cascade'] = join(dirname(__file__),
+                                           'haarcascade_frontalface_alt.xml')
 
 class VisionException(Exception):
     """
@@ -79,7 +86,7 @@ class CamGUI(object):
         pil = camFrame.asAnnotated()    # get image with annotations (PIL)
         rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
         cv.SetData(rgb, pil.tostring())
-        
+
         frame = cv.CreateImage(cv.GetSize(rgb), cv.IPL_DEPTH_8U,3)
         if frame is None:
             print "error creating openCV frame for gui"
@@ -96,33 +103,32 @@ class CamGUI(object):
         """
         cv.CreateTrackbar(label, self.name, min_v, max_v, callback)
 
-    
+
 class Camera(Webcam):
     """Additionaly stores camera specifics.
     """
 
-    def __init__(self, name, dev_index, resolution):
+    def __init__(self, name, dev_index, resolution, tolerance=1):
         Webcam.__init__(self, dev_index, resolution)
         self.factors = None, None, None
+        self.tolerance = tolerance
         self.name = name
- 
+
+    def set_tolerance(self, value):
+        self.tolerance = value
+        
     def set_factors(self, x, y, z):
         """Set the gain to convert relative coordinates to real coordinates.
         """
         self.factors = x, y, z
-
+        
     def get_resolution(self):
         """
         Returns: (width,height) of camera frames.
         """
         return self.size
-    
-    def get_tolerance_frame(self, tolerance):
-        """Retreive the frame 
-        """
-        values = 0, 0, self.size[0], self.size[1]
-        return Frame(values).get_tolerance(tolerance)
 
+    # TODO: see TODO in CamCapture.use_camera()
     def get_3Dfocus(self, rects):
         """Generates gaze vector, using a Frame's origin and estimating depth
          from its width.
@@ -137,12 +143,18 @@ class Camera(Webcam):
                     for c in rects ]
         return (rects.x/w-.5) * fw, (rects.y/h-.5)* fh, math.log(rects.w/w * fz)
 
+    def is_within_tolerance(self, x, y):
+        """Return True if point is in tolerance frame.
+        """
+        values = 0, 0, self.size[0]*self.tolerance, self.size[1]*self.tolerance
+        return Frame(values).is_within(x,y)
+
 
 class CamCapture(object):
     """Captures video stream from camera.
     A visualisation of the video stream is also available through the gui.
     """
-    
+
     def __init__(self):
         """
         """
@@ -163,16 +175,27 @@ class CamCapture(object):
         """
         name: identifier of camera as found in conf.
         """
+        # Required attributes
         try:
-            cam_props = getattr(conf, name)
-            self.set_device(cam_props['dev_index'], cam_props['resolution'])
-            self.camera.set_factors(*cam_props['factors'])
+            cam_props = conf.lib_vision[name]
+            cam_props_req = (cam_props['dev_index'], cam_props['resolution'])
         except AttributeError:
             raise VisionException("Camera '%s' has no definition in your"
                                    " configuration file." % name)
         except KeyError, e:
             raise VisionException("Definition of camera '%s' has no %s property"
                                   " in your configuration file." % (name, e))
+        self.set_device(*cam_props_req)
+        if cam_props.has_key('tolerance'):
+            self.camera.set_tolerance(cam_props['tolerance'])
+        else:
+            LOG.info("no tolerance configured for camera %s", name)
+        
+        # TODO: create a calibration tool so factors is mandatory (for 3d info)
+        if cam_props.has_key('factors'):
+            self.camera.set_factors(*cam_props['factors'])
+        else:
+            LOG.info("no factors configured for camera %s", name)
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -231,14 +254,16 @@ class CamCapture(object):
 class CamFaceFinder(CamCapture):
     """This class detects faces and return them as rects (width, height and pos)
     """
-    
-    def __init__(self, haar_cascade_path):
+
+    def __init__(self, haar_cascade_path=None):
         """
-        haar_cascade_path: path to .xml
+        haar_cascade_path: path to .xml, if None then use default
         index: camera device index
         resolution: defaults to (320,240)
         """
         CamCapture.__init__(self)
+        if not haar_cascade_path:
+            haar_cascade_path = conf.mod_vision['haar_cascade']
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
                                              min_size=(50,50), image_scale=0.5)
         self.eyes_detector = FilterEyeLocator()
@@ -281,7 +306,7 @@ class CamFaceFinder(CamCapture):
     #     else:
     #         config.face_x = x
     #         config.face_y = y
-            
+
     #     face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
     #     x_dist = ((config.face_x/1400.6666)*face_distance)/100
     #     y_dist = ((config.face_y/700.6666)*face_distance)/100
@@ -289,8 +314,8 @@ class CamFaceFinder(CamCapture):
     #         return (x_dist, (face_distance/100.0), y_dist)  # x is inverted for compatibility
     #     else:
     #         return (-x_dist, (face_distance/100.0), y_dist)
-            
-            
+
+
     # def follow_face_with_neck(self, x, y, face_distance):
     #     """adjust coordinates of detected faces to neck movement
     #     """
@@ -300,7 +325,7 @@ class CamFaceFinder(CamCapture):
     #         move = True
     #     else:
     #         distance_x = 0.0
-            
+
     #     if y > 60 or y < -60: # threshold
     #         distance_y = (y/-480.0) * 0.1 * math.pi
     #         move = True
@@ -324,7 +349,7 @@ class CamFaceFinder(CamCapture):
 #     def follow_ball_with_gaze(self, x, y):
 #         """adjust coordinates of detected faces to mask
 #         """
-            
+
 #         #face_distance = ((-88.4832801364568 * math.log(width)) + 538.378262966656)
 #         face_distance = 50.0
 #         x_dist = ((x/1400.6666)*face_distance)/-100
@@ -334,8 +359,8 @@ class CamFaceFinder(CamCapture):
 # #                self.comm.set_gaze(str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist))
 # #                self.comm.last_ack = "wait"
 #         return str(x_dist) + "," + str(face_distance/100) + "," + str(y_dist)
-                
-    
+
+
     # def detect_circle(self, image, image_org):
     #     grayscale = cv.CreateImage(cv.GetSize(image), 8, 1)
     #     grayscale_smooth = cv.CreateImage(cv.GetSize(image), 8, 1)
@@ -360,12 +385,12 @@ class CamFaceFinder(CamCapture):
     #                 config.detect_colour = False
     #                 colour = self.record_colour(image, image_org, [int(c[0]), int(c[1])], radius)
     #                 circles_simple.append([point, radius, colour])
-            
+
     #     if config.follow_ball_gaze and circles_simple:
     #         x_adjust = 320 - circles_simple[0][0].x
     #         y_adjust = 240 - circles_simple[0][0].y
     #         gazing = self.follow_ball_with_gaze(x_adjust, y_adjust)
-        
+
     #     if config.follow_ball_neck and circles_simple:
     #         #self.comm.send_msg("recognizing;*;1;;;;tag_SPEECH")
     #         x_adjust = 320 - circles_simple[0][0].x
@@ -383,7 +408,7 @@ class CamFaceFinder(CamCapture):
     #                 config.neck_pos[2] += distance_x
     #                 config.neck_pos[0] += distance_y
     #                 self.comm.last_ack = "wait"
-        
+
 
     #     if config.colour_to_find and circles_simple:
     #         dist = []
@@ -416,10 +441,10 @@ class CamFaceFinder(CamCapture):
     #                     config.neck_pos[2] += distance_x
     #                     config.neck_pos[0] += distance_y
     #                     self.comm.last_ack = "wait"
-                        
+
     #     return circles_simple
-    
-    
+
+
     # def get_colour(self, image, image_org, pos, radius):
     #     radius = int(radius*0.7)
     #     rect = cv.Rect(pos[0]-radius,pos[1]-radius, radius*2, radius*2)
@@ -432,13 +457,13 @@ class CamFaceFinder(CamCapture):
     #         #print "Average colour value: H:"+ str(int((scalar[0]*2))) + " S:"+ str(int(scalar[1]/255.0*100)) + " V:"+ str(int(scalar[2]/255.0*100))
     #         self.current_colour = [int((scalar[2])), int(scalar[1]), int(scalar[0])]
     #         print "Average colour value: R:"+ str(int((scalar[2]))) + " G:"+ str(int(scalar[1])) + " B:"+ str(int(scalar[0]))
-        
+
     #     except RuntimeError:
     #         print "error"
-        
+
     #     cv.Rectangle(image, cv.Point( pos[0]-radius, pos[1]-radius), cv.Point(pos[0]+ radius, pos[1]+radius),cv.CV_RGB(0, 255, 0), 2, 8, 0)
-        
-        
+
+
     # def record_colour(self, image, image_org, pos, radius):
     #     radius = int(radius*0.7)
     #     if pos[1] > radius: # only record a square when it is in full camera view
@@ -464,16 +489,16 @@ class CamFaceFinder(CamCapture):
     #     # Create a 8-bit 1-channel image with same size as the frame
     #     color_mask = cv.CreateImage(cv.GetSize(image), 8, 1)
     #     image_h = cv.CreateImage(cv.GetSize(image), 8, 1)
-        
+
     #     cv.CvtColor(image, image, cv.CV_BGR2HSV)  # convert to hsv
-        
+
     #     cv.Split(image, image_h, None, None, None)
-        
+
     #     # Find the pixels within the color-range, and put the output in the color_mask
     #     cv.InRangeS(image_h, cv.Scalar((edge_threshold4*2)-5), cv.Scalar((edge_threshold4*2)+5), color_mask)
     #     cv.CvtColor(image, image, cv.CV_HSV2BGR)  # convert to bgr
     #     cv.Set(image, cv.CV_RGB(0, 255, 0), color_mask)
-        
+
 def run(cap):
     import sys
     my_fps = fps.SimpleFPS()
@@ -481,36 +506,36 @@ def run(cap):
         cap.update()
 
         # # handle events
-        
+
             # if key != -1 and key < 256:
             #     key = chr(key)
-                
+
             # if key == '1' or config.command == '1':
             #     if config.face_d == False:
-            #         config.face_d = True                   
-                    
+            #         config.face_d = True
+
             # if key == '2' or config.command == 'edge':
             #     if config.edge_d == False:
             #         config.edge_d = True
             #         print "detecting edges"
-                    
+
             # if key == '3' or config.command == '3':
             #     if config.save_video == False:
             #         config.save_video = True
             #         print "saving video"
-                    
+
             # if key  == '4' or config.command == '4':
             #     if config.circle_d == False:
             #         config.circle_d = True
             #         print "detecting circles"
-                    
+
             # if key  == '5' or config.command == '5':
             #     if config.edge_d_non_vision == False:
             #         config.edge_d_non_vision = True
             #         print "detecting circles using edge detection"
             #     else:
             #         config.edge_d_non_vision = False
-                    
+
             # if key == 's' or config.command == 's':
             #     if config.show == False:
             #         config.show = True
@@ -523,7 +548,7 @@ def run(cap):
             #     else:
             #         cap.commr.set_gaze("0.0, 50.0, 0.0")
             #         config.game_coors = "10.0, 50.0, 0.0"
-                    
+
             # if key == 'e' or config.command == 'e':
             #     config.face_d = False
             #     config.edge_d = False
@@ -531,31 +556,31 @@ def run(cap):
             #     config.save_video = False
             #     config.colour_s = False
             #     print "stop tracking"
-                    
+
             # if key == 'q' or config.command == 'q':
             #     config.quit = True
-                
+
             # config.command = '0'
-          
+
             # if config.face_d:    # face detection
         faces = cap.find_faces()
         cap.mark_rects(faces)
-        
+
             # if config.colour_s:
             #     cap.find_colour(frame, 10)
-            
+
             # if config.save_video:    # save
             #     cv.WriteFrame(writer,frame)
-                
+
             # if config.quit:  # quit
             #     print 'Camera closed'
             #     break
-            
+
             # if config.circle_d: # circle detection
             #     frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
             #     cv.Copy(frame, frame_org)
             #     cap.detect_circle(frame, frame_org)
-                
+
             # if config.edge_d:    # edge detection
             #     frame_org = cv.CreateImage(cv.GetSize(frame), cv.IPL_DEPTH_8U,3)      # convert to bgr
             #     cv.Copy(frame, frame_org)
@@ -563,8 +588,8 @@ def run(cap):
         cap.gui_show()
         my_fps.update()
         my_fps.show()
-           
- 
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:

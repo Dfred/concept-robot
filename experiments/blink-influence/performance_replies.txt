@@ -1,4 +1,0 @@
-rep  surprised:1;"Oh OK!";;;;REPLY_TAG
-rep  rollseyes:1;"Well Well.";;;;REPLY_TAG
-int  yawn:1;"Let's carry on.";;;;INTERRUPT_TAG
-nod  neutral:1;"OK.";;;;NODDING_TAG

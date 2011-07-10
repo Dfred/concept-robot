@@ -5,9 +5,8 @@ Animation System.
 """
 
 import sys
+import site
 import logging
-
-import numpy as np
 
 __version__ = "0.0.1"
 __date__ = ""
@@ -44,9 +43,11 @@ class FeaturePool(dict):
         name: string identifying the feature
         np_array: numpy.ndarray (aka numpy array) of arbitrary size
         """
+        # load non-standard module only now
+        import numpy
         LOG.debug("new feature in the pool from %s: %s", name, np_array)
         if np_array is not None:
-            assert isinstance(np_array,np.ndarray),\
+            assert isinstance(np_array,numpy.ndarray),\
                 'Not a numpy ndarray instance'
         dict.__setitem__(self, name, np_array)
 
@@ -55,8 +56,10 @@ class FeaturePool(dict):
         features: iterable of str specifying features to be returned.
         Returns: all context (default) or subset from specified features.
         """
+        # load non-standard module only now
+        import numpy
         features = features or features.iterkeys()
-        return dict( (f, isinstance(self[f],np.ndarray) and self[f] or
+        return dict( (f, isinstance(self[f],numpy.ndarray) and self[f] or
                          self[f].get_feature() )
                      for f in features )
 
@@ -75,6 +78,7 @@ def initialize(thread_info):
             sys.exit(1)
         if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
             # set system-wide logging level
+            print 'python paths:', sys.path
             from utils import comm; comm.set_default_logging(debug=True)
     except conf.LoadException, e:
         print 'in file {0[0]}: {0[1]}'.format(e)

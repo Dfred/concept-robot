@@ -1,4 +1,0 @@
-simple_smile1:1;"Hello!";;;;TAG1
-;"I am Chris,";;;;TAG2
-slow_neutral:1;"the child robot.";;;;TAG3
-EOSECTION
