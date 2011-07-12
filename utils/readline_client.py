@@ -3,7 +3,7 @@
 
 # LightHead programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
+#  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
@@ -22,7 +22,7 @@
 
 #
 # Windows users: you need pyreadline from PyPI (http://pypi.python.org/pypi).
-#
+# even better, from ipython: https://launchpad.net/pyreadline/+download
 
 import threading
 import platform
@@ -41,137 +41,141 @@ try:
     HOME=os.environ["HOME"]
 except:
     HOME=''
-HISTFILE=os.path.join(HOME, ".comm-cons-clent.history")
+HISTFILE=os.path.join(HOME, ".readline_client-history")
 
 ADDR_PORT=None
 
 class myUI(cmd.Cmd):
-    def __init__(self):
-        self.use_rawinput = platform.system() != 'Windows'
-        cmd.Cmd.__init__(self)
-        print " - enter 'bye' or press ^D to quit"
+  def __init__(self):
+    self.use_rawinput = platform.system() != 'Windows'
+    cmd.Cmd.__init__(self)
+    self.intro = "- enter 'bye' or press ^C or ^D to quit"
+    self.cnx = None
+    self.done = False
+
+  def default(self, line):
+    global ADDR_PORT
+
+    if line.upper() in [ 'EOF', 'BYE' ]:
+      if self.cnx:
+        print "\n- disconnecting"
+        self.cnx.disconnect()
         self.cnx = None
-        self.done = False
+      self.done = True
+    elif line.upper() == '!RECO':
+      if not self.cnx:
+        self.cnx = commConsClient(ADDR_PORT)
+        self.cnx.ui = self
+        threading.Thread(target=self.cnx.loop_forever, name='cnx').start()
+      else:
+        print "\n connection already exists and runs!", self.cnx.status
+    elif line and self.cnx and self.cnx.status == "connected":
+      self.cnx.send_msg(line)
 
-    def default(self, line):
-        global ADDR_PORT
+  def emptyline(self):
+    """forget the command when no command is given"""
+    pass
 
-        if line.upper() in [ 'EOF', 'BYE' ]:
-            if self.cnx:
-                print "\n- disconnecting"
-                self.cnx.disconnect()
-                self.cnx = None
-            self.done = True
-        elif line.upper() == '!RECO':
-            if not self.cnx:
-                self.cnx = commConsClient()
-                self.cnx.ui = self
-                threading.Thread(target=self.cnx.loop_forever,
-                                 name='cnx',
-                                 args=(ADDR_PORT,)).start()
-            else:
-                print "\n connection already exists and runs!", self.cnx.status
-        elif line and self.cnx and self.cnx.status == "connected":
-            self.cnx.send_msg(line)
+  def postcmd(self, stop, line):
+    """return True to stop readline thread"""
+    return self.done
 
-    def emptyline(self):
-        """forget the command when no command is given"""
-        pass
+  def preloop(self):
+    self.prompt = "%s> " % (self.cnx and self.cnx.status or 'disconnected')
 
-    def postcmd(self, stop, line):
-        """return True to stop readline thread"""
-        return self.done
-
-    def preloop(self):
-        self.prompt = "%s> " % (self.cnx and self.cnx.status or '--')
-
-    def redraw_prompt(self):
-        self.preloop()
-        self.stdout.flush()
-        print '\n'+self.prompt,
-        self.stdout.flush()
+  def redraw_prompt(self, message=''):
+    line = readline.get_line_buffer()   # doesn't return any character..?
+    self.preloop()
+    #readline.redisplay()        # unfortunately we don't have this on windows..
+    print "\r"+message+"\n"+self.prompt,"%s"%line,
+    self.stdout.flush()
 
 
 class commConsClient(comm.BaseClient):
-    """Our connection to a target server"""
+  """Our connection to a target server"""
 
-    def __init__(self):
-        self.status = "connecting"
-        self.ui = None
+  def __init__(self, addr_port):
+    self.addr_port = addr_port
+    self.status = "connecting to %s on %s" % addr_port
+    self.ui = None
 
-    def loop_forever(self, addr_port):
-        """Process inputs until disconnection"""
-        try:
-            if self.ui:
-                print "\n - connecting to ", addr_port
-            comm.BaseClient.__init__(self, addr_port)
-            self.connect_and_run()
-        except Exception, e:
-            print "\n"+str(e)
-            self.handle_error(e)
-        finally:
-            if self.ui:
-                self.ui.cnx = None
-
-    def handle_connect(self):
-        """Called when the client has just connected successfully"""
-        self.status = "connected"
-        self.handler_timeout = self.ui and .5 or None
+  def loop_forever(self):
+    """Process inputs until disconnection"""
+    try:
+        comm.BaseClient.__init__(self, self.addr_port)
+        self.connect_and_run()
+    except KeyboardInterrupt:
+      pass
+    except Exception, e:
+        print "\n"+str(e)
+        self.handle_error(e)
+    finally:
         if self.ui:
-            self.ui.redraw_prompt()
+            self.ui.cnx = None
 
-    def handle_disconnect(self):
-        self.status = "disconnected"
-        self.running = False
-        if self.ui:
-            self.ui.redraw_prompt()
+  def handle_connect(self):
+    """Called when the client has just connected successfully"""
+    self.status = "connected"
+    self.handler_timeout = self.ui and .5 or None
+    if self.ui:
+        self.ui.redraw_prompt()
 
-    def handle_error(self, e):
-        if self.ui:
-            self.ui.done = True
-        comm.BaseClient.handle_error(self,e)
-        #print "\n - Communication error:", e,"\n - press enter to finish"
-        #self.handle_disconnect()
+  def handle_disconnect(self):
+    self.status = "disconnected"
+    self.running = False
+    if self.ui:
+        self.ui.redraw_prompt()
 
-    def handle_timeout(self):
-        """Called when timeout waiting for data has expired."""
-        if pipe_mode:
+  def handle_error(self, e):
+    if self.ui:
+        self.ui.done = True
+    comm.BaseClient.handle_error(self,e)
+
+  def handle_timeout(self):
+    """Called when timeout waiting for data has expired."""
+    if pipe_mode:
+        line = sys.stdin.readline()
+        while line:
+            print sys.argv[0],"sending>", line
+            self.send(line)
             line = sys.stdin.readline()
-            while line:
-                print sys.argv[0],"sending>", line
-                self.send(line)
-                line = sys.stdin.readline()
-                if self.status == "disconnected":
-                    self.running = False
-                    return
+            if self.status == "disconnected":
+                self.running = False
+                return
 
-    def handle_notfound(self, cmd, args):
-        """method that handles incoming data (line by line)."""
-        print cmd[4:], args,
-        if self.ui:
-            self.ui.redraw_prompt()
+  def handle_notfound(self, cmd, args):
+    """method that handles incoming data (line by line)."""
+    msg = 'from server: %s %s' % (cmd[4:],args)
+    if self.ui:
+        self.ui.redraw_prompt(msg)
+    else:
+      print msg
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print "[--pipe] address and port not given!"
+    def usage():
+        print "usage: %s [--pipe] [address:]port"
         exit(-1)
-
     pipe_mode =  sys.argv[1] == '--pipe' and sys.argv.pop(1)
-    port = sys.argv[2].isdigit() and int(sys.argv[2]) or sys.argv[2]
-    ADDR_PORT = (sys.argv[1], port)
+    try:
+      addr, port = sys.argv[1].split(':')
+      port = int(port)
+    except Exception:
+      if sys.argv[1].isnum():
+        addr,port = 'localhost', int(sys.argv[1])
+      else:
+        usage()
+    ADDR_PORT=(addr,port)
 
-    cnx = commConsClient()
+    cnx = commConsClient((addr,port))
     if not pipe_mode :
         try:
             readline.read_history_file(HISTFILE)
         except IOError:
             pass
-        import atexit
         atexit.register(readline.write_history_file, HISTFILE)
-
         ui = myUI()
         ui.cnx = cnx
         cnx.ui = ui
         threading.Thread(target=ui.cmdloop, name='UI').start()
-    cnx.loop_forever(ADDR_PORT)
+    cnx.loop_forever()
