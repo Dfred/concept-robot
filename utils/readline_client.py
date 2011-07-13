@@ -161,7 +161,7 @@ if __name__ == "__main__":
       addr, port = sys.argv[1].split(':')
       port = int(port)
     except Exception:
-      if sys.argv[1].isnum():
+      if sys.argv[1].isdigit():
         addr,port = 'localhost', int(sys.argv[1])
       else:
         usage()
