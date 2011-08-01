@@ -1,8 +1,10 @@
-# LightHead-bot programm is a HRI PhD project at
-#  the University of Plymouth,
-#  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.
-# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
+#  of Plymouth. LightHead is a Robotic Animation System including face, eyes,
+#   head and other supporting algorithms for vision and basic emotions.
+# Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License as
@@ -17,45 +19,46 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+SERVER MODULE
 
-#
-# SERVER MODULE
-#
-# This module listen to control connections and dispatches module-specific
-#  commands to the appropriate submodule. Also allows retreiving a snapshot of
-#  the current context.
-#
-# MODULES IO:
-#============
-# OUTPUT: All HRI modules
-#
-# INPUT: - learning (for context retrieval)
-#
+ This module listen to control connections and dispatches module-specific
+  commands to the appropriate submodule. Also allows retreiving a snapshot of
+  the current context.
+
+ MODULES IO:
+============
+ OUTPUT: All RAS modules
+
+ INPUT: - learning (for context retrieval)
+"""
 
 import sys
 import logging
 
-from utils.comm.meta_server import MetaRequestHandler, MetaServer
-from HRI import FeaturePool
+from utils.comm.meta_server import MetaServer, MetaRequestHandler
+from utils.comm import ASCIICommandProto
+from RAS import FeaturePool
 
 LOG = logging.getLogger(__package__)
-
 # protocol keywords to switch from a subserver/handler to another
 ORIGINS = ('face', 'gaze', 'lips', 'head')
-
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
 
 
-class lightHeadHandler(MetaRequestHandler):
+class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
     """Handles high level protocol transactions: origin and commit"""
 
-    def __init__(self):
-        MetaRequestHandler.__init__(self)
+    def __init__(self, server, sock, client_addr):
+        super(LightHeadHandler,self).__init__(server, sock, client_addr)
         self.handlers = {}
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
         self.updated = []
+
+    def handle_notfound(self, cmd, argline):
+        super(LightHeadHandler, self).handle_notfound(cmd, argline)
 
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
@@ -75,6 +78,7 @@ class lightHeadHandler(MetaRequestHandler):
             self.handlers[origin].cmd_commit(argline)
         self.updated = []
 
+    # TODO: implement a reload of modules ?
     def cmd_reload(self, argline):
         """Reload subserver modules"""
         self.send_msg('TODO')
@@ -93,7 +97,7 @@ class lightHeadHandler(MetaRequestHandler):
         self.send_msg('end_snapshot')
 
 
-class lightHeadServer(MetaServer):
+class LightHeadServer(MetaServer):
     """Sets and regroups subservers of the lightHead system."""
 
     def __init__(self):
@@ -126,7 +130,7 @@ class lightHeadServer(MetaServer):
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
         This function uses conf's module definitions: if conf has an attribute
-         which name can be found in ORIGINS, then the HRI module is loaded.
+         which name can be found in ORIGINS, then the RAS module is loaded.
          """
 #TODO:        See more info in the documentation.
 #        """
@@ -138,7 +142,7 @@ class lightHeadServer(MetaServer):
         for info, name in [ (getattr(conf,name), name[4:]) for name in dir(conf)
                             if name.startswith('mod_') ]:
             try:
-                module = __import__('HRI.'+name, fromlist=['HRI'])
+                module = __import__('RAS.'+name, fromlist=['RAS'])
             except ImportError, e:
                 LOG.error("Found config for '%s' but cannot import the module."
                           " Error: %s", name, e)

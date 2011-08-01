@@ -32,7 +32,7 @@
 import logging
 
 from utils import comm, conf
-import HRI
+import RAS
 
 __all__ = ['SpineHW', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
 
@@ -41,10 +41,8 @@ conf.load()
 if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
     LOG.setLevel(logging.DEBUG)
 
-class SpineProtocolError(comm.ProtocolError):
-    pass
 
-class SpineError(comm.CmdError):
+class SpineError(comm.ProtocolError):
     pass
 
 class NotImplemented(SpineError):
@@ -118,13 +116,13 @@ class Spine_Handler(object):
 
         args = argline.split()
         if len(args) < 4:
-            raise SpineProtocolError('rotate: 4 or 5 arguments required')
+            raise SpineError('rotate: 4 or 5 arguments required')
         wait = len(args) == 5 and args[4] == 'wait'
         xyz = [ round(float(arg),SpineBase.PRECISION) for arg in args[1:4] ]
         try:
             self.relative_rotators[args[0]](xyz, wait)
         except KeyError, e:
-            raise SpineProtocolError("invalid body-part %s (%s)", args[0], e)
+            raise SpineError("invalid body-part %s (%s)", args[0], e)
 
     def cmd_move(self, argline):
         """relative position on 3 axis"""
@@ -154,7 +152,7 @@ class SpineBase(object):
         self._tolerance = 0.0    # in radians
         self._motors_on = False
         self._lock_handler = None
-        self.FP = HRI.FeaturePool() # dict of { origin : numpy.array }
+        self.FP = RAS.FeaturePool() # dict of { origin : numpy.array }
 
     # Note: property decorators are great but don't allow child class to define
     #       just the setter...
@@ -235,13 +233,11 @@ class SpineBase(object):
 
 try:
     backend= __import__(conf.mod_spine['backend'], globals(),
-                        fromlist=['HRI.spine'])
+                        fromlist=['RAS.spine'])
     Spine_Server = backend.SpineHW
 except ImportError, e:
-    print """
-    *** SPINE MISCONFIGURATION ***
-    Check in your config file for the value of mod_spine['backend'] !
-    for your information:""", e
+    print "\n*** SPINE INITIALIZATION ERROR *** %s" % e
+    print "You may check your config file for the value of mod_spine['backend']"
     raise
 
 
@@ -258,6 +254,6 @@ if __name__ == '__main__':
     while server.running:
         try:
             server.serve_forever()
-        except SpineProtocolError, e:
-            print 'Protocol Error:', e
+        except SpineError, e:
+            print 'Error:', e
     LOG.debug("Spine server done")

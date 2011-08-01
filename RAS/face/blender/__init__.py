@@ -18,21 +18,22 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#
-# FACE MODULE: blender backend
-#
-# This module uses the Blender Game Engine as a backend for animating LightHead.
-# To make this work, you need to let the initialization routine list the AU you
-#  support: define a property per AU in your .blend. Also, for most AUs you need
-#  a Shape Action actuator which provides the relative basic facial animation.
-#
-# MODULES IO:
-#===========
-# INPUT: - face
-#
-# A few things to remember for integration with Blender (2.49):
-#  * defining classes in toplevel scripts (like here) leads to scope problems
-#
+"""
+ FACE MODULE: blender backend
+
+ This module uses the Blender Game Engine as a backend for animating LightHead.
+ To make this work, you need to let the initialization routine list the AU you
+  support: define a property per AU in your .blend. Also, for most AUs you need
+  a Shape Action actuator which provides the relative basic facial animation.
+
+ MODULES IO:
+===========
+ INPUT: - face
+
+ A few things to remember for integration with Blender (2.49):
+  * defining classes in toplevel scripts (like here) leads to scope problems
+"""
+
 import sys, time, atexit
 from math import cos, sin, pi
 
@@ -223,8 +224,8 @@ def update():
 def main():
     if not hasattr(G, "initialized"):
         try:
-            import HRI
-            G.server = HRI.initialize(THREAD_INFO)
+            import RAS
+            G.server = RAS.initialize(THREAD_INFO)
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)

@@ -1,14 +1,29 @@
-#! /usr/bin/python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
+
+# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
+#  of Plymouth. LightHead is a Robotic Animation System including face, eyes,
+#   head and other supporting algorithms for vision and basic emotions.
+# Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+
+#  This program is free software: you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License as
+#   published by the Free Software Foundation, either version 3 of the
+#   License, or (at your option) any later version.
+
+#  This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """Main package for Human-Robot Interaction subsystems of the lightHead Robotic
 Animation System.
 """
 
-import sys
-import site
-import logging
-
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __date__ = ""
 __author__ = "Frédéric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
@@ -18,7 +33,12 @@ __credits__ = ["Joachim De Greeff"]
 __maintainer__ = "Frédéric Delaunay"
 __status__ = "Prototype" # , "Development" or "Production"
 
+import sys
+import site
+import logging
+
 LOG = logging.getLogger(__package__)
+
 
 class FeaturePool(dict):
     """This class serves as a short term memory. It holds all possible features
@@ -45,7 +65,7 @@ class FeaturePool(dict):
         """
         # load non-standard module only now
         import numpy
-        LOG.debug("new feature in the pool from %s: %s", name, np_array)
+        LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
         if np_array is not None:
             assert isinstance(np_array,numpy.ndarray),\
                 'Not a numpy ndarray instance'
@@ -85,10 +105,11 @@ def initialize(thread_info):
         sys.exit(2)
 
     # Initializes the system
-    from utils import comm
-    from lightHead_server import lightHeadServer, lightHeadHandler
-    server = comm.create_server(lightHeadServer, lightHeadHandler,
-                                conf.lightHead_server, thread_info)
+    from utils.comm import session
+    from lightHead_server import LightHeadServer, LightHeadHandler
+    server = session.create_server(LightHeadHandler, conf.lightHead_server,
+                                   threading_info=thread_info,
+                                   extsrv_class=LightHeadServer)
     # Because what we have here is a *meta server*, we need to initialize it
     #  properly; face and all other subservers are initialized in that call.
     server.create_protocol_handlers()

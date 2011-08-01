@@ -40,7 +40,7 @@ from pyvision.types.Video import Webcam
 from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from HRI import FeaturePool
+from RAS import FeaturePool
 from utils import conf, Frame, fps
 
 conf.load()
@@ -116,12 +116,12 @@ class Camera(Webcam):
 
     def set_tolerance(self, value):
         self.tolerance = value
-        
+
     def set_factors(self, x, y, z):
         """Set the gain to convert relative coordinates to real coordinates.
         """
         self.factors = x, y, z
-        
+
     def get_resolution(self):
         """
         Returns: (width,height) of camera frames.
@@ -190,7 +190,7 @@ class CamCapture(object):
             self.camera.set_tolerance(cam_props['tolerance'])
         else:
             LOG.info("no tolerance configured for camera %s", name)
-        
+
         # TODO: create a calibration tool so factors is mandatory (for 3d info)
         if cam_props.has_key('factors'):
             self.camera.set_factors(*cam_props['factors'])
