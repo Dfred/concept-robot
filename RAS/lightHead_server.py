@@ -34,13 +34,13 @@ SERVER MODULE
 """
 
 import sys
-import logging
 
 from utils.comm.meta_server import MetaServer, MetaRequestHandler
 from utils.comm import ASCIICommandProto
+from utils import get_logger
 from RAS import FeaturePool
 
-LOG = logging.getLogger(__package__)
+LOG = get_logger(__package__)
 # protocol keywords to switch from a subserver/handler to another
 ORIGINS = ('face', 'gaze', 'lips', 'head')
 # submodule key for registering more protocol keywords for a subserver/handler

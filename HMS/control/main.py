@@ -25,9 +25,9 @@ import sys, os, threading, time, random, math, optparse
 import config
 from learning import agent, inout
 from HMS import communication
-from utils import conf
+from utils import conf, get_logger
 
-LOG = communication.comm.LOG
+LOG = get_logger(__name__, config.DEBUG)
 
 
 def main():
@@ -295,5 +295,5 @@ class RobotRecord():
 
 
 if __name__ == "__main__":
-    communication.comm.set_default_logging(debug=True)
+    communication.comm.set_debug_logging(debug=True)
     main()

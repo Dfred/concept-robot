@@ -35,82 +35,78 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import sys
 import site
-import logging
 
-LOG = logging.getLogger(__package__)
+from utils import get_logger
+LOG = None
 
 
 class FeaturePool(dict):
-    """This class serves as a short term memory. It holds all possible features
-    so other modules can query a snapshot of the current robot's state.
-    Also, it's a singleton.
+  """This class serves as a short term memory. It holds all possible features
+  so other modules can query a snapshot of the current robot's state.
+  Also, it's a singleton.
+  """
+  # single instance holder
+  instance = None
+
+  def __new__(cls):
+    """Creates a singleton.
+    Another feature pool? Derive from that class overriding self.instance,
+     and don't bother with the __ prefix to make it pseudo-private...
+    cls: don't touch (it's the current type, ie: maybe a derived class type)
     """
-    # single instance holder
-    instance = None
+    if cls.instance is None:
+      cls.instance = super(FeaturePool,cls).__new__(cls)
+    return cls.instance
 
-    def __new__(cls):
-        """Creates a singleton.
-        Another feature pool? Derive from that class overriding self.instance,
-         and don't bother with the __ prefix to make it pseudo-private...
-        cls: don't touch (it's the current type, ie: maybe a derived class type)
-        """
-        if cls.instance is None:
-            cls.instance = super(FeaturePool,cls).__new__(cls)
-        return cls.instance
+  def __setitem__(self, name, np_array):
+    """Registers a new Feature into the pool.
+    name: string identifying the feature
+    np_array: numpy.ndarray (aka numpy array) of arbitrary size
+    """
+    # load non-standard module only now
+    import numpy
+    LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
+    assert np_array is not None and isinstance(np_array, numpy.ndarray) , \
+           'Not a numpy ndarray instance'
+    dict.__setitem__(self, name, np_array)
 
-    def __setitem__(self, name, np_array):
-        """Registers a new Feature into the pool.
-        name: string identifying the feature
-        np_array: numpy.ndarray (aka numpy array) of arbitrary size
-        """
-        # load non-standard module only now
-        import numpy
-        LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
-        if np_array is not None:
-            assert isinstance(np_array,numpy.ndarray),\
-                'Not a numpy ndarray instance'
-        dict.__setitem__(self, name, np_array)
-
-    def get_snapshot(self, features=None):
-        """Get a snapshot, optionally selecting specific features.
-        features: iterable of str specifying features to be returned.
-        Returns: all context (default) or subset from specified features.
-        """
-        # load non-standard module only now
-        import numpy
-        features = features or features.iterkeys()
-        return dict( (f, isinstance(self[f],numpy.ndarray) and self[f] or
-                         self[f].get_feature() )
-                     for f in features )
+  def get_snapshot(self, features=None):
+    """Get a snapshot, optionally selecting specific features.
+    features: iterable of str specifying features to be returned.
+    Returns: all context (default) or subset from specified features.
+    """
+    # load non-standard module only now
+    import numpy
+    features = features or features.iterkeys()
+    return dict( (f, isinstance(self[f],numpy.ndarray) and self[f] or
+                  self[f].get_feature()) for f in features )
 
 
 def initialize(thread_info):
-    """Initialize the system.
-    thread_info: tuple of booleans setting threaded_server and threaded_clients
-    """
-    print "LIGHTHEAD Animation System, python version:", sys.version_info
+  """Initialize the system.
+  thread_info: tuple of booleans setting threaded_server and threaded_clients
+  """
+  print "LIGHTHEAD Animation System, python version:", sys.version_info
 
-    # check configuration
-    try:
-        from utils import conf; missing = conf.load()
-        if missing:
-            print '\nmissing configuration entries: %s' % missing
-            sys.exit(1)
-        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-            # set system-wide logging level
-            print 'python paths:', sys.path
-            from utils import comm; comm.set_default_logging(debug=True)
-    except conf.LoadException, e:
-        print 'in file {0[0]}: {0[1]}'.format(e)
-        sys.exit(2)
+  # check configuration
+  try:
+    from utils import conf; missing = conf.load()
+    if missing:
+      print '\nmissing configuration entries: %s' % missing
+      sys.exit(1)
+  except conf.LoadException, e:
+    print 'in file {0[0]}: {0[1]}'.format(e)
+    sys.exit(2)
+  LOG = get_logger(__package__, hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE)
 
-    # Initializes the system
-    from utils.comm import session
-    from lightHead_server import LightHeadServer, LightHeadHandler
-    server = session.create_server(LightHeadHandler, conf.lightHead_server,
-                                   threading_info=thread_info,
-                                   extsrv_class=LightHeadServer)
-    # Because what we have here is a *meta server*, we need to initialize it
-    #  properly; face and all other subservers are initialized in that call.
-    server.create_protocol_handlers()
-    return server
+
+  # Initializes the system
+  from utils.comm import session
+  from lightHead_server import LightHeadServer, LightHeadHandler
+  server = session.create_server(LightHeadHandler, conf.lightHead_server,
+                                 threading_info=thread_info,
+                                 extsrv_class=LightHeadServer)
+  # Because what we have here is a *meta server*, we need to initialize it
+  #  properly; face and all other subservers are initialized in that call.
+  server.create_protocol_handlers()
+  return server

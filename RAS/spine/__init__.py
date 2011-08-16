@@ -29,17 +29,19 @@
 #  dependant. However as long as the hardware provides the required DOF and
 #  backend provides required functions, the end-result should be similar.
 #
-import logging
 
 from utils import comm, conf
 import RAS
 
-__all__ = ['SpineHW', 'TorsoInfo', 'NeckInfo', 'NotImplemented', 'SpineException']
+__all__ = [
+    'SpineHW',
+    'TorsoInfo',
+    'NeckInfo',
+    'NotImplemented',
+    'SpineException']
 
-LOG = logging.getLogger(__package__)
 conf.load()
-if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
-    LOG.setLevel(logging.DEBUG)
+LOG = get_logger(__package__, hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE)
 
 
 class SpineError(comm.ProtocolError):
@@ -58,7 +60,6 @@ class SpineElementInfo(object):
         self.limits_pos = []    # min and max position values for each axis
         self.rot = [None,]*3
         self.pos = [None,]*3
-
 class TorsoInfo(SpineElementInfo):
     pass
 class NeckInfo(SpineElementInfo):
@@ -244,7 +245,7 @@ except ImportError, e:
 if __name__ == '__main__':
     import sys
     try:
-        comm.set_default_logging(debug=True)
+        comm.set_debug_logging(debug=True)
         server = comm.create_server(Spine_Server, Spine_Handler,
                                     conf.mod_spine['conn'], (False,False))
     except (conf.LoadException, UserWarning), err:

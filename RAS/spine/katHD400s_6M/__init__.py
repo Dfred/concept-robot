@@ -8,10 +8,13 @@
 #
 import math
 
-import logging
-LOG = logging.getLogger(__package__)
+from utils import conf, get_logger
 
 __all__ = ['SpineHW']
+
+conf.load()
+LOG = get_logger(__package__, hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE)
+
 
 try:
   import KNI
@@ -254,7 +257,7 @@ def init_arm(name, KNI_cfg_file, address):
 if __name__ == '__main__':
   __path__ = ['.']
   from utils import comm
-  comm.set_default_logging(True)
+  comm.set_debug_logging(True)
   # just set the arm in manual mode and print motors' values upon key input.
   s = SpineHW()
   s.switch_off()

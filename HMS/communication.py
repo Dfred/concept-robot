@@ -29,10 +29,12 @@ __license__ = "GPL"
 
 import threading, time
 
-from utils.comm import ASCIICommandClient, set_default_logging, LOG as CLOG
+from utils.comm import ASCIICommandClient, set_debug_logging
+from utils import get_logger
 
-set_default_logging(True)
-LOG = CLOG
+set_debug_logging(True)
+LOG = get_logger(__package__)
+
 
 class ThreadedComm(ASCIICommandClient):
     """A communication class based on the comm protocol with threaded polling.
