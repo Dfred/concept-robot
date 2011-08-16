@@ -53,22 +53,22 @@ import logging
 from session import BaseClient, BaseRequestHandler, ThreadingInfo, create_server
 from presentation import ASCIICommandProto,RequestHandlerCmdsMixIn,ProtocolError
 
-__all__ = ['create_server',
-           'ThreadingInfo',
-           'BaseServer',
-           'BaseRequestHandler',
-           'BaseClient',
-           'ASCIICommandClient',
-           'AsciiRequestHandler',
-           'AsciiRequestHandlerCmds',
-           'set_default_logging',
-           'ProtocolError'
-           'LOGFORMAT',
-           ]
+from ..utils import get_logger
 
-# let users set log format themselves (see set_default_logging)
-LOGFORMAT="%(asctime)s %(filename).21s:%(lineno)-4d-%(levelname)s-\t%(message)s"
-LOG = logging.getLogger(__package__)
+__all__ = [
+  'ThreadingInfo',
+  'BaseServer',
+  'BaseRequestHandler',
+  'BaseClient',
+  'ASCIICommandClient',
+  'AsciiRequestHandler',
+  'AsciiRequestHandlerCmds',
+  'create_server',
+  'set_logging_level',
+  'ProtocolError'
+  ]
+
+LOG = get_logger(__package__)
 
 
 class ASCIICommandClient(ASCIICommandProto,
@@ -91,16 +91,11 @@ class ASCIIRequestHandlerCmds(ASCIICommandProto,
   pass
 
 
-# TODO: remove parameter and let us use __debug__ instead
-def set_default_logging(debug=False):
-  """This function does nothing if the root logger already has
-  handlers configured.
+def set_debug_logging(debug=True):
+  """Sets this package's logging level to debug (ie: from logging module).
+  Convienience function.
   """
-  log_lvl = (debug and logging.DEBUG or logging.INFO)
-  logging.basicConfig(level=log_lvl, format=LOGFORMAT)
-  LOG.setLevel(log_lvl)
-  LOG.debug('Logger[%s] set log level to %s', LOG.name,
-            debug and 'DEBUG' or 'INFO')
+  LOG.setLevel(debug and logging.DEBUG or logging.WARNING)
 
 
 if __name__ == '__main__':
@@ -115,9 +110,9 @@ if __name__ == '__main__':
   if sys.argv[1].isdigit():
     addr_port[1] = int(addr_port[1])
 
-  # SERVER_HAS_OWN_THREAD, CLIENTS_HAVE_OWN_THREAD
+  # SERVER HAS OWN THREAD, CLIENTS HAVE OWN THREAD
   info = ThreadingInfo(False, False)
-  set_default_logging(debug=False)#True)
+  set_debug_logging(False)#True)
 
   # Create a test thread that connects to the server.
   class TestClient(ASCIICommandClient):
