@@ -56,31 +56,30 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = 0
+INFO_PERIOD = 10
 
 def exiting():
-    #We check if there is a valid "server" object because its possible that
-    #we were unable to create it, and therefore we are shutting down
-    if hasattr(G, "server"):
+    # server may not have been successfully created
+    if hasattr(G, "server") and G.server.is_started():
       G.server.shutdown()
 
 atexit.register(exiting)
 
 def fatal(error):
     """Common function to gracefully quit."""
-    print '*** Fatal Error ***', error
+    print '   *** Fatal: %s ***' % error
     from utils import conf; conf.load()
+    from utils import handle_exception_simple, handle_exception_debug
     if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-        import traceback; traceback.print_exc()
+        handle_exception_debug()
+    else:
+        handle_exception_simple()
     shutdown(G.getCurrentController())
 
 def shutdown(cont):
     """Finish animation and let atexit do the cleaning job"""
     cont.activate(cont.actuators["- QUITTER"])
-    if hasattr(G, 'server'):
-        sys.exit(0)
-    sys.exit(1)
-    # see exiting()
+    sys.exit( not hasattr(G, 'server') and 1 or 0)              # see exiting()
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -88,10 +87,10 @@ def check_defects(owner, acts):
 
     for name in keys:
         if not owner.has_key('p'+name):
-            raise Exception('missing property p%s' % name)
+            raise StandardError('missing property p%s' % name)
     for act in acts :
         if act.mode != G.KX_ACTIONACT_PROPERTY:
-            raise Exception('Actuator %s shall use Shape Action Playback of'
+            raise StandardError('Actuator %s shall use Shape Action Playback of'
                             'type property' % act.name)
     return False
 
@@ -109,7 +108,8 @@ def initialize(server):
 # WARNING: at least in python 2.6 capitalize and title docstrings are confused!
                 setattr(G, obj_name, objs[OBJ_PREFIX+obj_name.title()])
             except KeyError, e:
-                raise Exception('no object "%s" in blender file' % e[0][16:-18])
+                raise StandardError('no object "%s" in blender file' % \
+                                    e[0][16:-18])
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()
@@ -130,6 +130,7 @@ def initialize(server):
 
     # ok, startup
     G.initialized = True
+    G.info_duration = 0
     G.setLogicTicRate(MAX_FPS)
     G.setMaxLogicFrame(1)       # relative to rendering
     import Rasterizer
@@ -208,13 +209,13 @@ def update():
                 G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
     G.last_update_time = time.time()
 
-    INFO_PERIOD += time_diff
-    if INFO_PERIOD > 5:
+    G.info_duration += time_diff
+    if G.info_duration > INFO_PERIOD:
         print "--- RENDERING INFO ---"
         print "BGE logic running at", G.getLogicTicRate(), "fps."
 #        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
         print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
-        INFO_PERIOD = 0
+        G.info_duration = 0
 
 
 #
@@ -231,7 +232,7 @@ def main():
             cont = initialize(G.face_server)
             G.server.set_listen_timeout(0.001)      # tune it !
             G.server.start()
-        except:
+        except StandardError:
             fatal("initialization error")
         else:
             print '--- initialization OK ---'
@@ -245,5 +246,4 @@ def main():
             # update blender with fresh face data
             update()
         except Exception,e:
-            from utils import handle_exception_debug
-            handle_exception_debug()
+            fatal("runtime error")
