@@ -19,13 +19,51 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-def handle_exception_debug(force_pdb=False):
-    """This function starts pdb if the DEBUG_MODE is set to true in conf.
+# conveninent format.
+#XXX: see LOGDATEFMT comment about %(msec) presence.
+LOGFORMAT="%(asctime)s.%(msecs)d %(name)s.%(filename).21s:%(lineno)-4d-"\
+          "%(levelname)s-\t%(message)s"
+#XXX: %(asctime) is too big && µs isn't supported by basicConfig's datefmt (ie:
+#XXX: logging uses time.strfmt instead of datetime's) => workaround.. :(
+LOGDATEFMT="%H:%M:%S"
+
+def get_logger(name, debug = False):
+    """Wraps simple usage of logging module.
+    Return: a logging.Logger instance
+    """
+    import logging
+    lvl = debug and logging.DEBUG or logging.INFO
+    logger = logging.getLogger(name)
+    if len(logger.handlers) == 0:                     #XXX: usage not advertized
+        h = logging.StreamHandler()
+        f = logging.Formatter(LOGFORMAT,LOGDATEFMT)
+        h.setFormatter(f)
+        h.setLevel(lvl)
+        logger.setLevel(lvl)
+        logger.addHandler(h)
+        logger.info('Logger[%s] set log level to %s', logger.name,
+                    debug and 'DEBUG' or 'INFO')
+    return logger
+
+def handle_exception_simple(logger = None):
+    """Uses the logger's error() for a single line description of the latest
+    exception, avoiding output of the full backtrace.
+    """
+    import sys, traceback
+    py_error = traceback.format_exception(*sys.exc_info())[-2:]
+    if logger:
+        logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+    else:
+        import logging
+        logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+
+def handle_exception_debug(force_debugger=False):
+    """Starts pdb if force_debugger or DEBUG_MODE is True in the conf module.
     Otherwise, it just raises the latest exception.
     """
     import conf; conf.load()
-    if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
-        print '===EXCEPTION CAUGHT'+'='*60
+    if force_debugger or (hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE):
+        print '\n===EXCEPTION CAUGHT'+'='*60
         import traceback; traceback.print_exc()
         import pdb; pdb.post_mortem()
     else:
