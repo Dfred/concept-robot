@@ -40,9 +40,8 @@ from utils.comm import ASCIICommandProto
 from utils import get_logger
 from RAS import FeaturePool
 
-LOG = get_logger(__package__)
-# protocol keywords to switch from a subserver/handler to another
-ORIGINS = ('face', 'gaze', 'lips', 'head')
+LOG = get_logger(__package__, conf.DEBUG_MODE)          # assume valid config
+ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
 # submodule key for registering more protocol keywords for a subserver/handler
 EXTRA_ORIGINS = 'extra_origins'
 
@@ -137,16 +136,25 @@ class LightHeadServer(MetaServer):
         # conf's specifics should have been sorted out much earlier
         from utils import conf; conf.load()
 
-        # check for mod_... attributes, allowing a submodule to register more
+        # get the ROBOT dictionnary
+        try:
+            r_dict = conf.ROBOT
+        except AttributeError:
+            LOG.error("ROBOT dictionnary not found in configuration file")
+            return
+
+        # check for attributes, allowing a submodule to register more
         #  than one ORIGIN keyword with its extra_origins attribute.
-        for info, name in [ (getattr(conf,name), name[4:]) for name in dir(conf)
-                            if name.startswith('mod_') ]:
+        for name, info in r_dict.iteritems():
+            if not name.startswith('mod_') or not r_dict[name]:
+                continue
             try:
-                module = __import__('RAS.'+name, fromlist=['RAS'])
+                module = __import__('RAS.'+name[4:], fromlist=['RAS'])
             except ImportError, e:
-                LOG.error("Found config for '%s' but cannot import the module."
+                LOG.error("Configuration has '%s' but the module isn't found."
                           " Error: %s", name, e)
                 sys.exit(3)
+            name = name[4:]
             try:
                 subserv_class = getattr(module, name.capitalize()+'_Server')
                 handler_class = getattr(module, name.capitalize()+'_Handler')
@@ -161,7 +169,7 @@ class LightHeadServer(MetaServer):
                 for origin in info[EXTRA_ORIGINS]:
                     self.register(subserver, handler_class, origin)
         if not self.origins:
-            raise conf.LoadException("No submodule found in configuration.")
+            raise conf.LoadException("No submodule configuration.")
         missing = [ o for o in ORIGINS if o not in self.origins ]
         if missing:
             LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)

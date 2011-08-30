@@ -36,8 +36,9 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 import site
 
-from utils import get_logger
-LOG = None
+from utils import conf, get_logger
+
+LOG = None                                                    # cf. initialize()
 
 
 class FeaturePool(dict):
@@ -97,10 +98,9 @@ def initialize(thread_info):
   except conf.LoadException, e:
     print 'in file {0[0]}: {0[1]}'.format(e)
     sys.exit(2)
-  LOG = get_logger(__package__, hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE)
+  LOG = get_logger(__package__, conf.DEBUG_MODE)
 
-
-  # Initializes the system
+  # Initializes the system and do all critical imports now that conf is ok.
   from utils.comm import session
   from lightHead_server import LightHeadServer, LightHeadHandler
   server = session.create_server(LightHeadHandler, conf.lightHead_server,

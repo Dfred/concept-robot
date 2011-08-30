@@ -34,7 +34,7 @@ def get_logger(name, debug = False):
     import logging
     lvl = debug and logging.DEBUG or logging.INFO
     logger = logging.getLogger(name)
-    if len(logger.handlers) == 0:                     #XXX: usage not advertized
+    if len(logger.handlers) == 0 and logger.parent == logging.root: #XXX: internals
         h = logging.StreamHandler()
         f = logging.Formatter(LOGFORMAT,LOGDATEFMT)
         h.setFormatter(f)
@@ -42,7 +42,7 @@ def get_logger(name, debug = False):
         logger.setLevel(lvl)
         logger.addHandler(h)
         logger.info('Logger[%s] set log level to %s', logger.name,
-                    debug and 'DEBUG' or 'INFO')
+                    logging.getLevelName(lvl))
     return logger
 
 def handle_exception_simple(logger = None):

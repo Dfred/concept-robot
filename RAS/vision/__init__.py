@@ -41,16 +41,12 @@ from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
 from RAS import FeaturePool
-from utils import conf, Frame, fps
+from utils import conf, get_logger, Frame, fps
 
 conf.load()
-LOG = logging.getLogger(__package__)
+LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
+VIS_CONF = conf.ROBOT['mod_vision']
 
-# Assume conf has member mod_vision
-if not conf.mod_vision.has_key('haar_cascade'):
-    from os.path import dirname, join
-    conf.mod_vision['haar_cascade'] = join(dirname(__file__),
-                                           'haarcascade_frontalface_alt.xml')
 
 class VisionException(Exception):
     """
@@ -261,9 +257,9 @@ class CamFaceFinder(CamCapture):
         index: camera device index
         resolution: defaults to (320,240)
         """
-        CamCapture.__init__(self)
+        super(CamFaceFinder,self).__init__()
         if not haar_cascade_path:
-            haar_cascade_path = conf.mod_vision['haar_cascade']
+            haar_cascade_path = VIS_CONF['haar_cascade']
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
                                              min_size=(50,50), image_scale=0.5)
         self.eyes_detector = FilterEyeLocator()
@@ -590,6 +586,15 @@ def run(cap):
         my_fps.show()
 
 
+# set default haar cascade file
+if VIS_CONF is None:
+    VIS_CONF = {}
+if not VIS_CONF.has_key('haar_cascade'):
+    from os.path import dirname, join
+    VIS_CONF['haar_cascade'] = join(dirname(__file__),
+                                    'haarcascade_frontalface_alt.xml')
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
@@ -601,7 +606,7 @@ if __name__ == "__main__":
             exit(1)
     else:
         r = (640,480)
-    cap = CamFaceFinder(conf.haar_cascade_path, resolution=r)
+    cap = CamFaceFinder(resolution=r)
     cap.gui_create()
     run(cap)
     print "done"

@@ -124,9 +124,10 @@ def initialize(server):
           [(n[1:],getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
     server.set_available_AUs(AUs)
 
-    #TODO: get values directly from the blend file ?
-    from utils import conf; conf.load()
-    G.skeleton.limits = conf.lib_spine[conf.CHARACTER]['AXIS_LIMITS']
+    # load axis limits for the skeleton regardless of the configuration: if the
+    # spine mod is loaded (origin head), no spine AU should be processed here.
+    from utils import conf; conf.load()    #TODO: get values from blend file?
+    G.skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
     # ok, startup
     G.initialized = True
