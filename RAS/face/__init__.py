@@ -22,13 +22,8 @@
 """
 FACE MODULE
 
-This module handles motion of the facial features.
-
-MODULES IO:
-===========
-INPUT: - vision (eye orientation for eyelid position) [event]
-       - affect (facial expressions) [event]
-       - planner (..eventually)
+This module handles generic motion of the facial features.
+The backend should poll for the values and perform actuation.
 """
 
 import sys
@@ -39,19 +34,19 @@ import collections
 import logging
 import numpy
 
-from utils import conf
+from utils import conf, get_logger
+from utils.comm import ASCIIRequestHandler
 import RAS
 
-LOG = logging.getLogger(__package__)
 conf.load()
-if hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE:
-  LOG.setLevel(logging.DEBUG)
+LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
 
-class Face_Handler(object):
+
+class Face_Handler(ASCIIRequestHandler):
   """Remote connection handler: protocol parser."""
 
-  def __init__(self, *args):
-      self.fifo = collections.deque()
+  def setup(self, *args):
+    self.fifo = collections.deque()
 
   def cmd_AU(self, argline):
       """if empty, returns current values. Otherwise, set them.
@@ -163,27 +158,26 @@ class Face_Server(object):
   def solve(self):
       """Here we can set additional checks (eg. AU1 vs AU4, ...)
       """
+      pass
 
 try:
-  conf.load()
-  backend = __import__(conf.mod_face['backend'], fromlist=['RAS.face'])
+  backend = __import__(conf.ROBOT['mod_face']['backend'], fromlist=['RAS.face'])
 except ImportError, e:
-  print
-  print '*** FACE MISCONFIGURATION ***'
-  print 'check in your config file for the value of face_backend !'
-  print 'for your information:', e
-  sys.exit(-1)    # crude but avoids loads of further output.
-
+  LOG.error("\n*** FACE INITIALIZATION ERROR *** (%s)", e)
+  LOG.error('check in your config file for mod_face "backend" entry.')
+  raise
 
 if __name__ == '__main__':
-  from utils.comm import session
-  conf.name = sys.argv[-1]
+  from utils import comm
+  comm.set_debug_logging(len(sys.argv) > 1 and sys.argv[1] == '-d')
 
   try:
-      server = session.create_server(Face_Server, Face_Handler, conf.conn_face,
-                                     (False,False))
+    fconf = conf.ROBOT['mod_face']
+    server = comm.session.create_server(Face_Handler, fconf['comm'],
+                                        (False,False),Face_Server)
   except UserWarning, err:
-      comm.LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
+      LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
       exit(-1)
+  server.set_available_AUs([1., 3., 12., 15.])                      # dummy AUs
   server.serve_forever()
   LOG.debug("Face server done")

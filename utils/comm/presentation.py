@@ -48,11 +48,6 @@ from abc import ABCMeta, abstractmethod
 LOG = logging.getLogger(__package__)
 
 
-class ProtocolError(LookupError):
-  """Raised when a token cannot be bound to a function."""
-  pass
-
-
 class BasePresentation(object):
   """Basic socket reading, (dis)connection/error events handling.
   Base class for a local client connecting to a server (BaseClient) or
@@ -80,15 +75,13 @@ class BasePresentation(object):
     error: object (usually exception of string) to print in log
     Return: None
     """
-    import traceback
+    import utils
     LOG.warning("Connection error :%s", error)
     if LOG.getEffectiveLevel() != logging.DEBUG:
+      utils.handle_exception_simple()
       print 'use debug mode to spawn post-mortem analysis with pdb'
     else:
-      import pdb
-      print '\n===EXCEPTION/ERROR CAUGHT'+'='*60
-      traceback.print_exc()
-      pdb.post_mortem()
+      utils.handle_exception_debug()
 
   def handle_disconnect(self):
     """Called after disconnection from server.
@@ -101,8 +94,7 @@ class BasePresentation(object):
     To be overriden.
     Return: None
     """
-    raise ProtocolError("function %s not found in %s (args: '%s')" %
-                        (cmd,self,args))
+    LOG.error("function %s not found in %s (args: '%s')" % (cmd,self,args))
 
   def abort(self):
     """Completely abort any loop or connection.

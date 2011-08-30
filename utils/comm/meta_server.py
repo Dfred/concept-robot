@@ -59,10 +59,8 @@ class MetaRequestHandler(BaseRequestHandler):
     """Equivalent of create_subserver.
     Basically we emulate the basics of BaseRequestHandler
     """
-    subhandler = subhandler_class()
-    subhandler.socket = self.socket
-    subhandler.addr_port = self.addr_port
-    subhandler.server = srv
+    subhandler = subhandler_class(srv, self.socket, self.addr_port)
+    subhandler.setup()
     #subhandler.send_msg = types.MethodType(BaseComm.send_msg,
     #                                       subhandler, subhandler_class)
     return subhandler

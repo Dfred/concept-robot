@@ -72,8 +72,8 @@ class FSM_Builder():
     if with_vision:
       try:
         self.vision = vision.CamFaceFinder()
-        self.vision.use_camera(conf.mod_vision['camera'])
-        #put that to conf for vision to read
+        self.vision.use_camera(conf.ROBOT['mod_vision']['camera'])
+        #XXX: put that to conf for vision to read
         self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
         self.vision.gui_create()
         self.vision.update()

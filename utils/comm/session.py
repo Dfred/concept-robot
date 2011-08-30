@@ -161,7 +161,7 @@ class BaseServer(object):
         self.thread.join()
       else:
         for sock, client in self.clients.items():
-          client.finish()
+          client.cleanup()
           if client.socket in self.polling_sockets:
             self.close_request(client.socket)
     self.disactivate()
@@ -187,7 +187,7 @@ class BaseServer(object):
           self._handle_request_noblock()
         elif not self.clients[sock].read_socket():
           self.close_request(sock)
-    except StandardError, err:
+    except (Exception, StandardError), err:
       return self.handle_error(self.polling_sockets, None)
     return True
 
@@ -225,29 +225,19 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    import traceback
+    import utils
     LOG.error('Exception raised with %s (%s)', sock, client_addr)
     if LOG.getEffectiveLevel() != logging.DEBUG:
+      utils.handle_exception_simple()
       print 'use debug mode to spawn post-mortem analysis with pdb'
     else:
-      import pdb
-      print '===EXCEPTION CAUGHT'+'='*60
-      traceback.print_exc()
-      pdb.post_mortem()
+      utils.handle_exception_debug()
 
   def verify_request(self, request, client_addrPort):
     """Verify the request.  May be overridden.
     Return True if we should proceed with this request.
     """
     return True
-
-  def finish_request(self, sock, client_addr):
-    """Instanciates the RequestHandler and set its connection timeout.
-    """
-    LOG.debug('new connection request from %s (%s)', client_addr, sock)
-    handler = self.RequestHandlerClass(self, sock, client_addr)
-    sock.settimeout(self.handler_timeout)
-    return handler
 
   def process_request(self, sock, client_addrPort):
     """Creates a new client. Overridden by ForkingMixIn and ThreadingMixIn.
@@ -257,9 +247,19 @@ class BaseServer(object):
     self.update_poll_timeout()
     self.clients[sock] = handler
 
+  def finish_request(self, sock, client_addr):
+    """Instanciates the RequestHandler and set its connection timeout.
+    """
+    LOG.debug('new connection request from %s (%s)', client_addr, sock)
+    handler = self.RequestHandlerClass(self, sock, client_addr)
+    sock.settimeout(self.handler_timeout)
+    handler.setup()
+    return handler
+
   def close_request(self, sock):
     """Cleans up an individual request. Extend but don't override.
     """
+    self.clients[sock].cleanup()
     del self.polling_sockets[self.polling_sockets.index(sock)]
     del self.clients[sock]
     self.update_poll_timeout()
@@ -507,18 +507,21 @@ if hasattr(socket, 'AF_UNIX'):
 # Session layer for RequestHandler and BaseClient
 ###
 
-
+#TODO: clean class (of set_looping)
 class BaseRequestHandler(BasePresentation):
   """Instancied on successful connection to the server: a remote client.
-  Just reads the data on the socket.
-  Override process() or mix with presentation.ASCIIComm.
+   This base class cannot be used directly, it requires the implementation of
+  process(), an abstract method of BasePresentation. BasePresentation also
+  provides read_socket() called by the server class.
+  Use setup()/cleanup() in child classes instead of __init__()/__del__().
   """
 
   def __init__(self, server, sock, addr_port):
     BasePresentation.__init__(self)
     self.server = server                                # server that spawned us
     self.socket = sock
-    self.addr_port = addr_port
+    self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
+                       or addr_port )
     LOG.debug("initialized a %s.", self.__class__.__name__)
 
   def set_looping(self, looping=True):
@@ -527,43 +530,32 @@ class BaseRequestHandler(BasePresentation):
     self.work = self.read_while_running if self.server.handler_looping else \
                 self.read_once
 
-  def process(self, buffer):
-    """Override. That's the "entry point" of application protocol classes.
-    """
-    pass
-
-  def run(self):
-    """
-    """
-    #try:
-    self.setup()
-    self.work()
-    self.finish()
-    #finally:
-    #  import sys
-    #  sys.exc_traceback = None
-
   def setup(self):
+    """Initializer for child classes. Override.
     """
-    """
-    # update addr_port for unix sockets
-    self.addr_port = type(self.addr_port) is type("") and \
-                     ("localhost", "UNIX Socket") or self.addr_port
-    LOG.info("%i> connection accepted from %s on %s. Client is %slooping",
-             self.socket.fileno(),self.addr_port[0],str(self.addr_port[1]),
-             self.work is self.read_once and '*NOT* ' or '')
+#    LOG.info("%i> connection accepted from %s on %s. Client is %slooping",
+    LOG.info("%i> connection accepted from %s on %s.",
+             self.socket.fileno(),self.addr_port[0],str(self.addr_port[1]))
+#             self.work is self.read_once and '*NOT* ' or '')
 
-  def finish(self):
-    """
+  def cleanup(self):
+    """Finisher for child classes. Override.
     """
 #        if not self.server.handler_looping:
 #            return
-    LOG.info("%i> connection terminating : %s on "+str(self.addr_port[1]),
-             self.socket.fileno(), self.addr_port[0])
+    try:
+      connID = str(self.socket.fileno())
+    except Exception, e:
+      connID = '(closed)'
+    LOG.info("%s> connection terminating : %s on "+str(self.addr_port[1]),
+             connID, self.addr_port[0])
 
 
 class BaseClient(BasePresentation):
   """Client creating a connection to a (remote) server.
+   This base class cannot be used directly, it requires the implementation of
+  process(), an abstract method of BasePresentation. BasePresentation also
+  provides read_while_running() called in connect_and_run().
   Unless you use BasePresentation.read_once(), you should only care about
    self.running to get out of self.connect_and_run().
   """

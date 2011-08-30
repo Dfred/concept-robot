@@ -13,7 +13,7 @@ from utils import conf, get_logger
 __all__ = ['SpineHW']
 
 conf.load()
-LOG = get_logger(__package__, hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE)
+LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
 
 
 try:
@@ -47,13 +47,13 @@ class SpineHW(SpineBase):
     self.switch_on()
 
   def load_conf(self):
-    from utils import conf
+    spine_conf = conf.ROBOT['mod_spine']
     try:
-      self.hardware_name = conf.mod_spine['backend']
+      self.hardware_name = spine_conf['backend']
     except:
       raise conf.LoadException("mod_spine has no 'backend' key")
     try:
-      self.KNI_address = conf.mod_spine['hardware_addr']
+      self.KNI_address = spine_conf['hardware_addr']
     except:
       raise conf.LoadException("mod_spine has no 'hardware_addr' key")
     try:
