@@ -51,7 +51,7 @@ __credits__   = ["University of Plymouth and EPSRC"]
 import logging
 
 from session import BaseClient, BaseRequestHandler, ThreadingInfo, create_server
-from presentation import ASCIICommandProto,RequestHandlerCmdsMixIn,ProtocolError
+from presentation import ASCIICommandProto,RequestHandlerCmdsMixIn
 
 from ..utils import get_logger
 
@@ -65,7 +65,6 @@ __all__ = [
   'AsciiRequestHandlerCmds',
   'create_server',
   'set_logging_level',
-  'ProtocolError'
   ]
 
 LOG = get_logger(__package__)
