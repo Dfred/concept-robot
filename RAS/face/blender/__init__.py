@@ -68,17 +68,23 @@ atexit.register(exiting)
 def fatal(error):
     """Common function to gracefully quit."""
     print '   *** Fatal: %s ***' % error
-    from utils import conf; conf.load()
-    from utils import handle_exception_simple, handle_exception_debug
-    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-        handle_exception_debug()
-    else:
-        handle_exception_simple()
+    try:
+        from utils import handle_exception_simple, handle_exception_debug
+        from utils import conf
+        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
+            handle_exception_debug()
+        else:
+            handle_exception_simple()
+    except:
+        pass
     shutdown(G.getCurrentController())
 
 def shutdown(cont):
     """Finish animation and let atexit do the cleaning job"""
-    cont.activate(cont.actuators["- QUITTER"])
+    try:
+        cont.activate(cont.actuators["- QUITTER"])
+    except:
+        pass
     sys.exit( not hasattr(G, 'server') and 1 or 0)              # see exiting()
 
 def check_defects(owner, acts):
