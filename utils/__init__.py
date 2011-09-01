@@ -19,6 +19,8 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
 # conveninent format.
 #XXX: see LOGDATEFMT comment about %(msec) presence.
 LOGFORMAT="%(asctime)s.%(msecs)d %(name)s.%(filename).21s:%(lineno)-4d-"\
@@ -27,23 +29,27 @@ LOGFORMAT="%(asctime)s.%(msecs)d %(name)s.%(filename).21s:%(lineno)-4d-"\
 #XXX: logging uses time.strfmt instead of datetime's) => workaround.. :(
 LOGDATEFMT="%H:%M:%S"
 
-def get_logger(name, debug = False):
-    """Wraps simple usage of logging module.
-    Return: a logging.Logger instance
+def get_logger(name):
+    """Wraps simple usage of logging module. See also set_logger_debug().
+    Return: a logging.Logger instance.
     """
-    import logging
-    lvl = debug and logging.DEBUG or logging.INFO
     logger = logging.getLogger(name)
-    if len(logger.handlers) == 0 and logger.parent == logging.root: #XXX: internals
+    #XXX: unadvertized use of logging module's internals
+    if len(logger.handlers) == 0 and logger.parent == logging.root:
         h = logging.StreamHandler()
         f = logging.Formatter(LOGFORMAT,LOGDATEFMT)
         h.setFormatter(f)
-        h.setLevel(lvl)
-        logger.setLevel(lvl)
         logger.addHandler(h)
-        logger.info('Logger[%s] set log level to %s', logger.name,
-                    logging.getLevelName(lvl))
     return logger
+
+def set_logger_debug(logger, debug=True):
+    """
+    """
+    lvl = debug and logging.DEBUG or logging.INFO
+    logger.setLevel(lvl)
+    logger.info('Logger[%s] set log level to %s', logger.name,
+                logging.getLevelName(lvl))
+
 
 def handle_exception_simple(logger = None):
     """Uses the logger's error() for a single line description of the latest
@@ -58,10 +64,10 @@ def handle_exception_simple(logger = None):
         logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
 
 def handle_exception_debug(force_debugger=False):
-    """Starts pdb if force_debugger or DEBUG_MODE is True in the conf module.
+    """Starts pdb if force_debugger or conf.DEBUG_MODE is True.
     Otherwise, it just raises the latest exception.
     """
-    import conf; conf.load()
+    import conf
     if force_debugger or (hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE):
         print '\n===EXCEPTION CAUGHT'+'='*60
         import traceback; traceback.print_exc()
@@ -70,6 +76,7 @@ def handle_exception_debug(force_debugger=False):
         raise
 
 
+# TODO: move this class elsewhere
 class Frame(object):
     """Object with 2D coordinates and length for each dimension.
     members: x, y, w, h

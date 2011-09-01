@@ -36,9 +36,11 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 import site
 
-from utils import conf, get_logger
+from utils import get_logger, set_logger_debug
 
-LOG = None                                                    # cf. initialize()
+LOG = get_logger(__package__)                         # updated in initialize()
+REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
+                         'ROBOT', 'lib_vision', 'lib_spine')
 
 
 class FeaturePool(dict):
@@ -88,17 +90,21 @@ def initialize(thread_info):
   thread_info: tuple of booleans setting threaded_server and threaded_clients
   """
   print "LIGHTHEAD Animation System, python version:", sys.version_info
-
   # check configuration
   try:
-    from utils import conf; missing = conf.load()
+    from utils import get_logger, conf
+    conf.set_name('lightHead')
+    missing = conf.load(required_entries=REQUIRED_CONF_ENTRIES)
     if missing:
       print '\nmissing configuration entries: %s' % missing
       sys.exit(1)
   except conf.LoadException, e:
     print 'in file {0[0]}: {0[1]}'.format(e)
     sys.exit(2)
-  LOG = get_logger(__package__, conf.DEBUG_MODE)
+  if not hasattr(conf, 'DEBUG_MODE'):
+    conf.DEBUG_MODE = False
+  LOG = get_logger(__package__)
+  set_logger_debug(LOG, conf.DEBUG_MODE)
 
   # Initializes the system and do all critical imports now that conf is ok.
   from utils.comm import session

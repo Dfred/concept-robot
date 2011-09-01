@@ -43,8 +43,7 @@ __all__ = [
   'NeckInfo',
   'SpineError']
 
-conf.load()
-LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
+LOG = get_logger(__package__)
 
 
 class SpineError(StandardError):
@@ -233,11 +232,13 @@ class SpineBase(object):
 
 
 try:
-  backend= __import__(conf.ROBOT['mod_spine']['backend'],fromlist=['RAS.spine'])
+  backend= __import__('RAS.spine.'+conf.ROBOT['mod_spine']['backend'],
+                      fromlist=['RAS.spine'])
 except ImportError, e:
   LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
-  LOG.error('check in your config file for mod_spine "backend" entry.')
-  raise
+  LOG.error('check in your config file for mod_spine "backend" entry.\n')
+  import sys; print sys.path; sys.exit(1)
+#from RAS.spine import katHD400s_6M as backend
 Spine_Server = backend.SpineHW
 
 

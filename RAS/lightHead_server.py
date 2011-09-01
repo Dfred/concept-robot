@@ -37,13 +37,11 @@ import sys
 
 from utils.comm.meta_server import MetaServer, MetaRequestHandler
 from utils.comm import ASCIICommandProto
-from utils import get_logger
+from utils import get_logger, conf
 from RAS import FeaturePool
 
-LOG = get_logger(__package__, conf.DEBUG_MODE)          # assume valid config
+LOG = get_logger(__package__)
 ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
-# submodule key for registering more protocol keywords for a subserver/handler
-EXTRA_ORIGINS = 'extra_origins'
 
 
 class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
@@ -129,14 +127,9 @@ class LightHeadServer(MetaServer):
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
         This function uses conf's module definitions: if conf has an attribute
-         which name can be found in ORIGINS, then the RAS module is loaded.
+         which name can be found in ORIGINS, then that RAS module is loaded.
          """
-#TODO:        See more info in the documentation.
-#        """
-        # conf's specifics should have been sorted out much earlier
-        from utils import conf; conf.load()
-
-        # get the ROBOT dictionnary
+        EXTRA_ORIGINS = 'extra_origins'
         try:
             r_dict = conf.ROBOT
         except AttributeError:
@@ -148,13 +141,13 @@ class LightHeadServer(MetaServer):
         for name, info in r_dict.iteritems():
             if not name.startswith('mod_') or not r_dict[name]:
                 continue
-            try:
-                module = __import__('RAS.'+name[4:], fromlist=['RAS'])
-            except ImportError, e:
-                LOG.error("Configuration has '%s' but the module isn't found."
-                          " Error: %s", name, e)
-                sys.exit(3)
             name = name[4:]
+            try:
+                module = __import__('RAS.'+name, fromlist=['RAS'])
+            except ImportError, e:
+                LOG.error("Configuration mentions 'mod_%s' but this module"
+                          " can't be loaded. Error: %s", name, e)
+                sys.exit(3)
             try:
                 subserv_class = getattr(module, name.capitalize()+'_Server')
                 handler_class = getattr(module, name.capitalize()+'_Handler')

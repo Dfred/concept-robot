@@ -126,13 +126,15 @@ def initialize(server):
 
     # properties must be set to 'Head' and 'skeleton'.
     # BEWARE to not set props to these objects before, they'll be included here.
-    AUs = [(n[1:],getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
-          [(n[1:],getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
+    AUs = [(n[1:],
+            getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
+          [(n[1:],
+            getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
     server.set_available_AUs(AUs)
 
     # load axis limits for the skeleton regardless of the configuration: if the
     # spine mod is loaded (origin head), no spine AU should be processed here.
-    from utils import conf; conf.load()    #TODO: get values from blend file?
+    from utils import conf;                 #TODO: get values from blend file?
     G.skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
     # ok, startup
@@ -142,7 +144,8 @@ def initialize(server):
     G.setMaxLogicFrame(1)       # relative to rendering
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL','GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
+                             'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
     G.last_update_time = time.time()
     return cont
 

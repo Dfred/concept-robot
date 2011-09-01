@@ -27,7 +27,7 @@ from learning import agent, inout
 from HMS import communication
 from utils import conf, get_logger
 
-LOG = get_logger(__name__, config.DEBUG)
+LOG = get_logger(__name__)                          # updated after conf load
 
 
 def main():
@@ -57,19 +57,21 @@ def main():
     # create robot control
     rb = RobotControl(comm_express)
     rb.start()
-
     #print connections[1].get_snapshot()
-
 
 
 def connect():
     """ connect to the appropriate sources
     """
     print "configuration name: ", conf.set_name('lightHead')
-    print "missing configuration entries: ", conf.load()
+    missing = conf.load(required=('expression_server','lightHead_server'))
+    if missing:
+        print "missing configuration entries: ", missing
+        sys.exit(1)
+    LOG = get_logger(__name__, hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE)
     # Will ignore send_msg if not connected
-    return (communication.CommBase(conf.expression_server), communication.CommBase(conf.lightHead_server) )
-
+    return (communication.CommBase(conf.expression_server),
+            communication.CommBase(conf.lightHead_server) )
 
 
 class RobotControl(threading.Thread):
@@ -92,7 +94,7 @@ class RobotControl(threading.Thread):
         self.environment = (7, 3, 2.5)
         self.robot_pos = (3.5, 0.75, 0.75)
         expression_comm.set_neck_gaze(gaze=config.gaze_pos,
-                                      neck=((0,0,0), None))     # rot, pos
+                                      neck=((0,0,0), None))         # rot, pos
 
     def run(self):
 
@@ -118,7 +120,9 @@ class RobotControl(threading.Thread):
                     self.comm.set_neck_orientation("(0.15,0,0)")
                     time.sleep(0.01)
                     self.comm.set_neck_orientation("(0,0,0)")
-                    self.comm.set_gaze(str(config.gaze_pos[0]) + "," + str(config.gaze_pos[1]) + "," + str(config.gaze_pos[2]))
+                    self.comm.set_gaze(str(config.gaze_pos[0]) + "," +
+                                       str(config.gaze_pos[1]) + "," +
+                                       str(config.gaze_pos[2]))
                 config.cam_shift = False
                 config.follow_face_gaze = False
                 config.follow_face_neck = False
@@ -168,10 +172,10 @@ class RobotControl(threading.Thread):
                 #self.end()
 
                 # preview of keyboard input_control...
-        		import select
-        		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-        		    if sys.stdin.read(1) == 'f':
-        		        self.find_face()
+                        import select
+                        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                            if sys.stdin.read(1) == 'f':
+                                self.find_face()
                 #time.sleep(1)
                 #print "waiting"
 

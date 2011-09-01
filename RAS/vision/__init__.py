@@ -43,8 +43,7 @@ from pyvision.edge.canny import canny
 from RAS import FeaturePool
 from utils import conf, get_logger, Frame, fps
 
-conf.load()
-LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
+LOG = get_logger(__package__)
 VIS_CONF = conf.ROBOT['mod_vision']
 
 

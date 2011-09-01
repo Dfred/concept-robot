@@ -12,8 +12,7 @@ from utils import conf, get_logger
 
 __all__ = ['SpineHW']
 
-conf.load()
-LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
+LOG = get_logger(__package__)
 
 
 try:

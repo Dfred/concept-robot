@@ -38,8 +38,7 @@ from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
 import RAS
 
-conf.load()
-LOG = get_logger(__package__, conf.DEBUG_MODE)            # assume valid config
+LOG = get_logger(__package__)
 
 
 class Face_Handler(ASCIIRequestHandler):
@@ -161,7 +160,8 @@ class Face_Server(object):
       pass
 
 try:
-  backend = __import__(conf.ROBOT['mod_face']['backend'], fromlist=['RAS.face'])
+  backend = __import__('RAS.face.'+conf.ROBOT['mod_face']['backend'],
+                       fromlist=['RAS.face'])
 except ImportError, e:
   LOG.error("\n*** FACE INITIALIZATION ERROR *** (%s)", e)
   LOG.error('check in your config file for mod_face "backend" entry.')
