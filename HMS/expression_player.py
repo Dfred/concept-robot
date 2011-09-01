@@ -33,9 +33,9 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import time
 
-import conf
-from control.interfaces.communication import ExpressionComm
-from control import Behaviour as FSM
+from utils import conf
+from utils.FSMs import SMFSM
+from HMS.communication import ExpressionComm
 
 
 def fatal(msg):
@@ -43,28 +43,34 @@ def fatal(msg):
   exit(1)
 
 
-class FSM_Builder():
-  """A generic framework for specifying behaviour through FSM objects.
+class Behaviour_Builder():
+  """A generic framework for specifying behaviour through SMFSM objects.
   """
 
   def __init__(self, machine_defs, with_vision=True):
     """
     """
-    if with_vision:
-      from HRI import vision
+    try:
+      conf.set_name('lightHead')
+      missing = conf.load(required_entries=('ROBOT','expression_server'))
+      if missing:
+        print '\nmissing configuration entries: %s' % missing
+        sys.exit(1)
+    except conf.LoadException, e:
+      print 'in file {0[0]}: {0[1]}'.format(e)
+      sys.exit(2)
 
-    conf.load()
-    missing = conf.check_missing()
-    if missing:
-      fatal('missing entries in config file:'+str(missing))
+    # now that we're sure conf is ok, import other modules
+    if with_vision:
+      from RAS import vision
 
     for name, rules, parent_name in machine_defs:
       try:
         parent= parent_name and getattr(self,'fsm_'+parent_name) or None
       except AttributeError:
         raise ValueError("machine %s: parent machine '%s' not found,"
-                         " check FSM definition." % (name, parent_name))
-      fsm = FSM(name, rules, parent)
+                         " check SMFSM definition." % (name, parent_name))
+      fsm = SMFSM(name, rules, parent)
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
@@ -117,7 +123,7 @@ if __name__ == '__main__':
   import sys
   print 'python path:', sys.path
 
-  class TestFSM_Builder(FSM_Builder):
+  class TestBehaviour_Builder(Behaviour_Builder):
     """
     """
     def started(self):
@@ -128,18 +134,18 @@ if __name__ == '__main__':
       if self.vision.gui:
         self.vision.mark_rects(faces)
         self.vision.gui.show_frame(self.vision.frame)
-      return faces and FSM.STOPPED or None
+      return faces and SMFSM.STOPPED or None
     def stopped(self):
       print 'test stopped'
       return
     def __init__(self):
       rules = (
-          (FSM.STARTED,self.started),
+          (SMFSM.STARTED,self.started),
           ('TESTING',  self.testing),
-          (FSM.STOPPED,self.stopped) )
+          (SMFSM.STOPPED,self.stopped) )
       machine_def = [ ('test', rules, None) ]
-      FSM_Builder.__init__(self, machine_def)
+      Behaviour_Builder.__init__(self, machine_def)
 
-  player = TestFSM_Builder()
+  player = TestBehaviour_Builder()
   player.run()
   player.cleanup()

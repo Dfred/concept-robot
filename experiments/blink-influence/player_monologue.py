@@ -27,9 +27,9 @@ import time
 import math
 import random
 
-from utils.expression_player import FSM_Builder
-from utils import Frame
-from control import Behaviour
+from HMS.expression_player import Behaviour_Builder
+from utils import Frame, conf
+from utils.FSMs import SMFSM
 
 
 class Utterances(object):
@@ -81,19 +81,19 @@ class Utterances(object):
     print "next_time", self.next_time
 
 
-class MonologuePlayer(FSM_Builder):
+class MonologuePlayer(Behaviour_Builder):
   """A simple player reading monologue file.
   """
 
   def read(self):
     """
-    Returns: Behaviour.STOPPED
+    Returns: SMFSM.STOPPED
     """
     if self.wait_reply:
       return
     line = self.utterances.next()
     if line == 'EOF':
-      return Behaviour.STOPPED
+      return SMFSM.STOPPED
     if line:
 
       def got_reply(status, tag):
@@ -145,23 +145,23 @@ class MonologuePlayer(FSM_Builder):
   def __init__(self, filepath):
     """
     """
-    PLAYER_DEF= ( (Behaviour.STARTED, self.read),
-                  (Behaviour.STOPPED, self.finish),
+    PLAYER_DEF= ( (SMFSM.STARTED, self.read),
+                  (SMFSM.STOPPED, self.finish),
                 )
-    FTRACKER_DEF = ( ((Behaviour.STARTED,'ADJUSTED'), self.search_participant),
+    FTRACKER_DEF = ( ((SMFSM.STARTED,'ADJUSTED'), self.search_participant),
                      ('FOUND_PART', self.adjust_gaze_neck),
-                     (Behaviour.STOPPED, self.finish),
+                     (SMFSM.STOPPED, self.finish),
                    )
-    FSM_Builder.__init__(self, [('player',PLAYER_DEF,None),
-                                ('tracker',FTRACKER_DEF,'player')],
-                         with_vision=True)#False)
+    Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),
+                                      ('tracker',FTRACKER_DEF,'player')],
+                               with_vision=True)#False)
     self.utterances = Utterances(filepath)
     self.wait_reply = False
 
 if __name__ == '__main__':
   import sys
   try:
-    m = MonologuePlayer(sys.argv[1])
+    m = MonologuePlayer(sys.argv[1])                          # also loads conf
   except IndexError:
     print 'usage: %s monologue_file' % sys.argv[0]
     exit(1)
