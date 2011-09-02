@@ -57,6 +57,10 @@ import select
 import logging
 from threading import Thread, Lock
 from collections import namedtuple
+try:
+    import threading
+except ImportError:
+    import dummy_threading as threading
 
 from presentation import BasePresentation
 
@@ -231,7 +235,7 @@ class BaseServer(object):
       utils.handle_exception_simple()
       print 'use debug mode to spawn post-mortem analysis with pdb'
     else:
-      utils.handle_exception_debug()
+      utils.handle_exception_debug(force_debugger=True)
 
   def verify_request(self, request, client_addrPort):
     """Verify the request.  May be overridden.
@@ -340,8 +344,9 @@ class TCPServer(BaseServer):
   def close_request(self, sock):
     """Called to clean up an individual request.
     """
-    LOG.debug('closing TCP connection with %s (%s)',
-              self.clients[sock].addr_port, sock)
+    if self.clients.has_key(sock):
+      LOG.debug('closing TCP connection with %s (%s)',
+                self.clients[sock].addr_port, sock)
     BaseServer.close_request(self, sock)
     sock.close()
 
@@ -425,7 +430,7 @@ class ForkingMixIn:
       return
     else:                                                       # Child process
       try:
-        self.finish_request(socket, client_addrPort)
+        self.finish_request(socket, client_addrPort).read_while_running()
         os._exit(0)
       except:
         try:
@@ -446,7 +451,7 @@ class ThreadingMixIn:
     In addition, exception handling is done here.
     """
     try:
-      self.finish_request(socket, client_addrPort)
+      self.finish_request(socket, client_addrPort).read_while_running()
       self.close_request(socket)
     except:
       self.handle_error(socket, client_addrPort)
@@ -523,12 +528,6 @@ class BaseRequestHandler(BasePresentation):
     self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
                        or addr_port )
     LOG.debug("initialized a %s.", self.__class__.__name__)
-
-  def set_looping(self, looping=True):
-    """Set if we want to loop in self.work()
-    """
-    self.work = self.read_while_running if self.server.handler_looping else \
-                self.read_once
 
   def setup(self):
     """Initializer for child classes. Override.

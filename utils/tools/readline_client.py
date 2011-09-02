@@ -37,7 +37,7 @@ import os
 sys.path.insert(1,os.path.join(sys.path[0],'..','..'))
 from utils import comm, handle_exception_debug
 
-comm.set_debug_logging()
+comm.set_debug_logging(False)
 
 # readline history
 try:

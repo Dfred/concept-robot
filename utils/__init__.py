@@ -64,16 +64,16 @@ def handle_exception_simple(logger = None):
         logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
 
 def handle_exception_debug(force_debugger=False):
-    """Starts pdb if force_debugger or conf.DEBUG_MODE is True.
+    """Starts pdb if force_debugger is True, else if conf.DEBUG_MODE is True.
     Otherwise, it just raises the latest exception.
     """
-    import conf
-    if force_debugger or (hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE):
-        print '\n===EXCEPTION CAUGHT'+'='*60
-        import traceback; traceback.print_exc()
-        import pdb; pdb.post_mortem()
-    else:
-        raise
+    if not force_debugger:
+        import conf
+        if not hasattr(conf,'DEBUG_MODE') or not conf.DEBUG_MODE:
+            raise
+    print '\n===EXCEPTION CAUGHT'+'='*60
+    import traceback; traceback.print_exc()
+    import pdb; pdb.post_mortem()
 
 
 # TODO: move this class elsewhere
