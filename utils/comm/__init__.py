@@ -53,8 +53,6 @@ import logging
 from session import BaseClient, BaseRequestHandler, ThreadingInfo, create_server
 from presentation import ASCIICommandProto,RequestHandlerCmdsMixIn
 
-from ..utils import get_logger
-
 __all__ = [
   'ThreadingInfo',
   'BaseServer',
@@ -67,7 +65,7 @@ __all__ = [
   'set_logging_level',
   ]
 
-LOG = get_logger(__package__)
+LOG = logging.getLogger(__package__)                      # main package logger
 
 
 class ASCIICommandClient(ASCIICommandProto,

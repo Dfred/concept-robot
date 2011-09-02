@@ -64,6 +64,8 @@ except ImportError:
 
 from presentation import BasePresentation
 
+from utils import handle_exception
+
 LOG = logging.getLogger(__package__)
 FATAL_ERRORS = [errno.EHOSTUNREACH, errno.EADDRNOTAVAIL]
 
@@ -229,13 +231,8 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    import utils
     LOG.error('Exception raised with %s (%s)', sock, client_addr)
-    if LOG.getEffectiveLevel() != logging.DEBUG:
-      utils.handle_exception_simple()
-      print 'use debug mode to spawn post-mortem analysis with pdb'
-    else:
-      utils.handle_exception_debug(force_debugger=True)
+    utils.handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
     """Verify the request.  May be overridden.

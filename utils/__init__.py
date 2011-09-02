@@ -30,7 +30,7 @@ LOGFORMAT="%(asctime)s.%(msecs)d %(name)s.%(filename).21s:%(lineno)-4d-"\
 LOGDATEFMT="%H:%M:%S"
 
 def get_logger(name):
-    """Wraps simple usage of logging module. See also set_logger_debug().
+    """ Wraps simple usage of logging module. See also set_logger_debug().
     Return: a logging.Logger instance.
     """
     logger = logging.getLogger(name)
@@ -43,7 +43,9 @@ def get_logger(name):
     return logger
 
 def set_logger_debug(logger, debug=True):
-    """
+    """ Set the given logger to DEBUG level or INFO.
+    logger: a logging.Logger instance.
+    debug: if set to False, sets the logger level to INFO.
     """
     lvl = debug and logging.DEBUG or logging.INFO
     logger.setLevel(lvl)
@@ -52,7 +54,7 @@ def set_logger_debug(logger, debug=True):
 
 
 def handle_exception_simple(logger = None):
-    """Uses the logger's error() for a single line description of the latest
+    """ Uses the logger's error() for a single line description of the latest
     exception, avoiding output of the full backtrace.
     """
     import sys, traceback
@@ -63,17 +65,31 @@ def handle_exception_simple(logger = None):
         import logging
         logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
 
-def handle_exception_debug(force_debugger=False):
-    """Starts pdb if force_debugger is True, else if conf.DEBUG_MODE is True.
+def handle_exception_debug(logger = None, force_debugger=False):
+    """ Starts pdb if force_debugger is True, else if conf.DEBUG_MODE is True.
     Otherwise, it just raises the latest exception.
     """
     if not force_debugger:
         import conf
         if not hasattr(conf,'DEBUG_MODE') or not conf.DEBUG_MODE:
             raise
-    print '\n===EXCEPTION CAUGHT'+'='*60
-    import traceback; traceback.print_exc()
+    import sys, traceback
+    py_error = traceback.format_exception(*sys.exc_info())[-2:]
+    if logger:
+        logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+    else:
+        import logging
+        logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
     import pdb; pdb.post_mortem()
+
+def handle_exception(logger):
+    """ Call handle_exception_debug if logger's level is DEBUG, else _simple.
+    """
+    if logger.getEffectiveLevel() != logging.DEBUG:
+      utils.handle_exception_simple()
+      print 'setting logger to debug mode spawns post-mortem analysis with pdb'
+    else:
+      utils.handle_exception_debug(force_debugger=True)
 
 
 # TODO: move this class elsewhere

@@ -7,10 +7,6 @@ IF "%PYTHON%" == "" (
 )
 echo PYTHON is %PYTHON%
 
-IF "%PYTHONPATH%" == "" (
-    echo you must define PYTHONPATH environment variable.
-    GOTO :END
-)
 set PYTHONPATH=%PYTHONPATH%;%cd%\RAS\face;%cd%\extern\pyvision_0.9.0\src;
 echo PYTHONPATH is %PYTHONPATH%
 
