@@ -232,7 +232,7 @@ class BaseServer(object):
     Return: None or False
     """
     LOG.error('Exception raised with %s (%s)', sock, client_addr)
-    utils.handle_exception(LOG)
+    handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
     """Verify the request.  May be overridden.
