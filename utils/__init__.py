@@ -86,10 +86,10 @@ def handle_exception(logger):
     """ Call handle_exception_debug if logger's level is DEBUG, else _simple.
     """
     if logger.getEffectiveLevel() != logging.DEBUG:
-      utils.handle_exception_simple()
+      handle_exception_simple()
       print 'setting logger to debug mode spawns post-mortem analysis with pdb'
     else:
-      utils.handle_exception_debug(force_debugger=True)
+      handle_exception_debug(force_debugger=True)
 
 
 # TODO: move this class elsewhere
