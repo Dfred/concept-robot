@@ -171,7 +171,6 @@ class BaseServer(object):
           if client.socket in self.polling_sockets:
             self.close_request(client.socket)
     self.disactivate()
-    del self.polling_sockets[self.polling_sockets.index(self.socket)]
     LOG.info('server now shut down.')
 
   def serve_once(self):
@@ -186,15 +185,18 @@ class BaseServer(object):
     try:
       r, w, e = select.select(self.polling_sockets, [],
                               self.polling_sockets, self.poll_interval)
-      if e:
-        return self.handle_error(e, self.clients[e[0]].addr_port)
-      for sock in r:
+    except select.error, errno:
+      return self.handle_error(self.polling_sockets, "select error #%i" % errno)
+    if e:
+      return self.handle_error(e, self.clients[e[0]].addr_port)
+    for sock in r:
+      try:
         if sock is self.socket:
           self._handle_request_noblock()
         elif not self.clients[sock].read_socket():
           self.close_request(sock)
-    except (Exception, StandardError), err:
-      return self.handle_error(self.polling_sockets, None)
+      except Exception, err:
+        return self.handle_error(sock, err)
     return True
 
   def serve_forever(self):
@@ -653,7 +655,7 @@ class BaseClient(BasePresentation):
       self.read_while_running(read_timeout)
       ret = True
     except select.error, e:
-      self.handle_error(e)
+      self.handle_error(self.socket, e)
       ret = False
     finally:
       if self.socket:
@@ -706,24 +708,24 @@ def getBaseServerClass(addr_port, threaded):
 
 
 def create_server(handler_class, addr_port,
-                  threading_info=(False, True), extsrv_class=None):
+                  threading_info=(False, True), server_mixin=None):
   """Create a server handling incoming connections with handler_class.
   handler_class: class with your own cmd_.. member fonctions
   addr_port: (interface address, port) for the server to listen to.
   threading_info: (threaded_server_bool, threaded_clients_bool). Defaults to
                   (False, True): each handlers have their own thread.
-  extsrv_class: class to be mixed with the auto-selected child of BaseServer.
+  server_mixin: class to be mixed with the auto-selected child of BaseServer.
                 Default behaviour is to use the auto-selected only.
-  Return: auto-selected server class instance (may be mixed with extsrv_class).
+  Return: auto-selected server class instance (may be mixed with server_mixin).
   """
   if not issubclass(handler_class, BaseRequestHandler):
     raise TypeError("%s must inherit from BaseRequestHandler" % handler_class)
   # XXX: new style classes only, remove for python3
-  if extsrv_class and not issubclass(extsrv_class, object):
-    raise TypeError("%s must inherit from object" % extsrv_class)
-  if (extsrv_class and
-      extsrv_class in [ cls for proto, cls in SERVER_CLASSES.items() ]):
-    raise TypeError("extsrv_class (%s) must be your own class" % extsrv_class)
+  if server_mixin and not issubclass(server_mixin, object):
+    raise TypeError("%s must inherit from object" % server_mixin)
+  if (server_mixin and
+      server_mixin in [ cls for proto, cls in SERVER_CLASSES.items() ]):
+    raise TypeError("server_mixin (%s) must be your own class" % server_mixin)
 
   threaded_srv, threaded_cli = threading_info
   addr_port, base_class = getBaseServerClass(tuple(addr_port), threaded_cli)
@@ -734,13 +736,13 @@ def create_server(handler_class, addr_port,
       base_class.__init__(self)
       self.set_RequestHandlerClass(handler_class)
       self.set_addrPort(addr_port)
-      extsrv_class.__init__(self)
+      server_mixin.__init__(self)
       if threaded_srv:
         self.set_threaded()
 
-  if extsrv_class:
-    return type(extsrv_class.__name__+base_class.__name__,
-                (extsrv_class, base_class),{'__init__':init_server})()
+  if server_mixin:
+    return type(server_mixin.__name__+base_class.__name__,
+                (server_mixin, base_class),{'__init__':init_server})()
   else:
     srv = base_class()
     srv.set_RequestHandlerClass(handler_class)

@@ -91,8 +91,8 @@ class MetaRequestHandler(BaseRequestHandler):
     self.send_msg('commands:\t{0[0]}\nextra commands:\t{0[1]}'.format(cmds))
 
 
-class MetaServer(object):
-  """A server that gathers other servers and their handlers.
+class MetaServerMixin(object):
+  """A mixin class to gathers other servers and their handlers.
   Allows multiple protocols to be mixed together. Indeed you would need a
    higher level protocol in order to switch from one sub-protocol to another.
   """

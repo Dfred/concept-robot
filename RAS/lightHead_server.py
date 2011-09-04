@@ -35,7 +35,7 @@ SERVER MODULE
 
 import sys
 
-from utils.comm.meta_server import MetaServer, MetaRequestHandler
+from utils.comm.meta_server import MetaServerMixin, MetaRequestHandler
 from utils.comm import ASCIICommandProto
 from utils import get_logger, conf
 from RAS import FeaturePool
@@ -94,12 +94,12 @@ class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
         self.send_msg('end_snapshot')
 
 
-class LightHeadServer(MetaServer):
+class LightHeadServer(MetaServerMixin):
     """Sets and regroups subservers of the lightHead system."""
 
     def __init__(self):
         """All subServers will receive a reference to the Feature Pool"""
-        MetaServer.__init__(self)
+        super(LightHeadServer,self).__init__()
         self.origins = {}       # { origin: self.server and associed handler }
         self.FP = FeaturePool() # the feature pool for context queries
 
@@ -121,8 +121,8 @@ class LightHeadServer(MetaServer):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, req_handler_class, origin)
-        self.origins[origin] = server, MetaServer.register(self, server,
-                                                           req_handler_class)
+        self.origins[origin] = server, super(LightHeadServer,self).register(
+            server, req_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.

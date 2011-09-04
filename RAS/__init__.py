@@ -111,7 +111,7 @@ def initialize(thread_info):
   from lightHead_server import LightHeadServer, LightHeadHandler
   server = session.create_server(LightHeadHandler, conf.lightHead_server,
                                  threading_info=thread_info,
-                                 extsrv_class=LightHeadServer)
+                                 server_mixin=LightHeadServer)
   # Because what we have here is a *meta server*, we need to initialize it
   #  properly; face and all other subservers are initialized in that call.
   server.create_protocol_handlers()
