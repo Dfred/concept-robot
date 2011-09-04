@@ -87,7 +87,7 @@ def handle_exception(logger):
     """
     if logger.getEffectiveLevel() != logging.DEBUG:
       handle_exception_simple()
-      print 'setting logger to debug mode spawns post-mortem analysis with pdb'
+      print 'FYI: loggers with debug level spawn post-mortem analysis with pdb'
     else:
       handle_exception_debug(force_debugger=True)
 
