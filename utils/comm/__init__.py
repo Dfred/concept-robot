@@ -51,7 +51,8 @@ __credits__   = ["University of Plymouth and EPSRC"]
 import logging
 
 from session import BaseClient, BaseRequestHandler, ThreadingInfo, create_server
-from presentation import ASCIICommandProto,RequestHandlerCmdsMixIn
+from presentation import (ASCIICommandProto, ASCIICommandProtoEx,
+                          RequestHandlerCmdsMixIn)
 
 __all__ = [
   'ThreadingInfo',
@@ -70,6 +71,12 @@ LOG = logging.getLogger(__package__)                      # main package logger
 
 class ASCIICommandClient(ASCIICommandProto,
                          BaseClient):
+  """
+  """
+  pass
+
+class ScriptCommandClient(ASCIICommandProtoEx,
+                          BaseClient):
   """
   """
   pass
@@ -97,7 +104,10 @@ def set_debug_logging(debug=True):
 
 if __name__ == '__main__':
   import sys
+  import logging
   from threading import Thread
+
+  import utils
 
   if len(sys.argv) < 2:
     print "usage: %s port" % sys.argv[0]
@@ -107,9 +117,8 @@ if __name__ == '__main__':
   if sys.argv[1].isdigit():
     addr_port[1] = int(addr_port[1])
 
-  # SERVER HAS OWN THREAD, CLIENTS HAVE OWN THREAD
-  info = ThreadingInfo(False, False)
-  set_debug_logging(False)#True)
+  info = ThreadingInfo(False, False)          # server thread, clients threaded
+  logging.basicConfig(level=logging.DEBUG,**utils.LOGFORMATINFO)
 
   # Create a test thread that connects to the server.
   class TestClient(ASCIICommandClient):

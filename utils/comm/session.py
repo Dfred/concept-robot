@@ -67,8 +67,7 @@ from presentation import BasePresentation
 from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
-FATAL_ERRORS = [errno.EHOSTUNREACH, errno.EADDRNOTAVAIL]
-
+FATAL_ERRORS = (errno.EHOSTUNREACH, errno.EADDRNOTAVAIL)
 
 class BaseServer(object):
   """Greatly inspired from SocketServer, but allows using a single thread approach, .
@@ -127,7 +126,7 @@ class BaseServer(object):
     """
     self.poll_interval = min([sock.gettimeout() for sock in \
                               self.polling_sockets + [self.socket]])
-    LOG.debug("poll_interval now %ss.", self.poll_interval)
+    LOG.debug("poll_interval for %s now %ss.", self, self.poll_interval)
 
   def activate(self):
     """To be overriden"""
@@ -153,7 +152,7 @@ class BaseServer(object):
 
   def pre_shutdown(self):
     """To be overriden"""
-    LOG.debug('server now shutting down.')
+    LOG.debug('server %s now shutting down.' % self)
     pass
 
   def shutdown(self):
@@ -171,7 +170,7 @@ class BaseServer(object):
           if client.socket in self.polling_sockets:
             self.close_request(client.socket)
     self.disactivate()
-    LOG.info('server now shut down.')
+    LOG.info('server %s now shut down.' % self)
 
   def serve_once(self):
     """Check for incoming connections and save further calls to select()
@@ -185,9 +184,11 @@ class BaseServer(object):
     try:
       r, w, e = select.select(self.polling_sockets, [],
                               self.polling_sockets, self.poll_interval)
-    except select.error, errno:
-      return self.handle_error(self.polling_sockets, "select error #%i" % errno)
+    except select.error, e_no:
+      return self.handle_error(self.polling_sockets, "select error #%i" % e_no)
     if e:
+      for sock in e:
+        self.close_request(sock)
       return self.handle_error(e, self.clients[e[0]].addr_port)
     for sock in r:
       try:
@@ -233,7 +234,7 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    LOG.error('Exception raised with %s (%s)', sock, client_addr)
+    LOG.error('%s got Exception with %s (%s)', self, sock, client_addr)
     handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
@@ -522,6 +523,7 @@ class BaseRequestHandler(BasePresentation):
 
   def __init__(self, server, sock, addr_port):
     BasePresentation.__init__(self)
+    self.connected = True
     self.server = server                                # server that spawned us
     self.socket = sock
     self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
@@ -575,6 +577,7 @@ class BaseClient(BasePresentation):
     addr_port = tuple(addr_port)
     self.family, self.addr_port = BaseClient.addrFamily_from_addrPort(addr_port)
     self.socket = None
+    self.connected = False
     self._connect_timeout = None                                  # set blocking
 
   @property

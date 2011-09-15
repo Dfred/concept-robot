@@ -46,14 +46,16 @@ import logging
 from abc import ABCMeta, abstractmethod
 
 LOG = logging.getLogger(__package__)
+DISCN_ERRORS = (errno.ECONNRESET, errno.WSAECONNRESET,
+                errno.ECONNABORTED, errno.WSAECONNABORTED)
 
 
 class BasePresentation(object):
-  """Basic socket reading, (dis)connection/error events handling.
+  """Basic socket reading/writing, (dis)connection/error events handling.
   Base class for a local client connecting to a server (BaseClient) or
   for a remote client connecting to the local server (RequestHandler).
 
-  To implement a specific protocol, you would override:
+  To implement a specific protocol, you shall implement the abstract functions:
   - process()
   - parse_cmd()
   - send_msg()
@@ -65,7 +67,6 @@ class BasePresentation(object):
 
   def __init__(self):
     self.unprocessed = ''
-    self.connected = False
     self.running = False                                # processing loop switch
     self._th_save = {}                                  # see set_threading
 
@@ -77,11 +78,7 @@ class BasePresentation(object):
     """
     import utils
     LOG.warning("Connection error :%s", error)
-    if LOG.getEffectiveLevel() != logging.DEBUG:
-      utils.handle_exception_simple()
-      print 'use debug mode to spawn post-mortem analysis with pdb'
-    else:
-      utils.handle_exception_debug()
+    utils.handle_exception(LOG)
 
   def handle_disconnect(self):
     """Called after disconnection from server.
@@ -102,7 +99,6 @@ class BasePresentation(object):
     """
     if self.socket:
       self.socket.close()
-    self.connected = False
     self.running = False
     self.handle_disconnect()
     return False
@@ -135,11 +131,33 @@ class BasePresentation(object):
       if not buff:
         return self.abort()
     except socket.error, e:
-      if e.errno != errno.WSAECONNRESET:                          # for Windows
+      if e.errno not in DISCN_ERRORS:                          # for Windows
         self.handle_error(e)
       return self.abort()
+    LOG.debug("%s> command [%iB]: '%s'", self.socket.fileno(),
+              len(self.unprocessed + buff), self.unprocessed + buff)
     self.unprocessed = self.process(self.unprocessed + buff)
     return True
+
+  def write_socket(self, data):
+    """Write its own socket.
+    Return: None
+    """
+    if self.connected:
+      try:
+        LOG.debug("sending:'%s'", data)
+        self.socket.send(data)
+        return True
+      except socket.error, e:
+        if e.errno in DISCN_ERRORS:
+          LOG.warning("client %s disconnected before we could send '%s'",
+                      self.socket.fileno(), data)
+        else:
+          self.handle_error(e)
+        return self.abort()
+    else:
+      LOG.warning("socket disconnected, cannot send message '%s'.", message)
+      return False
 
   def each_loop(self):
     """Override to do your stuff if you use read_while_running().
@@ -238,37 +256,73 @@ class ASCIICommandProto(object):
     command: (multiline) ASCII text to process
     Return: unprocessed data, not finishing with a \n
     """
-    LOG.debug("%s> command [%iB]: '%s'",
-              self.socket.fileno(), len(command), command)
-    buffered = ''
     for cmdline in command.splitlines(True):
-      if cmdline.lstrip().startswith('#'):                  # comments
-        continue
-      elif cmdline.endswith('\\\n'):                        # escaped multiline
-        buffered += cmdline[:-2]
-        continue
       # XXX: issue with windows \r ?
-      elif not cmdline.endswith('\n'):                      # unfinished line
+      if not cmdline.endswith('\n'):                        # unfinished line
         return cmdline
-
-      cmdline = buffered + cmdline
-      buffered = ''
-      cmdline = cmdline.strip()
-      if not cmdline:
-        continue
       for cmd in cmdline.split('&&'):                       # same loop exec
-        self.parse_cmd(cmd)
-    return buffered
+        cmd = cmd.strip()
+        if cmd:
+          self.parse_cmd(cmd)
+    return ''
 
   def send_msg(self, message):
-    """Send a message adding a trailing \\n as required by the protocol.
+    """Send a message adding a trailing '\n' as required by the protocol.
     To be overriden for implementation of a different protocol.
     message: ASCII text
     Return: None
     """
-    LOG.debug("sending '%s\n'", message)
-    self.socket.send(message+'\n')
+    self.write_socket(message+'\n')
 
+
+class ASCIICommandProtoEx(ASCIICommandProto):
+  """This class interprets common special characters for easier use of scripts
+  so it's possible to dump a script to a server or use the filter_lines() to
+  cleanup the special content of a script.
+  """
+
+  @staticmethod
+  def filter_lines(text):
+    """Checks the line for special characters (python/*sh style):
+    start of line + # : comment
+    \ + end of line   : append next line to current
+    odd number of "   : raw text until closing "
+    Return: (filtered lines, remaining characters)
+    """
+    filtered_lines, unfinished_line = [], ''
+    buffered = ''
+    raw = False
+    for s_line in text.splitlines(True):                    # keep line endings
+      if s_line.find('"') != -1 and s_line.count('"') % 2:  # odd double-quotes
+        raw = not raw
+      if raw:
+        buffered += s_line
+        continue
+      elif s_line.lstrip().startswith('#'):                 # comments
+        continue
+      elif s_line.endswith('\\\n'):                         # escaped multiline
+        buffered += s_line[:-2]
+        continue
+      if not s_line.endswith('\n'):                         # must be last line
+        unfinished_line = s_line
+        continue
+      s_line = buffered + s_line.strip()
+      buffered = ''
+      if not s_line:
+        continue
+      filtered_lines.append(s_line)
+    return filtered_lines, unfinished_line
+
+  def process(self, command):
+    """Uses filter_line() to add script-friendly features.
+    """
+    filtered, buffered = self.__class__.filter_lines(command)
+    for cmdline in filtered:
+      for cmd in cmdline.split('&&'):                       # same loop exec
+        cmd = cmd.strip()
+        if cmd:
+          self.parse_cmd(cmd)
+    return buffered
 
 
 class RequestHandlerCmdsMixIn(object):
