@@ -24,6 +24,8 @@
 # Windows users: you need pyreadline from PyPI (http://pypi.python.org/pypi).
 # even better, from ipython: https://launchpad.net/pyreadline/+download
 
+from __future__ import print_function                       # easier with stderr
+
 import threading
 import readline
 import logging
@@ -74,14 +76,14 @@ class myUI(cmd.Cmd):
     if line.upper() in [ 'EOF', 'BYE' ]:
       self.cnx.looping = False
       if self.cnx.status.startswith(CONNECTED):
-        print "\n- disconnecting"
+        print("\n- disconnecting")
         self.cnx.disconnect()
       self.done = True
     elif line.upper() == '!RECO':
       if self.cnx.status.startswith(DISCONNECTED):
         self.cnx.reconnect()
       else:
-        print "\n connection already exists (%s)" % self.cnx.status
+        print("\n connection already exists (%s)" % self.cnx.status)
     elif line and self.cnx.status.startswith(CONNECTED):
       self.cnx.send_msg(line)
 
@@ -100,13 +102,15 @@ class myUI(cmd.Cmd):
     return self.done
 
   def preloop(self):
-    self.prompt = "%s %s> " % (self.cnx.status or 'disconnected', self.messages)
+    msgs = ''.join(self.messages)
+    self.prompt = "%s %s> " % (self.cnx.status or 'disconnected', msgs)
+    del self.messages[0:len(self.messages)]
 
   def redraw_prompt(self):
     line = readline.get_line_buffer()
     self.stdout.write('\r'+' '*( len(self.prompt)+len(line)+1 )+'\r')
     self.preloop()
-    print '\r'+self.prompt+line,
+    print('\r'+self.prompt+line, end='')
     self.stdout.flush()
 
   def add_message(self, msg):
@@ -114,27 +118,41 @@ class myUI(cmd.Cmd):
     self.redraw_prompt()
 
 
-class commConsClient(comm.ASCIICommandClient):
+class commConsClient(comm.ScriptCommandClient):
   """Our connection to a target server
   """
 
-  def __init__(self, addr_port, pipe_mode):
-    comm.ASCIICommandClient.__init__(self,addr_port)
+  def __init__(self, name, addr_port, pipe_mode):
+    super(commConsClient, self).__init__(addr_port)
     self.ui = None
+    self.name = name
     self.status = None
     self.looping = True
     if pipe_mode:
       self.each_loop = self.send_line_from_pipe
+      self.read_script()
+
+  def read_script(self):
+    script_lines, chars_left = super(self.__class__).__thisclass__.filter_lines(
+        sys.stdin.read())
+    print(script_lines,file=sys.stderr)
+    if chars_left:
+        print('Unfinished: %s' % chars_left, file=sys.stderr)
+    self.slines_it = iter(script_lines)
 
   def send_line_from_pipe(self):
     """Writes a line of data in the ."""
-    line = sys.stdin.readline()
-    if line:
-      print sys.argv[0],"sending>", line
-      self.send(line)
-    if self.status == DISCONNECTED:
-      self.running = False
-    return line
+    try:
+        line = self.slines_it.next()
+        print("%s> %s" % (self.name, line[:-1]))                    # remove \n
+        self.send_msg(line)
+        if self.status == DISCONNECTED:
+          self.running = False
+    except StopIteration:
+        print('--- done with script ---', file=sys.stderr)
+        self.looping = False
+        self.disconnect()
+    return ''
 
   def loop_forever(self):
     """Process inputs until self.looping is False or an Exception is received"""
@@ -146,7 +164,6 @@ class commConsClient(comm.ASCIICommandClient):
             self.looping = False
         except StandardError, e:
             self.looping = False
-            print 'Oops, refresh status please!'
             if self.ui:
               self.ui.done = True
               self.ui.thread.join()
@@ -165,7 +182,10 @@ class commConsClient(comm.ASCIICommandClient):
   def handle_disconnect(self):
     self.status = DISCONNECTED
     self.running = False
-    self.ui and self.ui.redraw_prompt()
+    if self.ui:
+        self.ui.redraw_prompt()
+    else:
+        print("disconnected", file=sys.stderr)
 
   def handle_notfound(self, cmd, args):
     """method that handles incoming data (line by line)."""
@@ -173,22 +193,30 @@ class commConsClient(comm.ASCIICommandClient):
     if self.ui:
       self.ui.add_message(msg)
     else:
-      print msg
+      print(msg,file=sys.stderr)
+
+  def handle_error(self, error):
+    """We ignore bad fd in case we're disconnected"""
+    if not self.ui and self.status == DISCONNECTED and error == errno.EBADF:
+        print("using disconnected fd (%s)"%error, file=sys.stderr)
+    else:
+        super(commConsClient, self).handle_error(error)
 
 
 if __name__ == "__main__":
-  if len(sys.argv) < 2:
-      print "usage: %s [--pipe] [address:]port" % sys.argv[0]
-      exit(-1)
-  pipe_mode = sys.argv[1] == '--pipe' and sys.argv.pop(1)
-  arg = sys.argv[1]
-  addr, port = arg.split(':') if arg.find(':') != -1 else (None,arg)
-  addr = addr or 'localhost'
-  port = port.isdigit() and int(port) or port
-  ADDR_PORT=(addr,port)
+    try:
+        pipe_mode = sys.argv[1] == '--pipe' and sys.argv.pop(1)
+        arg = sys.argv[1]
+        addr, port = arg.split(':') if arg.find(':') != -1 else (None,arg)
+        addr = addr or 'localhost'
+        port = port.isdigit() and int(port) or port
+    except:
+        print("usage: %s [--pipe] [address:]port" % sys.argv[0],file=sys.stderr)
+        exit(-1)
+    ADDR_PORT=(addr,port)
 
-  cnx = commConsClient((addr,port), pipe_mode)
-  if not pipe_mode :
+    cnx = commConsClient('readline_client', (addr,port), pipe_mode)
+    if not pipe_mode :
       try:
           readline.read_history_file(HISTFILE)
       except IOError:
@@ -198,4 +226,4 @@ if __name__ == "__main__":
       cnx.ui = ui
       ui.thread = threading.Thread(target=ui.cmdloop, name='UI')
       ui.thread.start()
-  cnx.loop_forever()
+    cnx.loop_forever()

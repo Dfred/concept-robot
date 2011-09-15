@@ -21,51 +21,134 @@
 
 import logging
 
-# conveninent format.
-#XXX: see LOGDATEFMT comment about %(msec) presence.
-LOGFORMAT="%(asctime)s.%(msecs)d %(name)s.%(filename).21s:%(lineno)-4d-"\
-          "%(levelname)s-\t%(message)s"
-#XXX: %(asctime) is too big && µs isn't supported by basicConfig's datefmt (ie:
-#XXX: logging uses time.strfmt instead of datetime's) => workaround.. :(
-LOGDATEFMT="%H:%M:%S"
-
 def get_logger(name):
-    """ Wraps simple usage of logging module. See also set_logger_debug().
-    Return: a logging.Logger instance.
-    """
-    logger = logging.getLogger(name)
-    #XXX: unadvertized use of logging module's internals
-    if len(logger.handlers) == 0 and logger.parent == logging.root:
-        h = logging.StreamHandler()
-        f = logging.Formatter(LOGFORMAT,LOGDATEFMT)
-        h.setFormatter(f)
-        logger.addHandler(h)
-    return logger
+    return logging.getLogger(name)
 
-def set_logger_debug(logger, debug=True):
-    """ Set the given logger to DEBUG level or INFO.
-    logger: a logging.Logger instance.
-    debug: if set to False, sets the logger level to INFO.
-    """
-    lvl = debug and logging.DEBUG or logging.INFO
-    logger.setLevel(lvl)
-    logger.info('Logger[%s] set log level to %s', logger.name,
-                logging.getLevelName(lvl))
+def set_logger_debug(logger, lvl):
+    logger.setLevel(lvl and logging.DEBUG or logging.INFO)
+
+# convenient format.
+LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
+                        "%(lineno)-4d-%(levelname)s-\t%(message)s",
+               'datefmt':"%H:%M:%S"}
+VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
+
+# now we patch Python code to add color support to logging.StreamHandler
+
+#Taken from stackoverflow.com, Thanks and Credits to sorin (and Peter Hoffman?)
+def add_colors_windows(fn):
+    import ctypes
+    def _out_handle(self):
+        return ctypes.windll.kernel32.GetStdHandle(self.STD_OUTPUT_HANDLE)
+    out_handle = property(_out_handle)
+
+    def _set_color(self, code):
+        # Constants from the Windows API
+        self.STD_OUTPUT_HANDLE = -11
+        hdl = ctypes.windll.kernel32.GetStdHandle(self.STD_OUTPUT_HANDLE)
+        ctypes.windll.kernel32.SetConsoleTextAttribute(hdl, code)
+
+    setattr(logging.StreamHandler, '_set_color', _set_color)
+
+    def new(*args):
+        FOREGROUND_BLUE      = 0x0001 # text color contains blue.
+        FOREGROUND_GREEN     = 0x0002 # text color contains green.
+        FOREGROUND_RED       = 0x0004 # text color contains red.
+        FOREGROUND_INTENSITY = 0x0008 # text color is intensified.
+        FOREGROUND_WHITE     = FOREGROUND_BLUE|FOREGROUND_GREEN |FOREGROUND_RED
+        # winbase.h
+        STD_INPUT_HANDLE = -10
+        STD_OUTPUT_HANDLE = -11
+        STD_ERROR_HANDLE = -12
+
+        # wincon.h
+        FOREGROUND_BLACK     = 0x0000
+        FOREGROUND_BLUE      = 0x0001
+        FOREGROUND_GREEN     = 0x0002
+        FOREGROUND_CYAN      = 0x0003
+        FOREGROUND_RED       = 0x0004
+        FOREGROUND_MAGENTA   = 0x0005
+        FOREGROUND_YELLOW    = 0x0006
+        FOREGROUND_GREY      = 0x0007
+        FOREGROUND_INTENSITY = 0x0008 # foreground color is intensified.
+
+        BACKGROUND_BLACK     = 0x0000
+        BACKGROUND_BLUE      = 0x0010
+        BACKGROUND_GREEN     = 0x0020
+        BACKGROUND_CYAN      = 0x0030
+        BACKGROUND_RED       = 0x0040
+        BACKGROUND_MAGENTA   = 0x0050
+        BACKGROUND_YELLOW    = 0x0060
+        BACKGROUND_GREY      = 0x0070
+        BACKGROUND_INTENSITY = 0x0080 # background color is intensified.
+
+        levelno = args[1].levelno
+        if(levelno>=50):
+            color = BACKGROUND_YELLOW | FOREGROUND_RED | FOREGROUND_INTENSITY
+            #| BACKGROUND_INTENSITY
+        elif(levelno>=40):
+            color = FOREGROUND_RED | FOREGROUND_INTENSITY
+        elif(levelno>=30):
+            color = FOREGROUND_YELLOW | FOREGROUND_INTENSITY
+        elif(levelno>=20):
+            color = FOREGROUND_GREEN
+        elif(levelno>=10):
+            color = FOREGROUND_MAGENTA
+        else:
+            color =  FOREGROUND_WHITE
+        args[0]._set_color(color)
+
+        ret = fn(*args)
+        args[0]._set_color( FOREGROUND_WHITE )
+        #print "after"
+        return ret
+    return new
+
+def add_colors_ansi(fn):
+    # add methods we need to the class
+    def new(*args):
+        levelno = args[1].levelno
+        if(levelno>=50):
+            color = '\x1b[31m' # red
+        elif(levelno>=40):
+            color = '\x1b[31m' # red
+        elif(levelno>=30):
+            color = '\x1b[33m' # yellow
+        elif(levelno>=20):
+            color = '\x1b[32m' # green
+        elif(levelno>=10):
+            color = '\x1b[35m' # pink
+        else:
+            color = '\x1b[0m' # normal
+        args[1].msg = color + args[1].msg +  '\x1b[0m'  # normal
+        #print "after"
+        return fn(*args)
+    return new
+
+import platform
+if platform.system()=='Windows':
+    # Windows does not support ANSI escapes
+    logging.StreamHandler.emit = add_colors_windows(logging.StreamHandler.emit)
+else:
+    logging.StreamHandler.emit = add_colors_ansi(logging.StreamHandler.emit)
+#
+#                       --- end of code copy ---
+#
 
 
-def handle_exception_simple(logger = None):
+def handle_exception_simple(logger = None, msg=''):
     """ Uses the logger's error() for a single line description of the latest
     exception, avoiding output of the full backtrace.
     """
     import sys, traceback
     py_error = traceback.format_exception(*sys.exc_info())[-2:]
     if logger:
-        logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        logger.error('%s %s: %s', msg, py_error[1].strip(), py_error[0].strip())
     else:
         import logging
-        logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        logging.error('%s %s: %s',msg, py_error[1].strip(), py_error[0].strip())
 
-def handle_exception_debug(logger = None, force_debugger=False):
+def handle_exception_debug(logger = None, force_debugger=False, msg=''):
     """ Starts pdb if force_debugger is True, else if conf.DEBUG_MODE is True.
     Otherwise, it just raises the latest exception.
     """
@@ -73,23 +156,25 @@ def handle_exception_debug(logger = None, force_debugger=False):
         import conf
         if not hasattr(conf,'DEBUG_MODE') or not conf.DEBUG_MODE:
             raise
-    import sys, traceback
-    py_error = traceback.format_exception(*sys.exc_info())[-2:]
+    #import sys, traceback
+    #py_error = traceback.format_exception(*sys.exc_info())[-2:]
     if logger:
-        logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        #logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        logger.exception(msg)
     else:
         import logging
-        logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        #logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
+        logging.exception(msg)
     import pdb; pdb.post_mortem()
 
-def handle_exception(logger):
+def handle_exception(logger, msg=''):
     """ Call handle_exception_debug if logger's level is DEBUG, else _simple.
     """
     if logger.getEffectiveLevel() != logging.DEBUG:
-      handle_exception_simple()
+      handle_exception_simple(logger)
       print 'FYI: loggers with debug level spawn post-mortem analysis with pdb'
     else:
-      handle_exception_debug(force_debugger=True)
+      handle_exception_debug(logger, force_debugger=True)
 
 
 # TODO: move this class elsewhere
