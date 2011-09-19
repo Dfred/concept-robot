@@ -135,7 +135,6 @@ class commConsClient(comm.ScriptCommandClient):
   def read_script(self):
     script_lines, chars_left = super(self.__class__).__thisclass__.filter_lines(
         sys.stdin.read())
-    print(script_lines,file=sys.stderr)
     if chars_left:
         print('Unfinished: %s' % chars_left, file=sys.stderr)
     self.slines_it = iter(script_lines)

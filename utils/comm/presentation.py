@@ -46,16 +46,10 @@ import logging
 from abc import ABCMeta, abstractmethod
 
 LOG = logging.getLogger(__package__)
-DISCN_ERRORS = (errno.ECONNRESET, errno.WSAECONNRESET,
-                errno.ECONNABORTED, errno.WSAECONNABORTED)
-
 
 class BasePresentation(object):
-  """Basic socket reading/writing, (dis)connection/error events handling.
-  Base class for a local client connecting to a server (BaseClient) or
-  for a remote client connecting to the local server (RequestHandler).
-
-  To implement a specific protocol, you shall implement the abstract functions:
+  """Base class for protocol handlers.
+  Handle a specific protocol by implementing these abstract functions:
   - process()
   - parse_cmd()
   - send_msg()
@@ -63,120 +57,12 @@ class BasePresentation(object):
 
   __metaclass__ = ABCMeta
 
-  CMD_PREFIX = "cmd_"
-
-  def __init__(self):
-    self.unprocessed = ''
-    self.running = False                                # processing loop switch
-    self._th_save = {}                                  # see set_threading
-
-  def handle_error(self, error):
-    """Called upon connection error.
-    Installs an interactive pdb session if logger is at DEBUG level.
-    error: object (usually exception of string) to print in log
-    Return: None
-    """
-    import utils
-    LOG.warning("Connection error :%s", error)
-    utils.handle_exception(LOG)
-
-  def handle_disconnect(self):
-    """Called after disconnection from server.
-    Return: None
-    """
-    LOG.debug('client disconnected from remote server %s', self.addr_port)
-
   def handle_notfound(self, cmd, args):
     """Called when a cmd_... method (a command handler) is not found in self.
     To be overriden.
     Return: None
     """
     LOG.error("function %s not found in %s (args: '%s')" % (cmd,self,args))
-
-  def abort(self):
-    """Completely abort any loop or connection.
-    Return: False
-    """
-    if self.socket:
-      self.socket.close()
-    self.running = False
-    self.handle_disconnect()
-    return False
-
-  def read_once(self, timeout):
-    """One-pass processing of client commands.
-    timeout: time waiting for data (in seconds).
-             a value of 0 specifies a poll and never blocks.
-             a value of None makes the function blocks until socket's ready.
-    Return: False on error, True if all goes well or upon timeout expiry.
-    """
-    try:
-      r, w, e = select.select([self.socket], [], [self.socket], timeout)
-    except KeyboardInterrupt:
-      self.abort()
-      raise
-    if not r:
-      return timeout
-    if e:
-      self.handle_error('select() error with socket %s' % e)
-      return self.abort()
-    return self.read_socket()
-
-  def read_socket(self):
-    """Read its own socket.
-    Return: False on socket error, True otherwise.
-    """
-    try:
-      buff = self.socket.recv(2048)
-      if not buff:
-        return self.abort()
-    except socket.error, e:
-      if e.errno not in DISCN_ERRORS:                          # for Windows
-        self.handle_error(e)
-      return self.abort()
-    LOG.debug("%s> command [%iB]: '%s'", self.socket.fileno(),
-              len(self.unprocessed + buff), self.unprocessed + buff)
-    self.unprocessed = self.process(self.unprocessed + buff)
-    return True
-
-  def write_socket(self, data):
-    """Write its own socket.
-    Return: None
-    """
-    if self.connected:
-      try:
-        LOG.debug("sending:'%s'", data)
-        self.socket.send(data)
-        return True
-      except socket.error, e:
-        if e.errno in DISCN_ERRORS:
-          LOG.warning("client %s disconnected before we could send '%s'",
-                      self.socket.fileno(), data)
-        else:
-          self.handle_error(e)
-        return self.abort()
-    else:
-      LOG.warning("socket disconnected, cannot send message '%s'.", message)
-      return False
-
-  def each_loop(self):
-    """Override to do your stuff if you use read_while_running().
-    Return: None
-    """
-    pass
-
-  def read_while_running(self, timeout=0.01):
-    """Process client commands until self.running is False. See also
-     self.each_loop().
-    timeout: delay (in seconds) see doc for read_once().
-    Return: True if stopped running, False on error.
-    """
-    self.running = True
-    while self.running:
-      if not self.read_once(timeout):
-        return False
-      self.each_loop()
-    return True
 
   # TODO: rename to dispatch
   @abstractmethod
@@ -202,37 +88,14 @@ class BasePresentation(object):
     """
     pass
 
-  # TODO: test
-  def set_threading(self, threaded):
-    """Enable threading.
-    It's not the best design, but it allows transparent threading.
-    threaded: True => set thread-safe
-    Return: None
-    """
-    def th_send_msg(self, msg):
-      """Thread safe version of send_msg().
-      """
-      self._threading_lock.acquire()
-      BasePresentation.send_msg(self, msg)
-      self._threading_lock.release()
-
-    if threaded:
-      self._th_save['send_msg'] = self.send_msg
-      self._threading_lock = Lock()
-      self.send_msg = th_send_msg
-      LOG.debug('client in thread-safe. send_msg is %s', self.send_msg)
-    else:
-      for name, member in self._th_save:
-        setattr(self, name, member)
-      self._th_save.clear()
-      LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
-
 
 class ASCIICommandProto(object):
   """This class implements a command-to-function resolver for ASCII based
   application protocols using first word as command name.
   E.G: "get file my_file.txt" would call cmd_get() with ["file","my_file.txt"]
   """
+
+  CMD_PREFIX = "cmd_"
 
   def parse_cmd(self, cmdline):
     """Tokenise ASCII lines and attempt to call `cmd_ + 1st_token` of self.
