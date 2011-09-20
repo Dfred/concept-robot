@@ -34,8 +34,11 @@ LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
 VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
 
 # now we patch Python code to add color support to logging.StreamHandler
-
 #Taken from stackoverflow.com, Thanks and Credits to sorin (and Peter Hoffman?)
+#
+#                       --- start of code copy ---
+#
+
 def add_colors_windows(fn):
     import ctypes
     def _out_handle(self):
@@ -149,27 +152,22 @@ def handle_exception_simple(logger = None, msg=''):
         logging.error('%s %s: %s',msg, py_error[1].strip(), py_error[0].strip())
 
 def handle_exception_debug(logger = None, force_debugger=False, msg=''):
-    """ Starts pdb if force_debugger is True, else if conf.DEBUG_MODE is True.
+    """Display last exception.
+    Also start pdb if force_debugger is True or if logger level is DEBUG.
     Otherwise, it just raises the latest exception.
     """
-    if not force_debugger:
-        import conf
-        if not hasattr(conf,'DEBUG_MODE') or not conf.DEBUG_MODE:
-            raise
-    #import sys, traceback
-    #py_error = traceback.format_exception(*sys.exc_info())[-2:]
     if logger:
-        #logger.error('%s: %s', py_error[1].strip(), py_error[0].strip())
         logger.exception(msg)
     else:
-        import logging
-        #logging.error('%s: %s', py_error[1].strip(), py_error[0].strip())
         logging.exception(msg)
-    import pdb; pdb.post_mortem()
+    if force_debugger or (logger and logger.getEffectiveLevel()==logging.DEBUG):
+        import pdb; pdb.post_mortem()
 
 def handle_exception(logger, msg=''):
-    """ Call handle_exception_debug if logger's level is DEBUG, else _simple.
+    """Call handle_exception_debug if logger's level is DEBUG, else _simple.
     """
+    if not logger:
+        logger = logging.getLogger('root')
     if logger.getEffectiveLevel() != logging.DEBUG:
       handle_exception_simple(logger)
       print 'FYI: loggers with debug level spawn post-mortem analysis with pdb'
