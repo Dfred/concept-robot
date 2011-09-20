@@ -47,13 +47,9 @@ from abc import ABCMeta, abstractmethod
 
 LOG = logging.getLogger(__package__)
 
-
 class BasePresentation(object):
-  """Basic socket reading, (dis)connection/error events handling.
-  Base class for a local client connecting to a server (BaseClient) or
-  for a remote client connecting to the local server (RequestHandler).
-
-  To implement a specific protocol, you would override:
+  """Base class for protocol handlers.
+  Handle a specific protocol by implementing these abstract functions:
   - process()
   - parse_cmd()
   - send_msg()
@@ -61,104 +57,12 @@ class BasePresentation(object):
 
   __metaclass__ = ABCMeta
 
-  CMD_PREFIX = "cmd_"
-
-  def __init__(self):
-    self.unprocessed = ''
-    self.connected = False
-    self.running = False                                # processing loop switch
-    self._th_save = {}                                  # see set_threading
-
-  def handle_error(self, error):
-    """Called upon connection error.
-    Installs an interactive pdb session if logger is at DEBUG level.
-    error: object (usually exception of string) to print in log
-    Return: None
-    """
-    import utils
-    LOG.warning("Connection error :%s", error)
-    if LOG.getEffectiveLevel() != logging.DEBUG:
-      utils.handle_exception_simple()
-      print 'use debug mode to spawn post-mortem analysis with pdb'
-    else:
-      utils.handle_exception_debug()
-
-  def handle_disconnect(self):
-    """Called after disconnection from server.
-    Return: None
-    """
-    LOG.debug('client disconnected from remote server %s', self.addr_port)
-
   def handle_notfound(self, cmd, args):
     """Called when a cmd_... method (a command handler) is not found in self.
     To be overriden.
     Return: None
     """
     LOG.error("function %s not found in %s (args: '%s')" % (cmd,self,args))
-
-  def abort(self):
-    """Completely abort any loop or connection.
-    Return: False
-    """
-    if self.socket:
-      self.socket.close()
-    self.connected = False
-    self.running = False
-    self.handle_disconnect()
-    return False
-
-  def read_once(self, timeout):
-    """One-pass processing of client commands.
-    timeout: time waiting for data (in seconds).
-             a value of 0 specifies a poll and never blocks.
-             a value of None makes the function blocks until socket's ready.
-    Return: False on error, True if all goes well or upon timeout expiry.
-    """
-    try:
-      r, w, e = select.select([self.socket], [], [self.socket], timeout)
-    except KeyboardInterrupt:
-      self.abort()
-      raise
-    if not r:
-      return timeout
-    if e:
-      self.handle_error('select() error with socket %s' % e)
-      return self.abort()
-    return self.read_socket()
-
-  def read_socket(self):
-    """Read its own socket.
-    Return: False on socket error, True otherwise.
-    """
-    try:
-      buff = self.socket.recv(2048)
-      if not buff:
-        return self.abort()
-    except socket.error, e:
-      if e.errno != errno.WSAECONNRESET:                          # for Windows
-        self.handle_error(e)
-      return self.abort()
-    self.unprocessed = self.process(self.unprocessed + buff)
-    return True
-
-  def each_loop(self):
-    """Override to do your stuff if you use read_while_running().
-    Return: None
-    """
-    pass
-
-  def read_while_running(self, timeout=0.01):
-    """Process client commands until self.running is False. See also
-     self.each_loop().
-    timeout: delay (in seconds) see doc for read_once().
-    Return: True if stopped running, False on error.
-    """
-    self.running = True
-    while self.running:
-      if not self.read_once(timeout):
-        return False
-      self.each_loop()
-    return True
 
   # TODO: rename to dispatch
   @abstractmethod
@@ -184,37 +88,14 @@ class BasePresentation(object):
     """
     pass
 
-  # TODO: test
-  def set_threading(self, threaded):
-    """Enable threading.
-    It's not the best design, but it allows transparent threading.
-    threaded: True => set thread-safe
-    Return: None
-    """
-    def th_send_msg(self, msg):
-      """Thread safe version of send_msg().
-      """
-      self._threading_lock.acquire()
-      BasePresentation.send_msg(self, msg)
-      self._threading_lock.release()
-
-    if threaded:
-      self._th_save['send_msg'] = self.send_msg
-      self._threading_lock = Lock()
-      self.send_msg = th_send_msg
-      LOG.debug('client in thread-safe. send_msg is %s', self.send_msg)
-    else:
-      for name, member in self._th_save:
-        setattr(self, name, member)
-      self._th_save.clear()
-      LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
-
 
 class ASCIICommandProto(object):
   """This class implements a command-to-function resolver for ASCII based
   application protocols using first word as command name.
   E.G: "get file my_file.txt" would call cmd_get() with ["file","my_file.txt"]
   """
+
+  CMD_PREFIX = "cmd_"
 
   def parse_cmd(self, cmdline):
     """Tokenise ASCII lines and attempt to call `cmd_ + 1st_token` of self.
@@ -238,37 +119,73 @@ class ASCIICommandProto(object):
     command: (multiline) ASCII text to process
     Return: unprocessed data, not finishing with a \n
     """
-    LOG.debug("%s> command [%iB]: '%s'",
-              self.socket.fileno(), len(command), command)
-    buffered = ''
     for cmdline in command.splitlines(True):
-      if cmdline.lstrip().startswith('#'):                  # comments
-        continue
-      elif cmdline.endswith('\\\n'):                        # escaped multiline
-        buffered += cmdline[:-2]
-        continue
       # XXX: issue with windows \r ?
-      elif not cmdline.endswith('\n'):                      # unfinished line
+      if not cmdline.endswith('\n'):                        # unfinished line
         return cmdline
-
-      cmdline = buffered + cmdline
-      buffered = ''
-      cmdline = cmdline.strip()
-      if not cmdline:
-        continue
       for cmd in cmdline.split('&&'):                       # same loop exec
-        self.parse_cmd(cmd)
-    return buffered
+        cmd = cmd.strip()
+        if cmd:
+          self.parse_cmd(cmd)
+    return ''
 
   def send_msg(self, message):
-    """Send a message adding a trailing \\n as required by the protocol.
+    """Send a message adding a trailing '\n' as required by the protocol.
     To be overriden for implementation of a different protocol.
     message: ASCII text
     Return: None
     """
-    LOG.debug("sending '%s\n'", message)
-    self.socket.send(message+'\n')
+    self.write_socket(message+'\n')
 
+
+class ASCIICommandProtoEx(ASCIICommandProto):
+  """This class interprets common special characters for easier use of scripts
+  so it's possible to dump a script to a server or use the filter_lines() to
+  cleanup the special content of a script.
+  """
+
+  @staticmethod
+  def filter_lines(text):
+    """Checks the line for special characters (python/*sh style):
+    start of line + # : comment
+    \ + end of line   : append next line to current
+    odd number of "   : raw text until closing "
+    Return: (filtered lines, remaining characters)
+    """
+    filtered_lines, unfinished_line = [], ''
+    buffered = ''
+    raw = False
+    for s_line in text.splitlines(True):                    # keep line endings
+      if s_line.find('"') != -1 and s_line.count('"') % 2:  # odd double-quotes
+        raw = not raw
+      if raw:
+        buffered += s_line
+        continue
+      elif s_line.lstrip().startswith('#'):                 # comments
+        continue
+      elif s_line.endswith('\\\n'):                         # escaped multiline
+        buffered += s_line[:-2]
+        continue
+      if not s_line.endswith('\n'):                         # must be last line
+        unfinished_line = s_line
+        continue
+      s_line = buffered + s_line.strip()
+      buffered = ''
+      if not s_line:
+        continue
+      filtered_lines.append(s_line)
+    return filtered_lines, unfinished_line
+
+  def process(self, command):
+    """Uses filter_line() to add script-friendly features.
+    """
+    filtered, buffered = self.__class__.filter_lines(command)
+    for cmdline in filtered:
+      for cmd in cmdline.split('&&'):                       # same loop exec
+        cmd = cmd.strip()
+        if cmd:
+          self.parse_cmd(cmd)
+    return buffered
 
 
 class RequestHandlerCmdsMixIn(object):

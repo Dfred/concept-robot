@@ -67,7 +67,9 @@ from presentation import BasePresentation
 from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
-FATAL_ERRORS = [errno.EHOSTUNREACH, errno.EADDRNOTAVAIL]
+FATAL_ERRORS = (errno.EHOSTUNREACH, errno.EADDRNOTAVAIL)
+DISCN_ERRORS = (errno.ECONNRESET, errno.WSAECONNRESET,
+                errno.ECONNABORTED, errno.WSAECONNABORTED)
 
 
 class BaseServer(object):
@@ -127,7 +129,7 @@ class BaseServer(object):
     """
     self.poll_interval = min([sock.gettimeout() for sock in \
                               self.polling_sockets + [self.socket]])
-    LOG.debug("poll_interval now %ss.", self.poll_interval)
+    LOG.debug("poll_interval for %s now %ss.", self, self.poll_interval)
 
   def activate(self):
     """To be overriden"""
@@ -153,7 +155,7 @@ class BaseServer(object):
 
   def pre_shutdown(self):
     """To be overriden"""
-    LOG.debug('server now shutting down.')
+    LOG.debug('server %s now shutting down.' % self)
     pass
 
   def shutdown(self):
@@ -171,7 +173,7 @@ class BaseServer(object):
           if client.socket in self.polling_sockets:
             self.close_request(client.socket)
     self.disactivate()
-    LOG.info('server now shut down.')
+    LOG.info('server %s now shut down.' % self)
 
   def serve_once(self):
     """Check for incoming connections and save further calls to select()
@@ -185,9 +187,11 @@ class BaseServer(object):
     try:
       r, w, e = select.select(self.polling_sockets, [],
                               self.polling_sockets, self.poll_interval)
-    except select.error, errno:
-      return self.handle_error(self.polling_sockets, "select error #%i" % errno)
+    except select.error, e_no:
+      return self.handle_error(self.polling_sockets, "select error #%i" % e_no)
     if e:
+      for sock in e:
+        self.close_request(sock)
       return self.handle_error(e, self.clients[e[0]].addr_port)
     for sock in r:
       try:
@@ -233,7 +237,7 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    LOG.error('Exception raised with %s (%s)', sock, client_addr)
+    LOG.error('%s got Exception with %s (%s)', self, sock, client_addr)
     handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
@@ -511,17 +515,160 @@ if hasattr(socket, 'AF_UNIX'):
 # Session layer for RequestHandler and BaseClient
 ###
 
+class BasePeer(object):
+  """Basic socket reading/writing, (dis)connection/error events handling.
+  Base class for a local client connecting to a server (BaseClient) or
+  for a remote client connecting to the local server (RequestHandler).
+
+  * If you're using read_while_running() you can define each_loop(), called
+   after the socket has been read.
+
+  *
+  """
+
+  def __init__(self):
+    self.running = False                                        # bail out flag
+    self.unprocessed = ''
+    self._th_save = {}                                      # see set_threading
+
+  def handle_error(self, error):
+    """Called upon connection error.
+    Installs an interactive pdb session if logger is at DEBUG level.
+    error: object (usually exception of string) to print in log
+    Return: None
+    """
+    import utils
+    LOG.warning("Connection error :%s", error)
+    utils.handle_exception(LOG)
+
+  def handle_disconnect(self):
+    """Called after disconnection from server.
+    Return: None
+    """
+    LOG.debug('client disconnected from remote server %s', self.addr_port)
+
+  def abort(self):
+    """Completely abort any loop or connection.
+    Return: False
+    """
+    if self.socket:
+      self.socket.close()
+    self.connected = False
+    self.running = False
+    self.handle_disconnect()
+    return False
+
+  def read_socket(self):
+    """Read its own socket.
+    Return: False on socket error, True otherwise.
+    """
+    try:
+      buff = self.socket.recv(2048)
+      if not buff:
+        return self.abort()
+    except socket.error, e:
+      if e.errno not in DISCN_ERRORS:                          # for Windows
+        self.handle_error(e)
+      return self.abort()
+    LOG.debug("%s> command [%iB]: '%s'", self.socket.fileno(),
+              len(self.unprocessed + buff), self.unprocessed + buff)
+    self.unprocessed = self.process(self.unprocessed + buff)
+    return True
+
+  def write_socket(self, data):
+    """Write its own socket.
+    Return: None
+    """
+    if self.connected:
+      try:
+        LOG.debug("sending:'%s'", data)
+        self.socket.send(data)
+        return True
+      except socket.error, e:
+        if e.errno in DISCN_ERRORS:
+          LOG.warning("client %s disconnected before we could send '%s'",
+                      self.socket.fileno(), data)
+        else:
+          self.handle_error(e)
+        return self.abort()
+    else:
+      LOG.warning("socket disconnected, cannot send data '%s'.", data)
+      return False
+
+  def read_once(self, timeout):
+    """One-pass processing of client commands.
+    timeout: time waiting for data (in seconds).
+             a value of 0 specifies a poll and never blocks.
+             a value of None makes the function blocks until socket's ready.
+    Return: False on error, True if all goes well or upon timeout expiry.
+    """
+    try:
+      r, w, e = select.select([self.socket], [], [self.socket], timeout)
+    except KeyboardInterrupt:
+      self.abort()
+      raise
+    if not r:
+      return timeout
+    if e:
+      self.handle_error('select() error with socket %s' % e)
+      return self.abort()
+    return self.read_socket()
+
+  def read_while_running(self, timeout=0.01):
+    """Process client commands until self.running is False. See also
+     self.each_loop().
+    timeout: delay (in seconds) see doc for read_once().
+    Return: True if stopped running, False on error.
+    """
+    self.running = True
+    each_loop = getattr(self,'each_loop',None)
+    while self.running:
+      if not self.read_once(timeout):
+        return False
+      each_loop and each_loop()
+    return True
+
+  # TODO: test
+  def set_threading(self, threaded):
+    """Enable threading.
+    It's not the best design, but it allows transparent threading.
+    threaded: True => set thread-safe
+    Return: None
+    """
+    def th_send_msg(self, msg):
+      """Thread safe version of send_msg().
+      """
+      self._threading_lock.acquire()
+      BasePresentation.send_msg(self, msg)
+      self._threading_lock.release()
+
+    if threaded:
+      self._th_save['send_msg'] = self.send_msg
+      self._threading_lock = Lock()
+      self.send_msg = th_send_msg
+      LOG.debug('client in thread-safe. send_msg is %s', self.send_msg)
+    else:
+      for name, member in self._th_save:
+        setattr(self, name, member)
+      self._th_save.clear()
+      LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
+
+
 #TODO: clean class (of set_looping)
-class BaseRequestHandler(BasePresentation):
+class BaseRequestHandler(BasePeer):
   """Instancied on successful connection to the server: a remote client.
-   This base class cannot be used directly, it requires the implementation of
-  process(), an abstract method of BasePresentation. BasePresentation also
-  provides read_socket() called by the server class.
+  BasePeer provides 2 functions for the server, depending on threading status:
+  - read_socket() when instances of this class share the server thread
+  - read_while_running() when instances of this class run in their own thread.
+
+  This class cannot be instanciated directly, it requires the implementation of
+  process(), an abstract method of BasePresentation.
   Use setup()/cleanup() in child classes instead of __init__()/__del__().
   """
 
   def __init__(self, server, sock, addr_port):
-    BasePresentation.__init__(self)
+    super(BaseRequestHandler,self).__init__()
+    self.connected = True
     self.server = server                                # server that spawned us
     self.socket = sock
     self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
@@ -549,11 +696,12 @@ class BaseRequestHandler(BasePresentation):
              connID, self.addr_port[0])
 
 
-class BaseClient(BasePresentation):
+class BaseClient(BasePeer):
   """Client creating a connection to a (remote) server.
-   This base class cannot be used directly, it requires the implementation of
-  process(), an abstract method of BasePresentation. BasePresentation also
-  provides read_while_running() called in connect_and_run().
+  BasePeer provides read_while_running() called in connect_and_run().
+
+  This base class cannot be used directly, it requires the implementation of
+  process(), an abstract method of BasePresentation.
   Unless you use BasePresentation.read_once(), you should only care about
    self.running to get out of self.connect_and_run().
   """
@@ -571,10 +719,11 @@ class BaseClient(BasePresentation):
     return socket.AF_INET, addr_port
 
   def __init__(self, addr_port):
-    BasePresentation.__init__(self)
+    super(BaseClient, self).__init__()
     addr_port = tuple(addr_port)
     self.family, self.addr_port = BaseClient.addrFamily_from_addrPort(addr_port)
     self.socket = None
+    self.connected = False
     self._connect_timeout = None                                  # set blocking
 
   @property

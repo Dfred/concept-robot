@@ -35,10 +35,9 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import sys
 import site
+import logging
 
-from utils import get_logger, set_logger_debug
-
-LOG = get_logger(__package__)                         # updated in initialize()
+LOG = logging.getLogger(__package__)                  # updated in initialize()
 REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
                          'ROBOT', 'lib_vision', 'lib_spine')
 
@@ -92,7 +91,7 @@ def initialize(thread_info):
   print "LIGHTHEAD Animation System, python version:", sys.version_info
   # check configuration
   try:
-    from utils import get_logger, conf
+    from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
     conf.set_name('lightHead')
     missing = conf.load(required_entries=REQUIRED_CONF_ENTRIES)
     if missing:
@@ -101,10 +100,11 @@ def initialize(thread_info):
   except conf.LoadException, e:
     print 'in file {0[0]}: {0[1]}'.format(e)
     sys.exit(2)
-  if not hasattr(conf, 'DEBUG_MODE'):
-    conf.DEBUG_MODE = False
-  LOG = get_logger(__package__)
-  set_logger_debug(LOG, conf.DEBUG_MODE)
+  if not hasattr(conf, 'VERBOSITY'):
+    conf.VERBOSITY = 0
+  print 'verbosity level is', conf.VERBOSITY
+  LOG.setLevel(VFLAGS2LOGLVL[conf.VERBOSITY])
+  logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
 
   # Initializes the system and do all critical imports now that conf is ok.
   from utils.comm import session
