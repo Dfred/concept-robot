@@ -39,6 +39,29 @@ from utils.comm import ASCIIRequestHandler
 import RAS
 
 LOG = get_logger(__package__)
+VALID_AUS = ("01L","01R",
+             "02L","02R",
+             "04L","04R",
+             "05L","05R",
+             "06L","06R",
+             "07L","07R",
+             "08L","08R",
+             "09L","09R",
+             "10L","10R",
+             "11L","11R",
+             "12L","12R",
+             "13L","13R",
+             "14L","14R",
+             "15L","15R",
+             "16L","16R",
+             "17","18",
+             "20L","20R",
+             "21","22","23","24","25","26","27","28","31","32","33","38","39",
+             "51.5","53.5","55.5",
+             "61.5L","61.5R","63.5",
+             "SYL","SYR",
+             "Th",
+             "TX","TY","TZ")
 
 
 class Face_Handler(ASCIIRequestHandler):
@@ -109,6 +132,10 @@ class Face_Server(object):
       if type(available_AUs[0]) == tuple:
           available_AUs, init_values = zip(*available_AUs)
           a[:,0] = a[:,3] = numpy.array(init_values)
+      invalids = [ au for au in available_AUs if au not in VALID_AUS ]
+      if invalids:
+        LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+        return False
       # { AU_name : numpy array [target, remaining, coeff, value] }
       self.AUs = dict(zip(available_AUs,a))
       # set region-based AUs
@@ -118,6 +145,7 @@ class Face_Server(object):
       LOG.info("Available AUs:\n")
       for key in sorted(self.AUs.keys()):
           LOG.info("%5s : %s", key, self.AUs[key])
+      return True
 
   def set_AUs(self, iterable):
       """Set targets for a specific AU, giving priority to specific inputs.

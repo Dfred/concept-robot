@@ -68,15 +68,9 @@ atexit.register(exiting)
 def fatal(error):
     """Common function to gracefully quit."""
     print '   *** Fatal: %s ***' % error
-    try:
-        from utils import handle_exception_simple, handle_exception_debug
-        from utils import conf
-        if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-            handle_exception_debug()
-        else:
-            handle_exception_simple()
-    except:
-        pass
+    if sys.exc_info() != (None,None,None):
+        from utils import handle_exception
+        handle_exception(None,error)
     shutdown(G.getCurrentController())
 
 def shutdown(cont):
@@ -107,15 +101,9 @@ def initialize(server):
     # get driven objects
     objs = G.getCurrentScene().objects
     for obj_name in ('eye_L', 'eye_R', 'skeleton', 'tongue'):
-        try:
-            setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
-        except KeyError:
-            try:
-# WARNING: at least in python 2.6 capitalize and title docstrings are confused!
-                setattr(G, obj_name, objs[OBJ_PREFIX+obj_name.title()])
-            except KeyError, e:
-                raise StandardError('no object "%s" in blender file' % \
-                                    e[0][16:-18])
+        if obj_name not in objs:
+            return fatal("Object '%s' not found in blender scene" % obj_name)
+        setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()
@@ -130,7 +118,8 @@ def initialize(server):
             getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
           [(n[1:],
             getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
-    server.set_available_AUs(AUs)
+    if not server.set_available_AUs(AUs):
+        return fatal('you need to check your .blend file')
 
     # load axis limits for the skeleton regardless of the configuration: if the
     # spine mod is loaded (origin head), no spine AU should be processed here.
