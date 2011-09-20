@@ -100,8 +100,8 @@ def initialize(server):
 
     # get driven objects
     objs = G.getCurrentScene().objects
-    for obj_name in ('eye_L', 'eye_R', 'skeleton', 'tongue'):
-        if obj_name not in objs:
+    for obj_name in ('eye_L', 'eye_R', 'tongue', 'Skeleton'):   # title-ized bone names
+        if OBJ_PREFIX+obj_name not in objs:
             return fatal("Object '%s' not found in blender scene" % obj_name)
         setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
@@ -112,19 +112,19 @@ def initialize(server):
             not act.name.startswith('-') and act.action]
     check_defects(owner, acts)
 
-    # properties must be set to 'Head' and 'skeleton'.
+    # properties must be set to 'head' and 'Skeleton'.
     # BEWARE to not set props to these objects before, they'll be included here.
-    AUs = [(n[1:],
-            getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
-          [(n[1:],
-            getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
+    AUs = [(pAU[1:],
+            getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
+          [(pAU[1:],
+            getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
     if not server.set_available_AUs(AUs):
-        return fatal('you need to check your .blend file')
+        return fatal('Check your .blend file for bad property names')
 
-    # load axis limits for the skeleton regardless of the configuration: if the
+    # load axis limits for the Skeleton regardless of the configuration: if the
     # spine mod is loaded (origin head), no spine AU should be processed here.
     from utils import conf;                 #TODO: get values from blend file?
-    G.skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
+    G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
     # ok, startup
     G.initialized = True
@@ -177,9 +177,9 @@ def update():
                 cont.owner['p'+au] = SH_ACT_LEN * values[3]
                 cont.activate(cont.actuators[au])
             else:
-                a_min, a_max = G.skeleton.limits[au]
+                a_min, a_max = G.Skeleton.limits[au]
                 a_bound = values[3] < 0 and a_min or a_max
-                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         # XXX: yes, 9 is a tongue prefix (do better ?)
         elif au.startswith('9'):
@@ -188,24 +188,24 @@ def update():
         # XXX: yes, 5 is a head prefix (do better ?)
         elif au.startswith('5'):
             if float(au) <= 55.5:   # pan, tilt, roll
-                a_min, a_max = G.skeleton.limits[au]
+                a_min, a_max = G.Skeleton.limits[au]
                 a_bound = values[3] < 0 and a_min or a_max
-                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         elif au == '26':
             # TODO: try with G.setChannel ?
-            G.skeleton['p26'] = SH_ACT_LEN * values[3]
+            G.Skeleton['p26'] = SH_ACT_LEN * values[3]
 
         elif au[0].isdigit():
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
 
         else:
-            a_min, a_max = G.skeleton.limits[au]
+            a_min, a_max = G.Skeleton.limits[au]
             if values[3] >= 0:
-                G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
             if values[3] < 0:
-                G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
     G.last_update_time = time.time()
 
     G.info_duration += time_diff
