@@ -714,7 +714,7 @@ class BaseClient(BasePeer):
     localhosts = ["127.0.0.1", "localhost"]
     if hasattr(socket, "AF_UNIX") and type(addr_port[1]) is type(""):
       if addr_port[0] and addr_port[0] not in localhosts:
-        raise ProtcolError('address must be null or one of %s', localhosts)
+        raise ValueError('address must be null or one of %s', localhosts)
       return socket.AF_UNIX, addr_port[1]
     return socket.AF_INET, addr_port
 
@@ -730,11 +730,26 @@ class BaseClient(BasePeer):
   def connect_timeout(self):
     """Gets the timeout (in seconds) connecting to a server."""
     return self._connect_timeout
-
   @connect_timeout.setter
   def connect_timeout(self, timeout):
     """Sets the timeout (in seconds) connecting to a server."""
     self._connect_timeout = timeout
+
+  @property
+  def host(self):
+    return self.addr_port[0]
+  @host.setter
+  def host(self, newhost):
+    addr_port = (newhost, self.addr_port[1])
+    self.family, self.addr_port = BaseClient.addrFamily_from_addrPort(addr_port)
+
+  @property
+  def port(self):
+    return self.addr_port[1]
+  @port.setter
+  def port(self, newport):
+    addr_port = self.addr_port[0], newport.isdigit() and int(newport) or newport
+    self.family, self.addr_port = BaseClient.addrFamily_from_addrPort(addr_port)
 
   def handle_connect_timeout(self):
     """Called upon connection time-out.

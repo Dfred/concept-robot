@@ -52,6 +52,7 @@ ADDR_PORT=None
 DISCONNECTED='disconnected'
 CONNECTING  ='connecting'
 CONNECTED   ='connected'
+IDLE        ='idle'
 
 #XXX: With python 2.7, consider using multiprocessing and os.kill(CTRL_C_EVENT)?
 
@@ -79,11 +80,21 @@ class myUI(cmd.Cmd):
         print("\n- disconnecting")
         self.cnx.disconnect()
       self.done = True
-    elif line.upper() == '!RECO':
-      if self.cnx.status.startswith(DISCONNECTED):
-        self.cnx.reconnect()
-      else:
-        print("\n connection already exists (%s)" % self.cnx.status)
+    elif line.upper().startswith('!RECO OFF'):
+        self.cnx.running = False
+        print("\n disabled reconnections")
+    elif line.upper().startswith('!RECO ON'):
+        self.cnx.autoreco = True
+        print("\n enabled reconnections")
+    elif line.upper().startswith("!PEER"):
+        print("\n currently %s" % self.cnx.status)
+    elif line.upper().startswith('!PORT'):
+        try:
+            self.cnx.port = line.split()[1]
+        except IndexError:
+            print("> PORT VALUE REQUIRED <")
+        if self.cnx.status.startswith(CONNECTED):
+            self.cnx.disconnect()
     elif line and self.cnx.status.startswith(CONNECTED):
       self.cnx.send_msg(line)
 
@@ -103,7 +114,12 @@ class myUI(cmd.Cmd):
 
   def preloop(self):
     msgs = ''.join(self.messages)
-    self.prompt = "%s %s> " % (self.cnx.status or 'disconnected', msgs)
+    lbl = self.cnx.status
+    if self.cnx.status.startswith(CONNECTED):
+        lbl = "%s:%s" % self.cnx.addr_port
+    elif self.cnx.status.startswith(DISCONNECTED):
+        lbl = "disconnected"
+    self.prompt = "%s %s> " % (lbl, msgs)
     del self.messages[0:len(self.messages)]
 
   def redraw_prompt(self):
@@ -126,7 +142,7 @@ class commConsClient(comm.ScriptCommandClient):
     super(commConsClient, self).__init__(addr_port)
     self.ui = None
     self.name = name
-    self.status = None
+    self.status = IDLE
     self.looping = True
     if pipe_mode:
       self.each_loop = self.send_line_from_pipe
@@ -145,7 +161,7 @@ class commConsClient(comm.ScriptCommandClient):
         line = self.slines_it.next()
         print("%s> %s" % (self.name, line[:-1]))                    # remove \n
         self.send_msg(line)
-        if self.status == DISCONNECTED:
+        if self.status.startswith(DISCONNECTED):
           self.running = False
     except StopIteration:
         print('--- done with script ---', file=sys.stderr)
@@ -174,12 +190,12 @@ class commConsClient(comm.ScriptCommandClient):
 
   def handle_connect(self):
     """Called when the client has just connected successfully"""
-    self.status = CONNECTED
+    self.status = CONNECTED + " to %s on %s" % self.addr_port
     self.handler_timeout = self.ui and .5 or None
     self.ui and self.ui.redraw_prompt()
 
   def handle_disconnect(self):
-    self.status = DISCONNECTED
+    self.status = DISCONNECTED + " from %s on %s" % self.addr_port
     self.running = False
     if self.ui:
         self.ui.redraw_prompt()
@@ -196,7 +212,8 @@ class commConsClient(comm.ScriptCommandClient):
 
   def handle_error(self, error):
     """We ignore bad fd in case we're disconnected"""
-    if not self.ui and self.status == DISCONNECTED and error == errno.EBADF:
+    if (not self.ui and self.status.startswith(DISCONNECTED) and
+        error == errno.EBADF):
         print("using disconnected fd (%s)"%error, file=sys.stderr)
     else:
         super(commConsClient, self).handle_error(error)
