@@ -92,6 +92,23 @@ def get_name():
     else:
         raise LoadException('project name has not been set; use conf.set_name.')
 
+def build_candidates():
+    """Creates locations where conf file could be.
+    Checks for a environment variable, name being built from build_env()
+    """
+    locs=[]
+    try:
+        locs.append(environ[__NAME])
+    except (OSError,KeyError):
+        pass
+    try:
+        locs.append(path.join(path.expanduser('~/'),'.'+__NAME+'.conf'))
+    except OSError, err:
+        raise LoadException(None, 'Cheesy OS error: %s' % err)
+    else:
+        locs.append(path.join('/etc', __NAME+'.conf'))
+    return locs
+
 def load(raise_exception=True, reload=False, required_entries=()):
     """Try to load 1st available configuration file, ignoring Subsequent calls
     unless reload is set to True.
@@ -108,23 +125,6 @@ def load(raise_exception=True, reload=False, required_entries=()):
         """
         return [ i for i in required_entries if
                  i not in dir(sys.modules[__name__]) ]
-
-    def build_candidates():
-        """Creates locations where conf file could be.
-        Checks for a environment variable, name being built from build_env()
-        """
-        locs=[]
-        try:
-            locs.append(environ[__NAME])
-        except (OSError,KeyError):
-            pass
-        try:
-            locs.append(path.join(path.expanduser('~/'),'.'+__NAME+'.conf'))
-        except OSError, err:
-            raise LoadException(None, 'Cheesy OS error: %s' % err)
-        else:
-            locs.append(path.join('/etc', __NAME+'.conf'))
-        return locs
 
     def load_from_candidates():
         for conf_file in build_candidates():
