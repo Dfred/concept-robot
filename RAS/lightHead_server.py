@@ -35,7 +35,7 @@ SERVER MODULE
 
 import sys
 
-from utils.comm.meta_server import MetaServerMixin, MetaRequestHandler
+from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
 from utils import get_logger, conf
 from RAS import FeaturePool
@@ -44,18 +44,15 @@ LOG = get_logger(__package__)
 ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
 
 
-class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
+class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
     """Handles high level protocol transactions: origin and commit"""
 
     def __init__(self, server, sock, client_addr):
         super(LightHeadHandler,self).__init__(server, sock, client_addr)
-        self.handlers = {}
+        self.handlers = {}              # { origin : subhandler }
+        self.transacting = None         # current transaction ('origin' command)
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
-        self.updated = []
-
-    def handle_notfound(self, cmd, argline):
-        super(LightHeadHandler, self).handle_notfound(cmd, argline)
 
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
@@ -63,7 +60,7 @@ class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
             argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
-                self.updated.append(argline)
+                self.transacting = argline
             except KeyError:
                 LOG.warning("unknown origin: '%s'", argline)
         else:
@@ -71,16 +68,16 @@ class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        for origin in self.updated:
-            self.handlers[origin].cmd_commit(argline)
-        self.updated = []
+        self.handlers[self.transacting].cmd_commit(argline)
+        self.transacting = None
 
     # TODO: implement a reload of modules ?
     def cmd_reload(self, argline):
         """Reload subserver modules"""
-        self.send_msg('TODO')
+        self.send_msg('Not yet implemented')
 
     def cmd_get_snapshot(self, argline):
+        #TODO: use pickle: human readable doesn't make much sense for snapshots.
         """Returns the current snapshot of robot context
         argline: origins identifying arrays to be sent.
         """
@@ -94,7 +91,7 @@ class LightHeadHandler(ASCIICommandProto, MetaRequestHandler):
         self.send_msg('end_snapshot')
 
 
-class LightHeadServer(MetaServerMixin):
+class LightHeadServer(object):#MetaServerMixin):
     """Sets and regroups subservers of the lightHead system."""
 
     def __init__(self):
@@ -121,8 +118,9 @@ class LightHeadServer(MetaServerMixin):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, req_handler_class, origin)
-        self.origins[origin] = server, super(LightHeadServer,self).register(
-            server, req_handler_class)
+        self.origins[origin] = server, req_handler_class
+        #self.origins[origin] = server, super(LightHeadServer,self).register(
+        #    server, req_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
@@ -156,7 +154,8 @@ class LightHeadServer(MetaServerMixin):
                 LOG.warning("Module %s: Missing mandatory classes (%s)" %
                             (name, e))
                 continue
-            subserver = self.create_subserver(subserv_class)
+            subserver = subserv_class()
+#            subserver = self.create_subserver(subserv_class)
             self.register(subserver, handler_class, name)
             if info.has_key(EXTRA_ORIGINS):
                 for origin in info[EXTRA_ORIGINS]:

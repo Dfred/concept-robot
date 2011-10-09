@@ -527,8 +527,8 @@ class BasePeer(object):
   """
 
   def __init__(self):
-    self.running = False                                        # bail out flag
-    self.unprocessed = ''
+    self.running = False                                    # bail out flag
+    self.unprocessed = ''                                   # socket data buffer
     self._th_save = {}                                      # see set_threading
 
   def handle_error(self, error):
@@ -567,7 +567,7 @@ class BasePeer(object):
       if not buff:
         return self.abort()
     except socket.error, e:
-      if e.errno not in DISCN_ERRORS:                          # for Windows
+      if e.errno not in DISCN_ERRORS:                       # for Windows
         self.handle_error(e)
       return self.abort()
     LOG.debug("%s> command [%iB]: '%s'", self.socket.fileno(),
@@ -673,7 +673,7 @@ class BaseRequestHandler(BasePeer):
     self.socket = sock
     self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
                        or addr_port )
-    LOG.debug("initialized a %s.", self.__class__.__name__)
+    LOG.debug("initialized %s (a %s).", id(self), self.__class__.__name__)
 
   def setup(self):
     """Initializer for child classes. Override.
@@ -724,7 +724,7 @@ class BaseClient(BasePeer):
     self.family, self.addr_port = BaseClient.addrFamily_from_addrPort(addr_port)
     self.socket = None
     self.connected = False
-    self._connect_timeout = None                                  # set blocking
+    self._connect_timeout = None                            # set blocking
 
   @property
   def connect_timeout(self):
@@ -854,7 +854,7 @@ def getBaseServerClass(addr_port, threaded):
     addr, port = addr_port
   except ValueError:
     raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
-  if type(port) is type(''):                                    # check protocol
+  if type(port) is type(''):                                # check protocol
     proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
     if port.isdigit():
       addr_port = (addr, int(port))

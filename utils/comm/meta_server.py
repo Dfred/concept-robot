@@ -41,7 +41,6 @@ import types
 import logging
 
 from session import BaseServer, BaseRequestHandler
-#from presentation import BaseComm
 
 LOG = logging.getLogger(__package__)
 
@@ -61,8 +60,6 @@ class MetaRequestHandler(BaseRequestHandler):
     """
     subhandler = subhandler_class(srv, self.socket, self.addr_port)
     subhandler.setup()
-    #subhandler.send_msg = types.MethodType(BaseComm.send_msg,
-    #                                       subhandler, subhandler_class)
     return subhandler
 
   def set_current_subhandler(self, handler):
@@ -90,52 +87,52 @@ class MetaRequestHandler(BaseRequestHandler):
     cmds[1] = filter(lambda x: x not in cmds[0], cmds[1])
     self.send_msg('commands:\t{0[0]}\nextra commands:\t{0[1]}'.format(cmds))
 
-
-class MetaServerMixin(object):
-  """A mixin class to gathers other servers and their handlers.
-  Allows multiple protocols to be mixed together. Indeed you would need a
-   higher level protocol in order to switch from one sub-protocol to another.
-  """
-
-  def __init__(self):
-    self.servers_SHclasses = {}
-
-  def register(self, server, handler_class):
-    """Adds a server and its request handler class to the meta server .
-    On connection, self.clients adds an instance of request_handler_class .
-    """
-
-    #def meta_subhandler_init(self):
-    #  """Provides the handler with BaseComm.send_msg()"""
-    #  LOG.debug('initializing compound handler %s', self.__class__)
-    #  BaseComm.__init__(self)
-    #  handler_class.__init__(self)
-    #
-    #commHandler_class = type(handler_class.__name__+'BaseComm',
-    #                         (handler_class, BaseComm),
-    #                         {'__init__':meta_subhandler_init,'server':server} )
-    #self.servers_SHclasses[server] = commHandler_class
-    #return commHandler_class
-    self.servers_SHclasses[server] = handler_class
-    return handler_class
-
-  def unregister(self, server):
-    """Removes a registered server."""
-    try:
-      del self.servers_SHclasses[server]
-    except KeyError:
-      return False
-    return True
-
-  def create_subserver(self, server_class):
-    """Equivalent of create_server for a meta server. We need to respect
-    BaseServer's interface.
-    """
-    def meta_subserver_init(self):
-      LOG.debug('initializing compound server %s', self.__class__)
-      BaseServer.__init__(self)
-      server_class.__init__(self)
-
-    return type(server_class.__name__+'BaseServer',
-                (server_class, BaseServer),
-                {'__init__':meta_subserver_init} )()
+#XXX: useless now that handlers have a simple __init__(self).
+#class MetaServerMixin(object):
+#  """A mixin class to gathers other servers and their handlers.
+#  Allows multiple protocols to be mixed together. Indeed you would need a
+#   higher level protocol in order to switch from one sub-protocol to another.
+#  """
+#
+#  def __init__(self):
+#    self.servers_SHclasses = {}
+#
+#  def register(self, server, handler_class):
+#    """Adds a server and its request handler class to the meta server .
+#    On connection, self.clients adds an instance of request_handler_class .
+#    """
+#
+#    #def meta_subhandler_init(self):
+#    #  """Provides the handler with BaseComm.send_msg()"""
+#    #  LOG.debug('initializing compound handler %s', self.__class__)
+#    #  BaseComm.__init__(self)
+#    #  handler_class.__init__(self)
+#    #
+#    #commHandler_class = type(handler_class.__name__+'BaseComm',
+#    #                         (handler_class, BaseComm),
+#    #                         {'__init__':meta_subhandler_init,'server':server} )
+#    #self.servers_SHclasses[server] = commHandler_class
+#    #return commHandler_class
+#    self.servers_SHclasses[server] = handler_class
+#    return handler_class
+#
+#  def unregister(self, server):
+#    """Removes a registered server."""
+#    try:
+#      del self.servers_SHclasses[server]
+#    except KeyError:
+#      return False
+#    return True
+#
+#  def create_subserver(self, server_class):
+#    """Equivalent of create_server for a meta server. We need to respect
+#    BaseServer's interface.
+#    """
+#    def meta_subserver_init(self):
+#      LOG.debug('initializing compound server %s', self.__class__)
+#      BaseServer.__init__(self)
+#      server_class.__init__(self)
+#
+#    return type(server_class.__name__+'BaseServer',
+#                (server_class, BaseServer),
+#                {'__init__':meta_subserver_init} )()

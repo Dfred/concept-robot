@@ -89,7 +89,7 @@ class BasePresentation(object):
     pass
 
 
-class ASCIICommandProto(object):
+class ASCIICommandProto(BasePresentation):
   """This class implements a command-to-function resolver for ASCII based
   application protocols using first word as command name.
   E.G: "get file my_file.txt" would call cmd_get() with ["file","my_file.txt"]
