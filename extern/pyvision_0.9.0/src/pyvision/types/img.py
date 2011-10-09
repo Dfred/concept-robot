@@ -6,19 +6,19 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
 # are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright
 # notice, this list of conditions and the following disclaimer in the
 # documentation and/or other materials provided with the distribution.
-# 
+#
 # 3. Neither name of copyright holders nor the names of its contributors
 # may be used to endorse or promote products derived from this software
 # without specific prior written permission.
-# 
-# 
+#
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -39,7 +39,7 @@ __version__ = "$Revision$"
 
 import PIL.ImageDraw
 import PIL.Image
-    
+
 import numpy
 import numpy as np
 import cv
@@ -50,13 +50,13 @@ import os.path
 
 import pyvision
 
-TYPE_MATRIX_2D  = "TYPE_MATRIX2D" 
+TYPE_MATRIX_2D  = "TYPE_MATRIX2D"
 '''Image was created using a 2D "gray-scale" numpy array'''
 
-TYPE_MATRIX_RGB = "TYPE_MATRIX_RGB" 
+TYPE_MATRIX_RGB = "TYPE_MATRIX_RGB"
 '''Image was created using a 3D "color" numpy array'''
 
-TYPE_PIL        = "TYPE_PIL" 
+TYPE_PIL        = "TYPE_PIL"
 '''Image was created using a PIL image instance'''
 
 TYPE_OPENCV     = "TYPE_OPENCV"
@@ -70,15 +70,15 @@ class Image:
     '''
     The primary purpose of the image class is to provide a structure that can
     transform an image back and fourth for different python libraires such as
-    U{PIL<http://www.pythonware.com/products/pil>}, 
-    U{OpenCV <http://sourceforge.net/projects/opencvlibrary>}, and 
+    U{PIL<http://www.pythonware.com/products/pil>},
+    U{OpenCV <http://sourceforge.net/projects/opencvlibrary>}, and
     U{Scipy<http://www.scipy.org">} Images also This also
     allows some simple operations on the image such as annotation.
-    
+
     B{Note:} When working with images in matrix format, they are transposed such
     that x = col and y = row.  You can therefore still work with coords
     such that im[x,y] = mat[x,y].
-    
+
     Images have the following attributes:
       - width = width of the image
       - height = height of the image
@@ -86,13 +86,13 @@ class Image:
       - channels = number of channels: 1(gray), 3(RGB)
       - depth = bitdepth: 8(uchar), 32(float), 64(double)
     '''
- 
- 
+
+
     #------------------------------------------------------------------------
     def __init__(self,data,bw_annotate=False):
         '''
         Create an image from a file or a PIL Image, OpenCV Image, or numpy array.
-         
+
         @param data: this can be a numpy array, PIL image, or opencv image.
         @param bw_annotate: generate a black and white image to make color annotations show up better
         @return: an Image object instance
@@ -105,21 +105,21 @@ class Image:
         self.opencv = None
         self.annotated = None
         self.bw_annotate = bw_annotate
-        
+
         if isinstance(data,numpy.ndarray) and len(data.shape) == 2:
             self.type=TYPE_MATRIX_2D
             self.matrix2d = data
-            
+
             self.width,self.height = self.matrix2d.shape
             self.channels = 1
-            
+
             if self.matrix2d.dtype == numpy.float32:
                 self.depth=32
             elif self.matrix2d.dtype == numpy.float64:
                 self.depth=64
             else:
                 raise TypeError("Unsuppoted format for ndarray images: %s"%self.matrix2d.dtype)
-            
+
         elif isinstance(data,numpy.ndarray) and len(data.shape) == 3 and data.shape[0]==3:
             self.type=TYPE_MATRIX_RGB
             self.matrix3d = data
@@ -132,7 +132,7 @@ class Image:
                 self.depth=64
             else:
                 raise TypeError("Unsuppoted format for ndarray images: %s"%self.matrix2d.dtype)
-            
+
         elif isinstance(data,PIL.Image.Image) or type(data) == str:
             if type(data) == str:
                 # Assume this is a filename
@@ -143,36 +143,36 @@ class Image:
             self.type=TYPE_PIL
             self.pil = data
             self.width,self.height = self.pil.size
-                        
+
             if self.pil.mode == 'L':
                 self.channels = 1
             elif self.pil.mode == 'RGB':
                 self.channels = 3
             else:
                 raise TypeError("Unsuppoted format for PIL images: %s"%self.pil.mode)
-            
+
             self.depth = 8
-                        
+
         elif isinstance(data,cv.iplimage):
             self.type=TYPE_OPENCV
-            self.opencv=data 
-            
+            self.opencv=data
+
             self.width = data.width
             self.height = data.height
-            
+
             assert data.nChannels in (1,3)
-            self.channels = data.nChannels 
-            
+            self.channels = data.nChannels
+
             assert data.depth in (8,)
-            self.depth = data.depth   
+            self.depth = data.depth
 
         else:
             raise TypeError("Could not create from type: %s %s"%(data,type(data)))
-        
+
         self.size = (self.width,self.height)
         self.data = data
-        
-        
+
+
     def asMatrix2D(self):
         '''
         @return: the gray-scale image data as a two dimensional numpy array
@@ -204,24 +204,24 @@ class Image:
         if self.opencv == None:
             self._generateOpenCV()
         return self.opencv
-        
+
     def asOpenCVBW(self):
         '''
         @return: the image data in an OpenCV one channel format
         '''
         cvim = self.asOpenCV()
-        
+
         if cvim.nChannels == 1:
             return cvim
-        
+
         elif cvim.nChannels == 3:
             cvimbw = cv.CreateImage(cv.GetSize(cvim), cv.IPL_DEPTH_8U, 1);
             cv.CvtColor(cvim, cvimbw, cv.CV_BGR2GRAY);
             return cvimbw
-        
+
         else:
             raise ValueError("Unsupported opencv image format: nChannels=%d"%cvim.nChannels)
-        
+
 
     def asAnnotated(self):
         '''
@@ -235,26 +235,26 @@ class Image:
                 # Annotate over color if avalible.
                 self.annotated = self.asPIL().copy().convert("RGB")
         return self.annotated
-            
+
     def annotateRect(self,rect,color='red'):
         '''
         Draws a rectangle on the annotation image
-        
+
         @param rect: a rectangle of type Rect
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
         box = [rect.x,rect.y,rect.x+rect.w,rect.y+rect.h]
         draw.rectangle(box,outline=color)
         del draw
-        
+
     def annotateThickRect(self,rect,color='red',width=5):
         '''
         Draws a rectangle on the annotation image
-        
+
         @param rect: a rectangle of type Rect
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
@@ -272,36 +272,36 @@ class Image:
     def annotateEllipse(self,rect,color='red'):
         '''
         Draws an ellipse on the annotation image
-        
+
         @param rect: the bounding box of the elipse of type Rect
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
         box = [rect.x,rect.y,rect.x+rect.w,rect.y+rect.h]
         draw.ellipse(box,outline=color)
         del draw
-                
+
     def annotateLine(self,point1,point2,color='red',width=1):
         '''
         Draws a line from point1 to point2 on the annotation image
-    
+
         @param point1: the starting point as type Point
         @param point2: the ending point as type Point
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
         line = [point1.X(),point1.Y(),point2.X(),point2.Y()]
         draw.line(line,fill=color,width=width)
         del draw
-        
+
     def annotatePoint(self,point,color='red'):
         '''
         Marks a point in the annotation image using a small circle
-        
+
         @param point: the point to mark as type Point
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
@@ -311,25 +311,25 @@ class Image:
 
     def annotateCircle(self,point, radius=3, color='red',fill=None):
         '''
-        Marks a circle in the annotation image 
-        
+        Marks a circle in the annotation image
+
         @param point: the center of the circle as type Point
         @param radius: the radius of the circle
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
         box = [point.X()-radius,point.Y()-radius,point.X()+radius,point.Y()+radius]
         draw.ellipse(box,outline=color,fill=fill)
         del draw
-        
-    def annotateLabel(self,point,label,color='red',mark=False):        
+
+    def annotateLabel(self,point,label,color='red',mark=False):
         '''
-        Marks a point in the image with text 
-        
+        Marks a point in the image with text
+
         @param point: the point to mark as type Point
         @param label: the text to use as a string
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         @param mark: of True or ['right', 'left', 'below', or 'above'] then also mark the point with a small circle
         '''
         im = self.asAnnotated()
@@ -356,20 +356,20 @@ class Image:
 
         del draw
 
-        
+
     def annotateDot(self,point,color='red'):
         '''
         Like L{annotatePoint} but only draws a point on the given pixel.
         This is useful to avoid clutter if many points are being annotated.
-        
+
         @param point: the point to mark as type Point
-        @param color: defined as ('#rrggbb' or 'name') 
+        @param color: defined as ('#rrggbb' or 'name')
         '''
         im = self.asAnnotated()
         draw = PIL.ImageDraw.Draw(im)
         draw.point([point.X(),point.Y()],fill=color)
         del draw
-        
+
     #------------------------------------------------------------------------
     def valueNormalize(self):
         '''TODO: Deprecated remove this sometime.'''
@@ -380,7 +380,7 @@ class Image:
     # @return the type of the image
     def getType(self):
         return self.type
-    
+
     #------------------------------------------------------------------------
     def normalize(self):
         import PIL.ImageOps
@@ -394,23 +394,23 @@ class Image:
         mat -= mean
         mat /= std
         self.matrix2d=mat
-       
 
-    #------------------------------------------------------------------------        
+
+    #------------------------------------------------------------------------
     def _generateMatrix2D(self):
         '''
         Create a matrix version of the image.
         '''
         buffer = self.toBufferGray(32)
         self.matrix2d = numpy.frombuffer(buffer,numpy.float32).reshape(self.height,self.width).transpose()
-                    
+
 
     def _generateMatrix3D(self):
         '''
         Create a matrix version of the image.
         '''
         buffer = self.toBufferRGB(32)
-        self.matrix3d = numpy.frombuffer(buffer,numpy.float32).reshape(self.height,self.width,3).transpose()            
+        self.matrix3d = numpy.frombuffer(buffer,numpy.float32).reshape(self.height,self.width,3).transpose()
 
     def _generatePIL(self):
         '''
@@ -422,14 +422,14 @@ class Image:
             self.pil = PIL.Image.fromstring("RGB",self.size,self.toBufferRGB(8))
         else:
             raise NotImplementedError("Cannot convert image from type: %s"%self.type)
-        
+
     def _generateOpenCV(self):
         '''
         Create a color opencv representation of the image.
         TODO: The OpenCV databuffer seems to be automatically swapped from RGB
               to BGR.  This is counter intuitive.
         '''
-        
+
         w,h = self.size
         if self.channels == 1:
             gray = cv.CreateImage((w,h),cv.IPL_DEPTH_8U,1)
@@ -444,8 +444,8 @@ class Image:
             self.opencv=bgr
         else:
             raise NotImplementedError("Cannot convert image from type: %s"%self.type)
-                
-        
+
+
     def toBufferGray(self,depth):
         '''
             returns the image data as a binary python string.
@@ -474,18 +474,18 @@ class Image:
                 raise TypeError("Operation not supported for image type.")
         else:
             raise TypeError("Operation not supported for image type.")
-        
+
         assert buffer
-            
+
         if depth == self.depth:
             return buffer
-        
+
         else:
             types = {8:numpy.uint8,32:numpy.float32,64:numpy.float64}
-            
+
             # convert the buffer to data
             data = numpy.frombuffer(buffer,types[self.depth])
-            
+
             if depth==8:
                 # Make sure the data is in a valid range
                 max_value = data.max()
@@ -496,14 +496,14 @@ class Image:
                     # 8 bit image
                     pass
                 else:
-                    # Rescale the values from 0 to 255 
+                    # Rescale the values from 0 to 255
                     if max_value == min_value:
                         max_value = min_value+1
                     data = (255.0/(max_value-min_value))*(data-min_value)
-            
+
             data = data.astype(types[depth])
             return data.tostring()
-        
+
 
     def toBufferRGB(self,depth):
         '''
@@ -521,7 +521,7 @@ class Image:
             tmp[0,:] = mat
             tmp[1,:] = mat
             tmp[2,:] = mat
-            buffer = mat.tostring()            
+            buffer = mat.tostring()
         elif self.type == TYPE_MATRIX_RGB:
             mat = self.matrix3d.transpose()
             buffer = mat.tostring()
@@ -539,18 +539,18 @@ class Image:
                 raise TypeError("Operation not supported for image type.")
         else:
             raise TypeError("Operation not supported for image type.")
-        
+
         assert buffer
-            
+
         if depth == self.depth:
             return buffer
-        
+
         else:
             types = {8:numpy.uint8,32:numpy.float32,64:numpy.float64}
-            
+
             # convert the buffer to data
             data = numpy.frombuffer(buffer,types[self.depth])
-            
+
             if depth==8:
                 # Make sure the data is in a valid range
                 max_value = data.max()
@@ -561,14 +561,14 @@ class Image:
                     # 8 bit image
                     pass
                 else:
-                    # Rescale the values from 0 to 255 
+                    # Rescale the values from 0 to 255
                     if max_value == min_value:
                         max_value = min_value+1
                     data = (255.0/(max_value-min_value))*(data-min_value)
-            
+
             data = data.astype(types[depth])
             return data.tostring()
-        
+
 
     def toBufferRGBA(self,depth):
         '''
@@ -589,21 +589,22 @@ class Image:
         #    raise NotImplementedError("Cannot save in matlab format")
         else:
             self.asPIL().save(filename)
-            
+
     def show(self):
         '''
         Displays the annotated version of the image.
         '''
         self.asAnnotated().show()
-    
+
 ##
 # Convert a 32bit opencv matrix to a numpy matrix
 def OpenCVToNumpy(cvmat):
     #assert cvmat.depth == 32
     #assert cvmat.nChannels == 1
-    
+
     #buffer = cvmat.imageData
-    #mat = numpy.frombuffer(buffer,numpy.float32).reshape(cvmat.height,cvmat.width)        
+    #mat = numpy.frombuffer(buffer,numpy.float32).reshape(cvmat.height,cvmat.width)
+    import pdb; pdb.set_trace()
     return np.asarray(cvmat,dtype=np.float64)
 
 ##
@@ -623,7 +624,7 @@ def NumpyToOpenCV(mat):
     return cv.fromarray(mat)
 
 class _TestImage(unittest.TestCase):
-    
+
     def setUp(self):
         # Assume these work correctly
         self.im     = Image(os.path.join(pyvision.__path__[0],"data","nonface","NONFACE_46.jpg"))
@@ -636,7 +637,7 @@ class _TestImage(unittest.TestCase):
         assert self.mat3d.shape[1] == 640
         assert self.mat3d.shape[2] == 480
         self.opencv = self.im.asOpenCV()
-            
+
     def test_PILToBufferGray(self):
         w,h = self.im.size
         buffer = self.im.toBufferGray(8)
@@ -675,7 +676,7 @@ class _TestImage(unittest.TestCase):
         for i in range(im.width):
             for j in range(im.height):
                 self.assertAlmostEqual(pil.getpixel((i,j)),mat[i,j])
-        
+
     def test_Matrix2DToPIL(self):
         im = Image(self.mat[:180,:120])
         pil = im.asPIL()
@@ -701,7 +702,7 @@ class _TestImage(unittest.TestCase):
             for j in range(im.height):
                 for c in range(3):
                     self.assertAlmostEqual(pil.getpixel((i,j))[c],mat[c,i,j])
-        
+
     def test_PILToOpenCV(self):
         pil = self.im.asPIL().resize((180,120))
         im = Image(pil)
@@ -716,7 +717,7 @@ class _TestImage(unittest.TestCase):
             for j in range(im.height):
                 for c in range(3):
                     self.assertAlmostEqual(pil.getpixel((i,j))[c],ord(cv.tostring()[i*3+j*im.width*3+2-c]))
-        
+
     def test_OpenCVToPIL(self):
         pil = self.im.asPIL().resize((180,120))
         im = Image(pil)
@@ -727,25 +728,25 @@ class _TestImage(unittest.TestCase):
             for j in range(im.height):
                 for c in range(3):
                     self.assertAlmostEqual(pil.getpixel((i,j))[c],ord(cv.tostring()[i*3+j*im.width*3+2-c]))
-        
+
     def test_OpenCVToPILGray(self):
         pil = self.im.asPIL().resize((180,120)).convert('L')
         im = Image(pil)
         cv = im.asOpenCV()
         im = Image(cv)
         pil = im.asPIL()
-        
+
         #Uncomment this code to compare saved images
         #from opencv import highgui
         #highgui.cvSaveImage('/tmp/cv.png',cv)
         #pil.show()
         #Image('/tmp/cv.png').show()
-        
+
         # TODO: There seems to be data loss in the conversion from pil to opencv and back.  Why?
         #for i in range(im.width):
         #    for j in range(im.height):
         #        self.assertAlmostEqual(pil.getpixel((i,j)),ord(cv.imageData[i*3+j*im.width*3]))
-        
+
     def test_BufferToOpenCV(self):
         pil = self.im.asPIL().resize((180,120))
         im = Image(pil)
@@ -756,8 +757,6 @@ class _TestImage(unittest.TestCase):
             for j in range(im.height):
                 for c in range(3):
                     self.assertAlmostEqual(ord(buffer[i*3+j*im.width*3+c]),ord(cvim.tostring()[i*3+j*im.width*3+2-c]))
-     
+
     def test_asOpenCVBW(self):
         pass #TODO: Create tests for this method.
-        
-

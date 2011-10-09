@@ -7,21 +7,16 @@ IF "%PYTHON%" == "" (
 )
 echo PYTHON is %PYTHON%
 
-IF "%PYTHONPATH%" == "" (
-    echo you must define PYTHONPATH environment variable.
-    GOTO :END
-)
-set PYTHONPATH=%PYTHONPATH%;%cd%;%cd%\HRI\face;%cd%\common\;%cd%\extern\pyvision_0.9.0\src;
+set PYTHONPATH=%PYTHONPATH%;%cd%\RAS\face;%cd%\extern\pyvision_0.9.0\src;
 echo PYTHONPATH is %PYTHONPATH%
 
-IF "%HOME%" == "" (
-    set LIGHTHEAD=common\lightHead.conf
-) ELSE (
-    set LIGHTHEAD=%HOME%\lightHead.conf
-)
+IF NOT "%HOME%" == "" (IF EXIST "%HOME%\.lightHead.conf" set LIGHTHEAD=%HOME%\.lightHead.conf)
+IF "%LIGHTHEAD%" == "" set LIGHTHEAD=common\lightHead.conf
 echo LIGHTHEAD is %LIGHTHEAD%
 
-lightHead-window.exe
+rem lightHead.exe
+ lightHead-window.exe
 rem HALA-window.exe
+rem GIZMO.exe
 :END
 pause

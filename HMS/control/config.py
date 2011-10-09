@@ -1,17 +1,12 @@
 import sys
-from os import path
+from os import path, getcwd
 
-def get_RootPath():
-    this_path = [ p for p in sys.path if p.endswith("control") \
-                      and p.find('control') == p.rfind('control') ][0]
-    return path.realpath(this_path+'/../')
-
-ROOT_PATH=get_RootPath()
+ROOT_PATH = path.realpath(getcwd()+'/../../')
 print 'ROOT_PATH is', ROOT_PATH
 DEBUG=True
 
 # system config
-haar_casc = path.realpath(ROOT_PATH+"/HRI/vision/haarcascade_frontalface_alt.xml")
+haar_casc = path.realpath(ROOT_PATH+"/RAS/vision/haarcascade_frontalface_alt.xml")
 control_options = ["keyboard", "voice_command", "network"]
 use_comm_expression = True           # communicate with expression server
 use_comm_features = True             # communicate with lightHead server (feature pool)
@@ -67,4 +62,3 @@ quit = False
 #                print 'Exception parsing arguments:', e
 #                print 'Usage: %s [interface:port]' % sys.argv[0]
 #                exit(1)
-

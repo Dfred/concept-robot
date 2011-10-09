@@ -18,21 +18,22 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#
-# FACE MODULE: blender backend
-#
-# This module uses the Blender Game Engine as a backend for animating LightHead.
-# To make this work, you need to let the initialization routine list the AU you
-#  support: define a property per AU in your .blend. Also, for most AUs you need
-#  a Shape Action actuator which provides the relative basic facial animation.
-#
-# MODULES IO:
-#===========
-# INPUT: - face
-#
-# A few things to remember for integration with Blender (2.49):
-#  * defining classes in toplevel scripts (like here) leads to scope problems
-#
+"""
+ FACE MODULE: blender backend
+
+ This module uses the Blender Game Engine as a backend for animating LightHead.
+ To make this work, you need to let the initialization routine list the AU you
+  support: define a property per AU in your .blend. Also, for most AUs you need
+  a Shape Action actuator which provides the relative basic facial animation.
+
+ MODULES IO:
+===========
+ INPUT: - face
+
+ A few things to remember for integration with Blender (2.49):
+  * defining classes in toplevel scripts (like here) leads to scope problems
+"""
+
 import sys, time, atexit
 from math import cos, sin, pi
 
@@ -55,31 +56,30 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = 0
+INFO_PERIOD = 10
 
 def exiting():
-    #We check if there is a valid "server" object because its possible that
-    #we were unable to create it, and therefore we are shutting down
-    if hasattr(G, "server"):
+    # server may not have been successfully created
+    if hasattr(G, "server") and G.server.is_started():
       G.server.shutdown()
 
 atexit.register(exiting)
 
 def fatal(error):
     """Common function to gracefully quit."""
-    print '*** Fatal Error ***', error
-    from utils import conf; conf.load()
-    if hasattr(conf, 'DEBUG_MODE') and conf.DEBUG_MODE:
-        import traceback; traceback.print_exc()
+    print '   *** Fatal: %s ***' % error
+    if sys.exc_info() != (None,None,None):
+        from utils import handle_exception
+        handle_exception(None,error)
     shutdown(G.getCurrentController())
 
 def shutdown(cont):
     """Finish animation and let atexit do the cleaning job"""
-    cont.activate(cont.actuators["- QUITTER"])
-    if hasattr(G, 'server'):
-        sys.exit(0)
-    sys.exit(1)
-    # see exiting()
+    try:
+        cont.activate(cont.actuators["- QUITTER"])
+    except:
+        pass
+    sys.exit( not hasattr(G, 'server') and 1 or 0)              # see exiting()
 
 def check_defects(owner, acts):
     """Check if actuators have their property set and are in proper mode ."""
@@ -87,10 +87,10 @@ def check_defects(owner, acts):
 
     for name in keys:
         if not owner.has_key('p'+name):
-            raise Exception('missing property p%s' % name)
+            raise StandardError('missing property p%s' % name)
     for act in acts :
         if act.mode != G.KX_ACTIONACT_PROPERTY:
-            raise Exception('Actuator %s shall use Shape Action Playback of'
+            raise StandardError('Actuator %s shall use Shape Action Playback of'
                             'type property' % act.name)
     return False
 
@@ -100,15 +100,10 @@ def initialize(server):
 
     # get driven objects
     objs = G.getCurrentScene().objects
-    for obj_name in ('eye_L', 'eye_R', 'skeleton', 'tongue'):
-        try:
-            setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
-        except KeyError:
-            try:
-# WARNING: at least in python 2.6 capitalize and title docstrings are confused!
-                setattr(G, obj_name, objs[OBJ_PREFIX+obj_name.title()])
-            except KeyError, e:
-                raise Exception('no object "%s" in blender file' % e[0][16:-18])
+    for obj_name in ('eye_L', 'eye_R', 'tongue', 'Skeleton'):   # title-ized bone names
+        if OBJ_PREFIX+obj_name not in objs:
+            return fatal("Object '%s' not found in blender scene" % obj_name)
+        setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
     # set available Action Units from the blender file (Blender Shape Actions)
     cont = G.getCurrentController()
@@ -117,23 +112,29 @@ def initialize(server):
             not act.name.startswith('-') and act.action]
     check_defects(owner, acts)
 
-    # properties must be set to 'Head' and 'skeleton'.
+    # properties must be set to 'head' and 'Skeleton'.
     # BEWARE to not set props to these objects before, they'll be included here.
-    AUs = [(n[1:],getattr(owner,n)/SH_ACT_LEN) for n in owner.getPropertyNames()] + \
-          [(n[1:],getattr(G.skeleton,n)/SH_ACT_LEN) for n in G.skeleton.getPropertyNames()]
-    server.set_available_AUs(AUs)
+    AUs = [(pAU[1:],
+            getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
+          [(pAU[1:],
+            getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
+    if not server.set_available_AUs(AUs):
+        return fatal('Check your .blend file for bad property names')
 
-    #TODO: get values directly from the blend file ?
-    from utils import conf; conf.load()
-    G.skeleton.limits = conf.lib_spine[conf.CHARACTER]['AXIS_LIMITS']
+    # load axis limits for the Skeleton regardless of the configuration: if the
+    # spine mod is loaded (origin head), no spine AU should be processed here.
+    from utils import conf;                 #TODO: get values from blend file?
+    G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
     # ok, startup
     G.initialized = True
+    G.info_duration = 0
     G.setLogicTicRate(MAX_FPS)
     G.setMaxLogicFrame(1)       # relative to rendering
     import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL','GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
+                             'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
     G.last_update_time = time.time()
     return cont
 
@@ -176,9 +177,9 @@ def update():
                 cont.owner['p'+au] = SH_ACT_LEN * values[3]
                 cont.activate(cont.actuators[au])
             else:
-                a_min, a_max = G.skeleton.limits[au]
+                a_min, a_max = G.Skeleton.limits[au]
                 a_bound = values[3] < 0 and a_min or a_max
-                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         # XXX: yes, 9 is a tongue prefix (do better ?)
         elif au.startswith('9'):
@@ -187,33 +188,33 @@ def update():
         # XXX: yes, 5 is a head prefix (do better ?)
         elif au.startswith('5'):
             if float(au) <= 55.5:   # pan, tilt, roll
-                a_min, a_max = G.skeleton.limits[au]
+                a_min, a_max = G.Skeleton.limits[au]
                 a_bound = values[3] < 0 and a_min or a_max
-                G.skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
         elif au == '26':
             # TODO: try with G.setChannel ?
-            G.skeleton['p26'] = SH_ACT_LEN * values[3]
+            G.Skeleton['p26'] = SH_ACT_LEN * values[3]
 
         elif au[0].isdigit():
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
 
         else:
-            a_min, a_max = G.skeleton.limits[au]
+            a_min, a_max = G.Skeleton.limits[au]
             if values[3] >= 0:
-                G.skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
             if values[3] < 0:
-                G.skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+                G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
     G.last_update_time = time.time()
 
-    INFO_PERIOD += time_diff
-    if INFO_PERIOD > 5:
+    G.info_duration += time_diff
+    if G.info_duration > INFO_PERIOD:
         print "--- RENDERING INFO ---"
         print "BGE logic running at", G.getLogicTicRate(), "fps."
 #        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
         print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
-        INFO_PERIOD = 0
+        G.info_duration = 0
 
 
 #
@@ -223,14 +224,14 @@ def update():
 def main():
     if not hasattr(G, "initialized"):
         try:
-            import HRI
-            G.server = HRI.initialize(THREAD_INFO)
+            import RAS
+            G.server = RAS.initialize(THREAD_INFO)
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)
             G.server.set_listen_timeout(0.001)      # tune it !
             G.server.start()
-        except:
+        except StandardError:
             fatal("initialization error")
         else:
             print '--- initialization OK ---'
@@ -244,5 +245,4 @@ def main():
             # update blender with fresh face data
             update()
         except Exception,e:
-            from utils import handle_exception_debug
-            handle_exception_debug()
+            fatal("runtime error")

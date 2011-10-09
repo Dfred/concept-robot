@@ -1,8 +1,10 @@
-# LightHead-bot programm is a HRI PhD project at
-#  the University of Plymouth,
-#  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.
-# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
+#  of Plymouth. LightHead is a Robotic Animation System including face, eyes,
+#   head and other supporting algorithms for vision and basic emotions.
+# Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License as
@@ -17,45 +19,40 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+SERVER MODULE
 
-#
-# SERVER MODULE
-#
-# This module listen to control connections and dispatches module-specific
-#  commands to the appropriate submodule. Also allows retreiving a snapshot of
-#  the current context.
-#
-# MODULES IO:
-#============
-# OUTPUT: All HRI modules
-#
-# INPUT: - learning (for context retrieval)
-#
+ This module listen to control connections and dispatches module-specific
+  commands to the appropriate submodule. Also allows retreiving a snapshot of
+  the current context.
+
+ MODULES IO:
+============
+ OUTPUT: All RAS modules
+
+ INPUT: - learning (for context retrieval)
+"""
 
 import sys
-import logging
 
-from utils.comm.meta_server import MetaRequestHandler, MetaServer
-from HRI import FeaturePool
+from utils.comm.meta_server import MetaRequestHandler
+from utils.comm import ASCIICommandProto
+from utils import get_logger, conf
+from RAS import FeaturePool
 
-LOG = logging.getLogger(__package__)
-
-# protocol keywords to switch from a subserver/handler to another
-ORIGINS = ('face', 'gaze', 'lips', 'head')
-
-# submodule key for registering more protocol keywords for a subserver/handler
-EXTRA_ORIGINS = 'extra_origins'
+LOG = get_logger(__package__)
+ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
 
 
-class lightHeadHandler(MetaRequestHandler):
+class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
     """Handles high level protocol transactions: origin and commit"""
 
-    def __init__(self):
-        MetaRequestHandler.__init__(self)
-        self.handlers = {}
+    def __init__(self, server, sock, client_addr):
+        super(LightHeadHandler,self).__init__(server, sock, client_addr)
+        self.handlers = {}              # { origin : subhandler }
+        self.transacting = None         # current transaction ('origin' command)
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
-        self.updated = []
 
     def cmd_origin(self, argline):
         """Set or Send current origin/subhandler"""
@@ -63,7 +60,7 @@ class lightHeadHandler(MetaRequestHandler):
             argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
-                self.updated.append(argline)
+                self.transacting = argline
             except KeyError:
                 LOG.warning("unknown origin: '%s'", argline)
         else:
@@ -71,15 +68,16 @@ class lightHeadHandler(MetaRequestHandler):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        for origin in self.updated:
-            self.handlers[origin].cmd_commit(argline)
-        self.updated = []
+        self.handlers[self.transacting].cmd_commit(argline)
+        self.transacting = None
 
+    # TODO: implement a reload of modules ?
     def cmd_reload(self, argline):
         """Reload subserver modules"""
-        self.send_msg('TODO')
+        self.send_msg('Not yet implemented')
 
     def cmd_get_snapshot(self, argline):
+        #TODO: use pickle: human readable doesn't make much sense for snapshots.
         """Returns the current snapshot of robot context
         argline: origins identifying arrays to be sent.
         """
@@ -93,12 +91,12 @@ class lightHeadHandler(MetaRequestHandler):
         self.send_msg('end_snapshot')
 
 
-class lightHeadServer(MetaServer):
+class LightHeadServer(object):#MetaServerMixin):
     """Sets and regroups subservers of the lightHead system."""
 
     def __init__(self):
         """All subServers will receive a reference to the Feature Pool"""
-        MetaServer.__init__(self)
+        super(LightHeadServer,self).__init__()
         self.origins = {}       # { origin: self.server and associed handler }
         self.FP = FeaturePool() # the feature pool for context queries
 
@@ -120,28 +118,33 @@ class lightHeadServer(MetaServer):
             return
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, req_handler_class, origin)
-        self.origins[origin] = server, MetaServer.register(self, server,
-                                                           req_handler_class)
+        self.origins[origin] = server, req_handler_class
+        #self.origins[origin] = server, super(LightHeadServer,self).register(
+        #    server, req_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
         This function uses conf's module definitions: if conf has an attribute
-         which name can be found in ORIGINS, then the HRI module is loaded.
+         which name can be found in ORIGINS, then that RAS module is loaded.
          """
-#TODO:        See more info in the documentation.
-#        """
-        # conf's specifics should have been sorted out much earlier
-        from utils import conf; conf.load()
+        EXTRA_ORIGINS = 'extra_origins'
+        try:
+            r_dict = conf.ROBOT
+        except AttributeError:
+            LOG.error("ROBOT dictionnary not found in configuration file")
+            return
 
-        # check for mod_... attributes, allowing a submodule to register more
+        # check for attributes, allowing a submodule to register more
         #  than one ORIGIN keyword with its extra_origins attribute.
-        for info, name in [ (getattr(conf,name), name[4:]) for name in dir(conf)
-                            if name.startswith('mod_') ]:
+        for name, info in r_dict.iteritems():
+            if not name.startswith('mod_') or not r_dict[name]:
+                continue
+            name = name[4:]
             try:
-                module = __import__('HRI.'+name, fromlist=['HRI'])
+                module = __import__('RAS.'+name, fromlist=['RAS'])
             except ImportError, e:
-                LOG.error("Found config for '%s' but cannot import the module."
-                          " Error: %s", name, e)
+                LOG.error("Configuration mentions 'mod_%s' but this module"
+                          " can't be loaded. Error: %s", name, e)
                 sys.exit(3)
             try:
                 subserv_class = getattr(module, name.capitalize()+'_Server')
@@ -151,13 +154,14 @@ class lightHeadServer(MetaServer):
                 LOG.warning("Module %s: Missing mandatory classes (%s)" %
                             (name, e))
                 continue
-            subserver = self.create_subserver(subserv_class)
+            subserver = subserv_class()
+#            subserver = self.create_subserver(subserv_class)
             self.register(subserver, handler_class, name)
             if info.has_key(EXTRA_ORIGINS):
                 for origin in info[EXTRA_ORIGINS]:
                     self.register(subserver, handler_class, origin)
         if not self.origins:
-            raise conf.LoadException("No submodule found in configuration.")
+            raise conf.LoadException("No submodule configuration.")
         missing = [ o for o in ORIGINS if o not in self.origins ]
         if missing:
             LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)

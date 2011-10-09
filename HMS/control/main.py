@@ -9,22 +9,25 @@
 # Copyright (C) 2010 Joachim de Greeff (www.joachimdegreeff.eu)   #
 #                                                                 #
 # This program is free software: you can redistribute it and/or   #
-# modify it under the terms of the GNU General Public License as  # 
+# modify it under the terms of the GNU General Public License as  #
 # published by the Free Software Foundation, either version 3 of  #
 # the License, or (at your option) any later version.             #
 #                                                                 #
 # This program is distributed in the hope that it will be useful, #
 # but WITHOUT ANY WARRANTY; without even the implied warranty of  #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the    # 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the    #
 # GNU General Public License for more details.                    #
 ###################################################################
 
-
+import sys; print sys.path
 
 import sys, os, threading, time, random, math, optparse
-import communication, vision, agent, inout, config, conf
+import config
+from learning import agent, inout
+from HMS import communication
+from utils import conf, get_logger
 
-LOG = communication.comm.LOG
+LOG = get_logger(__name__)                          # updated after conf load
 
 
 def main():
@@ -47,32 +50,34 @@ def main():
               "Options are: " + str(config.control_options)
         exit(1)
     config.use_gui = options.gui
-    
+
     # create appropriate connections
     comm_express, comm_features = connect()
 
-    # create robot control        
+    # create robot control
     rb = RobotControl(comm_express)
     rb.start()
-    
     #print connections[1].get_snapshot()
-
 
 
 def connect():
     """ connect to the appropriate sources
     """
     print "configuration name: ", conf.set_name('lightHead')
-    print "missing configuration entries: ", conf.load()
+    missing = conf.load(required=('expression_server','lightHead_server'))
+    if missing:
+        print "missing configuration entries: ", missing
+        sys.exit(1)
+    LOG = get_logger(__name__, hasattr(conf,'DEBUG_MODE') and conf.DEBUG_MODE)
     # Will ignore send_msg if not connected
-    return (communication.CommBase(conf.expression_server), communication.CommBase(conf.lightHead_server) )
-
+    return (communication.CommBase(conf.expression_server),
+            communication.CommBase(conf.lightHead_server) )
 
 
 class RobotControl(threading.Thread):
     """ main robot control
     """
-    
+
     def __init__(self, expression_comm):
         threading.Thread.__init__(self)
         self.comm = expression_comm
@@ -84,12 +89,12 @@ class RobotControl(threading.Thread):
         self.behaviour = None
         self.behaviour_change = True
         self.go = True
-        
+
         # length, width, height of the room
         self.environment = (7, 3, 2.5)
         self.robot_pos = (3.5, 0.75, 0.75)
         expression_comm.set_neck_gaze(gaze=config.gaze_pos,
-                                      neck=((0,0,0), None))     # rot, pos
+                                      neck=((0,0,0), None))         # rot, pos
 
     def run(self):
 
@@ -99,12 +104,12 @@ class RobotControl(threading.Thread):
                 if self.behaviour_change:
                     print "behaviour is idle"
                     self.record.behaviour_transition("idle")
-                    self.behaviour_change = False                
+                    self.behaviour_change = False
                 config.idle_go = True
                 config.cam_shift = False
                 config.follow_face_neck = False
                 self.run_idle()
-                
+
             elif self.behaviour == "thanks":
                 if self.behaviour_change:
                     print "behaviour is thanks"
@@ -115,7 +120,9 @@ class RobotControl(threading.Thread):
                     self.comm.set_neck_orientation("(0.15,0,0)")
                     time.sleep(0.01)
                     self.comm.set_neck_orientation("(0,0,0)")
-                    self.comm.set_gaze(str(config.gaze_pos[0]) + "," + str(config.gaze_pos[1]) + "," + str(config.gaze_pos[2]))
+                    self.comm.set_gaze(str(config.gaze_pos[0]) + "," +
+                                       str(config.gaze_pos[1]) + "," +
+                                       str(config.gaze_pos[2]))
                 config.cam_shift = False
                 config.follow_face_gaze = False
                 config.follow_face_neck = False
@@ -126,7 +133,7 @@ class RobotControl(threading.Thread):
                 self.comm.set_expression("neutral", "*", 0.5)
                 self.behaviour = None
 
-                    
+
             elif self.behaviour == "follow_face":
                 if self.behaviour_change:
                     print "behaviour is follow_face"
@@ -143,7 +150,7 @@ class RobotControl(threading.Thread):
                 if self.behaviour_change:
                     self.record.behaviour_transition("find_face")
                     self.behaviour_change = False
-                
+
             elif self.behaviour == "find_ball":
                 if self.behaviour_change:
                     self.comm.set_expression(TAG_FEXPRESS,"staring","happy",.5)
@@ -160,21 +167,21 @@ class RobotControl(threading.Thread):
                     #self.camera.start()
                 config.circle_d = True
 
-                
+
             else:
                 #self.end()
-                
+
                 # preview of keyboard input_control...
-        		import select
-        		if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-        		    if sys.stdin.read(1) == 'f':
-        		        self.find_face()
+                        import select
+                        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                            if sys.stdin.read(1) == 'f':
+                                self.find_face()
                 #time.sleep(1)
                 #print "waiting"
 
         print "RobotControl closed"
-        
-        
+
+
     def run_idle(self):
         counter = 0
         while config.idle_go:
@@ -198,7 +205,7 @@ class RobotControl(threading.Thread):
                 else:
                     sequence.append( seq + str( (random.randrange(26, 51, 1)/-100.0)*0.5*math.pi) + ")")
                     sequence.append( seq + str( (random.randrange(0, 26, 1)/-100.0)*0.5*math.pi) + ")")
-            
+
             for x, i in enumerate(sequence):
                 time.sleep( random.randrange(0, 500, 1)/500.0 )
                 self.comm.set_neck_orientation(str(i), str(x))
@@ -208,13 +215,13 @@ class RobotControl(threading.Thread):
 #                set_gaze(str(x_gaze) + "," + str(y_gaze) + "," str(z_gaze))
                 while self.comm.last_ack != "tag_NK_OR_" + str(x):
                     pass # wait for acknowledgement
-                    
-        
+
+
     def find_face(self):
         self.behaviour = "find_face"
         config.idle_go = False
-        
-        
+
+
     def learn_colour(self, word3):
         config.detect_colour = True
         config.idle_go = False
@@ -228,8 +235,8 @@ class RobotControl(threading.Thread):
             inout.save_knowledge(self.learning_agent)
         else:
             print "I didn't get it, please repeat"
-        
-        
+
+
     def show_colour(self, word2):
         config.idle_go = False
         percept = self.learning_agent.get_percept([word2])
@@ -239,13 +246,13 @@ class RobotControl(threading.Thread):
             self.behaviour = "find_ball"
             config.follow_ball_neck = False
             config.colour_to_find = percept.get_data()
-            
+
     def forget(self):
         print "I have forgotten everything"
         self.learning_agent = agent.Agent("agent", "learner")
         self.end()
-            
-            
+
+
     def end(self):
         config.idle_go = False
         self.behaviour = None
@@ -261,18 +268,18 @@ class RobotControl(threading.Thread):
         config.follow_ball_neck = False
         if config.circle_d:
             config.circle_d = False
-        
+
     def close(self):
         config.idle_go = False
         config.command = 'q'
         self.comm.close()
         self.go = False
-        
-        
+
+
 class RobotRecord():
     """ records of all behaviour and movements during one session
     """
-    
+
     def __init__(self):
         self.behaviour_list = []    # list of behaviours + timestamp initiated
         self.idle_counter = 0
@@ -280,7 +287,7 @@ class RobotRecord():
         self.search_counter = 0
         self.intial_position = 0
         self.positions_list = []    # list of position + timestamp initiated
-        
+
     def behaviour_transition(self, behaviour):
         if behaviour == "idle":
             self.behaviour_list = [["idle" + str(self.idle_counter), time.time()]]
@@ -288,9 +295,9 @@ class RobotRecord():
         if behaviour == "follow_face":
             self.behaviour_list = [["follow_face" + str(self.idle_counter), time.time()]]
             self.follow_face_counter += 1
-        
-        
+
+
 
 if __name__ == "__main__":
-    communication.comm.set_default_logging(debug=True)
+    communication.comm.set_debug_logging(debug=True)
     main()

@@ -19,23 +19,32 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+"""
+
+__author__ = "Frédéric Delaunay"
+__copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
+__credits__ = ["Joachim de Greeff"]
+__license__ = "GPL"
 
 import threading, time
 
-from utils import comm
+from utils.comm import ASCIICommandClient, set_debug_logging
+from utils import get_logger
 
-comm.set_default_logging(True)
-LOG = comm.LOG
+set_debug_logging(True)
+LOG = get_logger(__package__)
 
-class ThreadedComm(comm.BaseClient):
+
+class ThreadedComm(ASCIICommandClient):
     """A communication class based on the comm protocol with threaded polling.
     """
 
     CONNECT_TIMEOUT = 3
 
     def __init__(self, server_addrPort):
-        comm.BaseClient.__init__(self, server_addrPort)
-        self.set_connect_timeout(self.CONNECT_TIMEOUT)
+        super(ThreadedComm,self).__init__(server_addrPort)
+        self.connect_timeout = self.CONNECT_TIMEOUT
         self.working = True
         # let's the threaded object manage the socket independently
         self.thread = threading.Thread(target=self.always_connected)
@@ -44,7 +53,7 @@ class ThreadedComm(comm.BaseClient):
     def handle_connect_error(self, e):
         """See handle_connect_timeout.
         """
-        comm.BaseClient.handle_connect_error(self, e)
+        super(ThreadedComm, self).handle_connect_error(e)
         self.handle_connect_timeout()
 
     def handle_connect_timeout(self):
@@ -67,7 +76,7 @@ class ThreadedComm(comm.BaseClient):
 
     def send_msg(self, msg):
         if self.connected:
-            return comm.BaseClient.send_msg(self, msg)
+            return super(ThreadedComm, self).send_msg(msg)
         LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
 
@@ -78,7 +87,7 @@ class LightHeadComm(ThreadedComm):
     def __init__(self, srv_addrPort):
         """
         """
-        ThreadedComm.__init__(self, srv_addrPort)
+        super(LightHeadComm, self).__init__(srv_addrPort)
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -109,7 +118,7 @@ class ExpressionComm(ThreadedComm):
     def __init__(self, srv_addrPort):
         """
         """
-        ThreadedComm.__init__(self, srv_addrPort)
+        super(ExpressionComm,self).__init__(srv_addrPort)
         self.tag = None
         self.tag_count = 0
         self.status = None
