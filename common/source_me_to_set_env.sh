@@ -43,7 +43,7 @@ else
 #            DIST_PACKS_P='/usr/lib/python2.6/dist-packages'
 	    ;;
     esac
-    EXTRA="$CONCEPT_DIR/HRI/face/$PATH_S_$CONCEPT_DIR/extern"
+    EXTRA="$CONCEPT_DIR/RAS/face/$PATH_S_$CONCEPT_DIR/extern"
     MODULES_PATH="$CONCEPT_DIR/$PATH_S_$EXTRA"
     export PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
 
@@ -69,5 +69,5 @@ else
 	    echo "OK"
 	fi
     fi
-    alias edit_face="blender $CONCEPT_DIR/HRI/face/blender/lightHead.blend"
+    alias edit_face="blender $CONCEPT_DIR/RAS/face/blender/lightHead.blend"
 fi

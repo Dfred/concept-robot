@@ -55,6 +55,7 @@ import errno
 import socket
 import select
 import logging
+import platform
 from threading import Thread, Lock
 from collections import namedtuple
 try:
@@ -67,9 +68,10 @@ from presentation import BasePresentation
 from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
-FATAL_ERRORS = (errno.EHOSTUNREACH, errno.EADDRNOTAVAIL)
-DISCN_ERRORS = (errno.ECONNRESET, errno.WSAECONNRESET,
-                errno.ECONNABORTED, errno.WSAECONNABORTED)
+FATAL_ERRORS = ( errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
+DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, ]
+if platform.system() == "Windows":
+    DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
 
 
 class BaseServer(object):
