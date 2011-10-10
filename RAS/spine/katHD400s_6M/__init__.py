@@ -24,6 +24,11 @@ except ImportError,e:
                       ' be built from source.')
   else:
     raise
+
+if __name__ == '__main__':
+  from utils import conf
+  conf.set_name('lightHead')
+  conf.load()
 from RAS.spine import SpineError, SpineBase
 
 
@@ -33,6 +38,11 @@ def showTPos(tpos):
 
 class SpineHW(SpineBase):
   """Spine implementation for the Katana400s-6m"""
+
+  POSES = {'rest' : None,                                   # safe rest position
+           'zero' : None,                                   # all axis at 0rad.
+           'avg'  : None,                                   # all at mid-range
+           }
 
   def __init__(self):
     SpineBase.__init__(self)
@@ -65,8 +75,10 @@ class SpineHW(SpineBase):
     except:
       raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                 self.hardware_name)
+    SpineHW.POSES['zero'] = [0]*len(self.AXIS_LIMITS)
+    SpineHW.POSES['avg'] = [(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS]
     try:
-      self.pose_off = hardware['POSE_OFF']
+      SpineHW.POSES['rest'] = hardware['POSE_OFF']
     except:
       raise conf.LoadException("lib_spine['%s'] has no 'POSE_OFF' key" %
                                 self.hardware_name)
@@ -85,12 +97,23 @@ class SpineHW(SpineBase):
     mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
     return 1.0/factor*(enc - neutral)
 
-  def get_speed(self):
+  def is_moving(self):
+    #XXX: any safer way to do this ?
+    print KNI.getRobotEncoders()
+    p1, p2 = KNI.TPos(), KNI.TPos()
+    KNI.getPosition(p1)
+    KNI.getPosition(p2)
+    return p1.X,p1.Y,p1.Z == p2.X,p2.Y,p2.Z
+
+  def get_speedLimit(self):
+    """In rad/s"""
     return float(self._speed)/self.SPEED_LIMITS[0][1]
 
-  def set_speed(self, value):
+  def set_speedLimit(self, value):
+    """In rad/s"""
     max_speed = self.SPEED_LIMITS[0][1]
     self._speed = min(int(value*max_speed), max_speed)
+    KNI.SetMotorVelocityLimit()
 
   def set_accel(self, value):
     """Set normalized values, relative to hardware capabilities."""
@@ -135,7 +158,7 @@ class SpineHW(SpineBase):
 
   def switch_off(self):
     """Set the robot for safe hardware switch off."""
-    self.pose_rest()
+    self.reach_pose('rest')
     self.switch_manual()
 
   def switch_manual(self):
@@ -164,36 +187,21 @@ class SpineHW(SpineBase):
       LOG.debug('checking motor %i', i+1)
       enc = KNI.getEncoder(i+1)
       motors[i] = KNI.moveMot(i+1, enc, self._speed, self._accel) != -1
+    if not all(motors):
+      LOG.debug("some motors can't move before calibration: %s", motors)
     return motors
 
-  def reach_pose(self, pose):
+  def reach_pose(self, pose_name, wait=True):
     """Set the motors to an absolute position.
-    pose: a *list* of encoder values for each spine axis
+    pose_name: identifier from SpineBase.POSE_IDs
+    wait: wait for the pose to be reached before returning
     """
-    # no wait
-    if KNI.moveToPosEnc(*pose+[self._speed, self._accel, self._tolerance]+
-                         [True]) == -1:
-      raise SpineError('failed to reach pose')
-
-  def pose_rest(self):
-    """Set the robot in a pose so that hardware is safe to switch-off.
-    """
-    self.reach_pose(list(self.pose_off))
-    #neck, torso = self.pose_off
-    #self.set_neck_orientation(neck)
-    #self.set_torso_orientation(torso)
-
-  def pose_zeros(self):
-    """Set the robot in a pose where all axis are a 0rad.
-    """
-    self.reach_pose([0]*len(self.AXIS_LIMITS))
-
-  def pose_average(self):
-    """This pose is defined according to the mean value of each axis.
-    Use this function to pose the robot so it has an even range of possible
-    movements.
-    """
-    self.reach_pose([(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS])
+    if pose_name not in SpineBase.POSE_IDs:
+      LOG.warning('pose %s does not exist', pose_name)
+      return
+    if KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
+                        [self._speed, self._accel, self._tolerance, wait])== -1:
+      raise SpineError('failed to reach pose %s' % pose_name)
 
   def set_neck_orientation(self, xyz, wait=True):
     """Absolute orientation:
@@ -234,7 +242,7 @@ class SpineHW(SpineBase):
     tp = KNI.TPos()
     KNI.getPosition(tp)
     if rot_xyz:
-      tp.phy, tp.theta, tp.psi = rot_xyz
+      tp.phi, tp.theta, tp.psi = rot_xyz
     if pos_xyz:
       tp.X, tp.Y, tp.Z = pos_xyz
     ret = KNI.moveToPos(tp, self._speed, self._accel)
@@ -254,11 +262,22 @@ def init_arm(name, KNI_cfg_file, address):
     print 'loaded config file', KNI_cfg_file, 'and now connected'
 
 if __name__ == '__main__':
+  import time
   __path__ = ['.']
   from utils import comm
   comm.set_debug_logging(True)
   # just set the arm in manual mode and print motors' values upon key input.
   s = SpineHW()
+  s.reach_pose('rest', wait=False)
+  p = KNI.TPos()
+  while s.is_moving():
+    KNI.getPosition(p)
+    print p.X, p.Y, p.Z, p.phi, p.theta, p.psi, "velocity:", KNI.getVelocity(4)
+    time.sleep(.2)
+  KNI.getPosition(p)
+  print p.X, p.Y, p.Z, p.phi, p.theta, p.psi, "velocity:", KNI.getVelocity(4)
+  time.sleep(.5)
+
   s.switch_off()
   while not raw_input('press any key then Enter to finish > '):
     print [ (m+1,KNI.getEncoder(m+1)) for m in range(len(s.AXIS_LIMITS)) ]
