@@ -86,7 +86,6 @@ class Spine_Handler(ASCIIRequestHandler):
     else:
       fct()
 
-  # TODO: get rid of this and use a global AU pool
   def cmd_AU(self, argline):
     """Absolute rotation on 1 axis.
     Syntax is: AU_name, target_value, attack_time (in s.)"""
@@ -136,7 +135,12 @@ class Spine_Handler(ASCIIRequestHandler):
 class SpineBase(object):
   """API for spine management (includes neck)."""
 
-  PRECISION = 4       # number of digits for real part
+  PRECISION = 4                                             # for real part
+
+  POSE_IDs = ('rest',                                       # safe switch-off
+              'zero',                                       # all axis at 0rad.
+              'avg',                                        # all at mid-range
+             )
 
   @staticmethod
   def round(iterable):
@@ -147,15 +151,19 @@ class SpineBase(object):
     """torso_info and neck_info are readonly properties"""
     self._torso_info = TorsoInfo()
     self._neck_info  = NeckInfo()
-    self._speed = 0.0        # in radians/s
-    self._accel = 0.0        # speed increment /s
-    self._tolerance = 0.0    # in radians
+    self._speedLimit = 0.0                                  # in radians/s
+    self._accel = 0.0                                       # speed increment /s
+    self._tolerance = 0.0                                   # in radians
     self._motors_on = False
     self._lock_handler = None
-    self.FP = RAS.FeaturePool() # dict of { origin : numpy.array }
+    self.FP = RAS.FeaturePool()               # dict of { origin : numpy.array }
 
   # Note: property decorators are great but don't allow child class to define
   #       just the setter...
+
+  def is_moving(self):
+    """Returns True if moving"""
+    return
 
   def get_torso_info(self):
     """Returns TorsoInfo instance"""
@@ -172,6 +180,14 @@ class SpineBase(object):
   def set_tolerance(self, value):
     """In radians"""
     self._tolerance = value
+
+  def get_speedLimit(self):
+    """In rad/s"""
+    return self._speedLimit
+
+  def set_speedLimit(self, value):
+    """In rad/s"""
+    self._speedLimit = value
 
   def set_lock_handler(self, handler):
     """function to call upon collision detection locking"""
@@ -199,7 +215,6 @@ class SpineBase(object):
     neck_rot_attack:  X,Y,Z: (orientation_in_rads, attack_time_in_s)
     torso_rot_attack: X,Y,Z: (orientation_in_rads, attack_time_in_s)
     """
-    # raise NotImplementedError()
     self.set_neck_orientation([ rad for rad, att in neck_rot_attack])
 
   def rotate_neck(self, xyz, wait=True):
