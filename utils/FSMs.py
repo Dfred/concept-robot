@@ -24,16 +24,21 @@ import logging
 
 from utils import comm, conf, get_logger
 
-__author__ = "Frédéric Delaunay"
+__author__ = "FrÃ©dÃ©ric Delaunay"
 __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
 __credits__ = [""]
 __license__ = "GPL"
 __version__ = "0.0.1"
-__maintainer__ = "Frédéric Delaunay"
+__maintainer__ = "FrÃ©dÃ©ric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
 __status__ = "Prototype" # , "Development" or "Production"
 
 LOG = get_logger(__package__)
+
+
+#
+#TODO: Use a event-based approach - currently we're badly wasting CPU... :(
+#
 
 
 class FSMRuleError(StandardError):

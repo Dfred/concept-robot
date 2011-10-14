@@ -56,7 +56,7 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = 10
+INFO_PERIOD = None
 
 def exiting():
     # server may not have been successfully created
@@ -209,7 +209,7 @@ def update():
     G.last_update_time = time.time()
 
     G.info_duration += time_diff
-    if G.info_duration > INFO_PERIOD:
+    if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
         print "--- RENDERING INFO ---"
         print "BGE logic running at", G.getLogicTicRate(), "fps."
 #        print "BGE physics running at", G.getPhysicsTicRate(), "fps."

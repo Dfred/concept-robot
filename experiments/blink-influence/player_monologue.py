@@ -94,7 +94,6 @@ class MonologuePlayer(Behaviour_Builder):
     if self.wait_reply:
       return
     line = self.utterances.next()
-#    import pdb; pdb.set_trace()
     if line == 'EOF':
       return SMFSM.STOPPED
     if line:
