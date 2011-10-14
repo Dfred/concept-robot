@@ -83,40 +83,46 @@ class Face_Handler(ASCIIRequestHandler):
     self.fifo = collections.deque()
 
   def cmd_AU(self, argline):
-      """if empty, returns current values. Otherwise, set them.
-       argline: sending_module AU_name  target_value  duration.
-      """
-      argline = argline.strip()
-      if not len(argline):
-          return
-      try:
-          au_name, value, duration = argline.split()[:3]
-      except ValueError, e:
-          LOG.error("[AU] wrong number of arguments (%s)",e)
-          return
-      try:
-          value, duration = float(value), float(duration)
-      except ValueError,e:
-          LOG.error("[AU] invalid float (%s)", e)
-          return
-      if duration < self.server.MIN_ATTACK_TIME:
-          LOG.warning("attack time (%s) too short, setting at %s.",
-                      duration, self.server.MIN_ATTACK_TIME)
-          duration = self.server.MIN_ATTACK_TIME
-      if self.server.AUs.has_key(au_name):
-          self.fifo.append((au_name, value, duration))
-      elif self.server.AUs.has_key(au_name+'R'):
-          self.fifo.append((au_name+'R',value,duration))
-          self.fifo.append((au_name+'L',value,duration))
-      else:
-          LOG.warning("[AU] invalid AU (%s)", au_name)
-          return
+    """if empty, returns current values. Otherwise, set them.
+    argline: AU_name  target_value  duration.
+    """
+    try:
+      au_name, value, duration = argline.split()[:3]
+    except ValueError:
+      LOG.error("[AU] wrong number of arguments (%s)", argline)
+      return
+    try:
+      value, duration = float(value), float(duration)
+    except ValueError,e:
+      LOG.error("[AU] invalid float (%s)", e)
+      return
+    if duration < self.server.MIN_ATTACK_TIME:
+      LOG.warning("attack time (%s) too short, setting at %s.",
+                  duration, self.server.MIN_ATTACK_TIME)
+      duration = self.server.MIN_ATTACK_TIME
+    if self.server.AUs.has_key(au_name):
+      self.fifo.append((au_name, value, duration))
+    elif self.server.AUs.has_key(au_name+'R'):
+      self.fifo.append((au_name+'R',value,duration))
+      self.fifo.append((au_name+'L',value,duration))
+    else:
+      LOG.warning("[AU] invalid AU (%s)", au_name)
+      return
 
   def cmd_commit(self, argline):
-      """Commit buffered updates"""
-      self.server.set_AUs(self.fifo)
-      self.fifo.clear()
+    """Commit buffered updates"""
+    self.server.set_AUs(self.fifo)
+    self.fifo.clear()
 
+  def cmd_sample(self, argline):
+    """Receive wav speech samples"""
+    try:
+      size = argline.split()[0]
+    except ValueError, e:
+      LOG.error("[AU] wrong number of arguments (%s)",e)
+      return
+    #XXX: we return the number of immediately following bytes to be ignored
+    return int(size)                                        # design limitation
 
 class Face_Server(object):
   """Main facial feature animation module

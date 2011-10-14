@@ -28,7 +28,7 @@ import math
 import random
 
 from HMS.expression_player import Behaviour_Builder
-from utils import Frame, conf
+from utils import Frame, conf, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
 
@@ -46,7 +46,7 @@ class Utterances(object):
     if hasattr(self, 'file'):
       self.file.close()
 
-  def read_line():
+  def read_line(self):
     line = self.file.readline()
     if not line:
       return None
@@ -60,6 +60,8 @@ class Utterances(object):
       self.next_time = time.time()
     if time.time() >= self.next_time:
       line = self.read_line()
+      if line == None:
+        return 'EOF'
       while line.startswith('#') or len(line) == 0:
         line = self.read_line()
         if line == None:
@@ -87,11 +89,12 @@ class MonologuePlayer(Behaviour_Builder):
 
   def read(self):
     """
-    Returns: SMFSM.STOPPED
+    Switches to: SMFSM.STOPPED
     """
     if self.wait_reply:
       return
     line = self.utterances.next()
+#    import pdb; pdb.set_trace()
     if line == 'EOF':
       return SMFSM.STOPPED
     if line:
@@ -108,7 +111,7 @@ class MonologuePlayer(Behaviour_Builder):
 
   def search_participant(self):
     """
-    Returns: 'FOUND_PART'
+    Switches to: 'FOUND_PART'
     """
     self.faces = self.vision.find_faces()
     if self.vision.gui:
@@ -118,7 +121,7 @@ class MonologuePlayer(Behaviour_Builder):
 
   def adjust_gaze_neck(self):
     """
-    Returns: 'ADJUSTED'
+    Switches to: 'ADJUSTED'
     """
     eyes = self.vision.find_eyes([self.faces[0]])[0]
     center = Frame(((eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2,
@@ -148,18 +151,26 @@ class MonologuePlayer(Behaviour_Builder):
     PLAYER_DEF= ( (SMFSM.STARTED, self.read),
                   (SMFSM.STOPPED, self.finish),
                 )
-    FTRACKER_DEF = ( ((SMFSM.STARTED,'ADJUSTED'), self.search_participant),
-                     ('FOUND_PART', self.adjust_gaze_neck),
-                     (SMFSM.STOPPED, self.finish),
-                   )
-    Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),
-                                      ('tracker',FTRACKER_DEF,'player')],
-                               with_vision=True)#False)
+    if conf.ROBOT['mod_vision']:
+      FTRACKER_DEF = ( ((SMFSM.STARTED,'ADJUSTED'), self.search_participant),
+                       ('FOUND_PART', self.adjust_gaze_neck),
+                       (SMFSM.STOPPED, self.finish),
+                     )
+      Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),
+                                        ('tracker',FTRACKER_DEF,'player')],
+                                 with_vision=True)
+    else:
+      Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),],
+                                 with_vision=False)
+
     self.utterances = Utterances(filepath)
     self.wait_reply = False
 
 if __name__ == '__main__':
-  import sys
+  conf.set_name('lightHead')
+  conf.load()
+  import sys, logging
+  logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
   try:
     m = MonologuePlayer(sys.argv[1])                          # also loads conf
   except IndexError:

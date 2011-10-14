@@ -33,7 +33,7 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import time
 
-from utils import conf
+from utils import conf, handle_exception
 from utils.FSMs import SMFSM
 from HMS.communication import ExpressionComm
 
@@ -115,9 +115,7 @@ class Behaviour_Builder():
       print 'aborting'
       self.root_fsm.abort()
     except StandardError, e:
-      print "=== exception: %s ===" % e
-      import pdb; pdb.post_mortem()
-
+      handle_exception(None)
 
 if __name__ == '__main__':
   import sys

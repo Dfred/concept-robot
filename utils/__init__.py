@@ -165,6 +165,7 @@ def handle_exception_debug(logger = None, force_debugger=False, msg=''):
 
 def handle_exception(logger, msg=''):
     """Call handle_exception_debug if logger's level is DEBUG, else _simple.
+    logger: a logging.logger instance, or None.
     """
     if not logger:
         logger = logging.getLogger('root')
