@@ -107,27 +107,57 @@ class ASCIICommandProto(BasePresentation):
     tokens = cmdline.split(None,1)
     cmd, args = tokens[0], tokens[1] if len(tokens) > 1 else ''
     try:
-      bound_fct = getattr(self, self.CMD_PREFIX+cmd)
+      bound_fct = getattr(self, ASCIICommandProto.CMD_PREFIX+cmd)
     except AttributeError:
-      self.handle_notfound(self.CMD_PREFIX+cmd, args)
+    #XXX:design limitation with metaHandlers: in next call self shifts and state
+    # of parsing (self.data, self.data_end) is not accessible until call returns
+      ret = self.handle_notfound(ASCIICommandProto.CMD_PREFIX+cmd, args)
     else:
-      bound_fct(args)
+      ret = bound_fct(args)
+    if ret:                                                 # data to be ignored
+      self.read(ret)
 
-  def process(self, command):
+  def process(self, recv_data):
     """Command dispatcher function.
     Commands can be issued within the same step by linking them with '&&'.
-    command: (multiline) ASCII text to process
+    recv_data: network data to process (supposed to be multiline ASCII text)
     Return: unprocessed data, not finishing with a \n
     """
-    for cmdline in command.splitlines(True):
-      # XXX: issue with windows \r ?
-      if not cmdline.endswith('\n'):                        # unfinished line
-        return cmdline
-      for cmd in cmdline.split('&&'):                       # same loop exec
+    LOG.debug("%s> command [%iB]:%s", self.socket.fileno(), len(recv_data),
+              len(recv_data)>32 and recv_data[:32]+'[...]' or recv_data)
+    #XXX: this version allows tampering with buffers while parsing.
+    self.data = recv_data                                   # allows extern read
+    self.data_end = 0                                       # end data processed
+    end = recv_data.find('\n')
+    while end != -1:
+      end += self.data_end                                  # adjust abs. offset
+      line = recv_data[self.data_end:end]
+      self.data_end += 1                                    # account for '\n'
+      for cmd in line.split('&&'):                          # same step commands
+        self.data_end += len(cmd) + (line!=cmd and 2 or 0)  # account for '&&'
         cmd = cmd.strip()
         if cmd:
           self.parse_cmd(cmd)
-    return ''
+      end = recv_data[self.data_end:].find('\n')
+    self.data = None                                        # garbage collection
+    return recv_data[self.data_end:]
+
+  def read(self, size):
+    """Read in self.data, then the socket itself if needed.
+    Return: data read. Notice: length of data read has to be checked by caller!
+    """
+#    import pdb; pdb.set_trace()
+    more = size - len(self.data[self.data_end:])
+    if more > 0:
+      data = self.read_socket(more)
+      if data != False:
+        self.data += data
+        size -= more - len(data) if len(data) <= more else 0
+      else:
+        size = len(self.data[self.data_end:])
+    prev_end = self.data_end
+    self.data_end += size
+    return self.data[prev_end:self.data_end]
 
   def send_msg(self, message):
     """Send a message adding a trailing '\n' as required by the protocol.
@@ -176,10 +206,12 @@ class ASCIICommandProtoEx(ASCIICommandProto):
       filtered_lines.append(s_line)
     return filtered_lines, unfinished_line
 
-  def process(self, command):
+  def process(self, recv_data):
     """Uses filter_line() to add script-friendly features.
     """
-    filtered, buffered = self.__class__.filter_lines(command)
+    LOG.debug("%s> command [%iB]:%s", self.socket.fileno(),
+              len(recv_data)>32 and recv_data[:32]+'[...]' or recv_data)
+    filtered, buffered = self.__class__.filter_lines(recv_data)
     for cmdline in filtered:
       for cmd in cmdline.split('&&'):                       # same loop exec
         cmd = cmd.strip()

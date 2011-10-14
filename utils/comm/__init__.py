@@ -69,26 +69,26 @@ __all__ = [
 LOG = logging.getLogger(__package__)                      # main package logger
 
 
-class ASCIICommandClient(ASCIICommandProto,
-                         BaseClient):
+class ASCIICommandClient(BaseClient,
+                         ASCIICommandProto):
   """
   """
   pass
 
-class ScriptCommandClient(ASCIICommandProtoEx,
-                          BaseClient):
+class ScriptCommandClient(BaseClient,
+                          ASCIICommandProtoEx):
   """
   """
   pass
 
-class ASCIIRequestHandler(ASCIICommandProto,
-                          BaseRequestHandler):
+class ASCIIRequestHandler(BaseRequestHandler,
+                          ASCIICommandProto):
   """
   """
   pass
 
-class ASCIIRequestHandlerCmds(ASCIICommandProto,
-                              BaseRequestHandler,
+class ASCIIRequestHandlerCmds(BaseRequestHandler,
+                              ASCIICommandProto,
                               RequestHandlerCmdsMixIn):
   """
   """

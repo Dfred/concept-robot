@@ -66,7 +66,9 @@ class MetaRequestHandler(BaseRequestHandler):
     self.curr_handler = handler
 
   def handle_notfound(self, cmd, argline):
-    """Route cmd_ functions to the current handler."""
+    """Route cmd_ functions to the current handler.
+    Return: result of current handler's function for cmd, otherwise None.
+    """
     if not self.curr_handler:
       LOG.debug("unset current handler and no %s() in %s", cmd, self)
       return
@@ -77,7 +79,13 @@ class MetaRequestHandler(BaseRequestHandler):
     except :
       raise
     else:
-      fct(argline)
+      #
+      #XXX: In the next call we're shifting from self to the current handler.
+      # This is fine until the current handler needs to interfere with parsing
+      # (eg. ASCIICommandProto.process allows to read ahead) as self and current
+      # handler don't share state. So eventually this design need to be revised.
+      #
+      return fct(argline)
 
   def cmd_list(self, argline):
     """list all available commands"""

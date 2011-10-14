@@ -75,8 +75,8 @@ if platform.system() == "Windows":
 
 
 class BaseServer(object):
-  """Greatly inspired from SocketServer, but allows using a single thread approach, .
-  Unfortunately SocketServer is an old-style class and has a rigid design.
+  """Greatly inspired from SocketServer, but allows using a single thread
+  approach. Unfortunately SocketServer is old-style class and has rigid design.
   """
   def __init__(self):
     self.__serving = False
@@ -199,7 +199,7 @@ class BaseServer(object):
       try:
         if sock is self.socket:
           self._handle_request_noblock()
-        elif not self.clients[sock].read_socket():
+        elif not self.clients[sock].read_socket_and_process():
           self.close_request(sock)
       except Exception, err:
         return self.handle_error(sock, err)
@@ -525,10 +525,12 @@ class BasePeer(object):
   * If you're using read_while_running() you can define each_loop(), called
    after the socket has been read.
 
-  *
+  * This class cannot be instanciated directly, it requires the implementation
+   of process(), an abstract method of BasePresentation.
   """
 
   def __init__(self):
+    super(BasePeer,self).__init__()
     self.running = False                                    # bail out flag
     self.unprocessed = ''                                   # socket data buffer
     self._th_save = {}                                      # see set_threading
@@ -560,22 +562,32 @@ class BasePeer(object):
     self.handle_disconnect()
     return False
 
-  def read_socket(self):
+  def read_socket(self, size):
     """Read its own socket.
-    Return: False on socket error, True otherwise.
+    size: optional, length of bytes to read from the socket.
+    Return: data read, False in case of error.
     """
     try:
-      buff = self.socket.recv(2048)
+      buff = self.socket.recv(size)
       if not buff:
         return self.abort()
     except socket.error, e:
       if e.errno not in DISCN_ERRORS:                       # for Windows
         self.handle_error(e)
       return self.abort()
-    LOG.debug("%s> command [%iB]: '%s'", self.socket.fileno(),
-              len(self.unprocessed + buff), self.unprocessed + buff)
-    self.unprocessed = self.process(self.unprocessed + buff)
-    return True
+    LOG.debug("read %iB from socket", len(buff))
+    return buff
+
+  def read_socket_and_process(self, size=2048):
+    """Read its own socket and calls process() for parsing data.
+    size: optional, length of bytes to read from the socket.
+    Return: False on socket error, True otherwise.
+    """
+    buff = self.read_socket(size)
+    if buff != False:
+      self.unprocessed = self.process(self.unprocessed + buff)
+      return True
+    return False
 
   def write_socket(self, data):
     """Write its own socket.
@@ -614,7 +626,7 @@ class BasePeer(object):
     if e:
       self.handle_error('select() error with socket %s' % e)
       return self.abort()
-    return self.read_socket()
+    return self.read_socket_and_process()
 
   def read_while_running(self, timeout=0.01):
     """Process client commands until self.running is False. See also
@@ -660,7 +672,7 @@ class BasePeer(object):
 class BaseRequestHandler(BasePeer):
   """Instancied on successful connection to the server: a remote client.
   BasePeer provides 2 functions for the server, depending on threading status:
-  - read_socket() when instances of this class share the server thread
+  - read_socket_and_process() when self share the server thread
   - read_while_running() when instances of this class run in their own thread.
 
   This class cannot be instanciated directly, it requires the implementation of
