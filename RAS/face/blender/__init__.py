@@ -57,6 +57,8 @@ CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
 INFO_PERIOD = None
+# Naming Convention: regular objects are lower case, bones are title-ized.
+REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
 def exiting():
     # server may not have been successfully created
@@ -100,7 +102,7 @@ def initialize(server):
 
     # get driven objects
     objs = G.getCurrentScene().objects
-    for obj_name in ('eye_L', 'eye_R', 'tongue', 'Skeleton'):   # title-ized bone names
+    for obj_name in REQUIRED_OBJECTS:
         if OBJ_PREFIX+obj_name not in objs:
             return fatal("Object '%s' not found in blender scene" % obj_name)
         setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
@@ -172,7 +174,7 @@ def update():
             G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
             eyes_done = True
 
-        elif au.startswith('Th'):
+        elif au.startswith('T'):
             if au[-1] == '0':
                 cont.owner['p'+au] = SH_ACT_LEN * values[3]
                 cont.activate(cont.actuators[au])
@@ -206,6 +208,7 @@ def update():
                 G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
             if values[3] < 0:
                 G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+
     G.last_update_time = time.time()
 
     G.info_duration += time_diff
