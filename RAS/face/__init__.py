@@ -72,6 +72,7 @@ VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "61.5L","61.5R","63.5",
              "96","97","98",
              "SYL","SYR",
+             "SZL","SZR",
              "Th",
              "TX","TY","TZ")
 
@@ -150,10 +151,11 @@ class Face_Server(object):
       if type(available_AUs[0]) == tuple:
           available_AUs, init_values = zip(*available_AUs)
           a[:,0] = a[:,3] = numpy.array(init_values)
-      invalids = [ au for au in available_AUs if au not in VALID_AUS ]
-      if invalids:
-        LOG.error('invalid AU(s): %s' % ' '.join(invalids))
-        return False
+      #TODO: support implemented AUs without L/R suffix
+      #invalids = [ au for au in available_AUs if au not in VALID_AUS ]
+      #if invalids:
+      #  LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+      #  return False
       # { AU_name : numpy array [target, remaining, coeff, value] }
       self.AUs = dict(zip(available_AUs,a))
       # set region-based AUs
