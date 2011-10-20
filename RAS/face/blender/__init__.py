@@ -116,16 +116,15 @@ def initialize(server):
 
     # properties must be set to 'head' and 'Skeleton'.
     # BEWARE to not set props to these objects before, they'll be included here.
-    AUs = [(pAU[1:],
-            getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
-          [(pAU[1:],
-            getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
+    AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
+            pAU in obj.getPropertyNames() ]
     if not server.set_available_AUs(AUs):
         return fatal('Check your .blend file for bad property names')
 
     # load axis limits for the Skeleton regardless of the configuration: if the
     # spine mod is loaded (origin head), no spine AU should be processed here.
     from utils import conf;                 #TODO: get values from blend file?
+    # blender might issue a warning here, nvm as we add a member, not access it.
     G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
     # ok, startup
