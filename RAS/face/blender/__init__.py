@@ -61,163 +61,163 @@ INFO_PERIOD = None
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
 def exiting():
-    # server may not have been successfully created
-    if hasattr(G, "server") and G.server.is_started():
-      G.server.shutdown()
+  # server may not have been successfully created
+  if hasattr(G, "server") and G.server.is_started():
+    G.server.shutdown()
 
 atexit.register(exiting)
 
 def fatal(error):
-    """Common function to gracefully quit."""
-    print '   *** Fatal: %s ***' % error
-    if sys.exc_info() != (None,None,None):
-        from utils import handle_exception
-        handle_exception(None,error)
-    shutdown(G.getCurrentController())
+  """Common function to gracefully quit."""
+  print '   *** Fatal: %s ***' % error
+  if sys.exc_info() != (None,None,None):
+    from utils import handle_exception
+    handle_exception(None,error)
+  shutdown(G.getCurrentController())
 
 def shutdown(cont):
-    """Finish animation and let atexit do the cleaning job"""
-    try:
-        cont.activate(cont.actuators["- QUITTER"])
-    except:
-        pass
-    sys.exit( not hasattr(G, 'server') and 1 or 0)              # see exiting()
+  """Finish animation and let atexit do the cleaning job"""
+  try:
+    cont.activate(cont.actuators["- QUITTER"])
+  except:
+    pass
+  sys.exit( not hasattr(G, 'server') and 1 or 0)            # see exiting()
 
 def check_defects(owner, acts):
-    """Check if actuators have their property set and are in proper mode ."""
-    keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
+  """Check if actuators have their property set and are in proper mode ."""
+  keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
 
-    for name in keys:
-        if not owner.has_key('p'+name):
-            raise StandardError('missing property p%s' % name)
-    for act in acts :
-        if act.mode != G.KX_ACTIONACT_PROPERTY:
-            raise StandardError('Actuator %s shall use Shape Action Playback of'
-                            'type property' % act.name)
-    return False
+  for name in keys:
+    if not owner.has_key('p'+name):
+      raise StandardError('missing property p%s' % name)
+  for act in acts :
+    if act.mode != G.KX_ACTIONACT_PROPERTY:
+      raise StandardError('Actuator %s shall use Shape Action Playback of'
+                          'type property' % act.name)
+  return False
 
 def initialize(server):
-    """Initialiazes and configures facial subsystem (blender specifics...)"""
-    print "loaded module from", __path__[0]
+  """Initialiazes and configures facial subsystem (blender specifics...)"""
+  print "loaded module from", __path__[0]
 
-    # get driven objects
-    objs = G.getCurrentScene().objects
-    for obj_name in REQUIRED_OBJECTS:
-        if OBJ_PREFIX+obj_name not in objs:
-            return fatal("Object '%s' not found in blender scene" % obj_name)
-        setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
+  # get driven objects
+  objs = G.getCurrentScene().objects
+  for obj_name in REQUIRED_OBJECTS:
+    if OBJ_PREFIX+obj_name not in objs:
+      return fatal("Object '%s' not found in blender scene" % obj_name)
+    setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
-    # set available Action Units from the blender file (Blender Shape Actions)
-    cont = G.getCurrentController()
-    owner = cont.owner
-    acts = [act for act in cont.actuators if
-            not act.name.startswith('-') and act.action]
-    check_defects(owner, acts)
+  # set available Action Units from the blender file (Blender Shape Actions)
+  cont = G.getCurrentController()
+  owner = cont.owner
+  acts = [ act for act in cont.actuators if not act.name.startswith('-') and
+          act.action ]
+  check_defects(owner, acts)
 
-    # properties must be set to 'head' and 'Skeleton'.
-    # BEWARE to not set props to these objects before, they'll be included here.
-    AUs = [(pAU[1:],
-            getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
-          [(pAU[1:],
-            getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
-    if not server.set_available_AUs(AUs):
-        return fatal('Check your .blend file for bad property names')
+  # properties must be set to 'head' and 'Skeleton'.
+  # BEWARE to not set props to these objects before, they'll be included here.
+  AUs = [(pAU[1:],
+          getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
+        [(pAU[1:],
+          getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
+  if not server.set_available_AUs(AUs):
+    return fatal('Check your .blend file for bad property names')
 
-    # load axis limits for the Skeleton regardless of the configuration: if the
-    # spine mod is loaded (origin head), no spine AU should be processed here.
-    from utils import conf;                 #TODO: get values from blend file?
-    G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
+  # load axis limits for the Skeleton regardless of the configuration: if the
+  # spine mod is loaded (origin head), no spine AU should be processed here.
+  from utils import conf;                 #TODO: get values from blend file?
+  G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
-    # ok, startup
-    G.initialized = True
-    G.info_duration = 0
-    G.setLogicTicRate(MAX_FPS)
-    G.setMaxLogicFrame(1)       # relative to rendering
-    import Rasterizer
+  # ok, startup
+  G.initialized = True
+  G.info_duration = 0
+  G.setLogicTicRate(MAX_FPS)
+  G.setMaxLogicFrame(1)       # relative to rendering
+  import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
-    print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
-                             'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
-    G.last_update_time = time.time()
-    return cont
+  print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
+                           'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+  G.last_update_time = time.time()
+  return cont
 
 
 def update():
+  """
+  """
+  global INFO_PERIOD
+
+  def get_orientation_XZ(x,z):
+    """Up is positive Z values and the model is supposed to look towards
+    negative Y values.
     """
-    """
-    global INFO_PERIOD
+    return [ [cos(azL),        -sin(azL),         0],
+             [cos(x)*sin(z), cos(ax)*cos(azL),-sin(ax)],
+             [sin(x)*sin(z), sin(ax)*cos(azL), cos(ax)] ]
 
-    def get_orientation_XZ(x,z):
-        """Up is positive Z values and the model is supposed to look towards
-         negative Y values.
-        """
-        return [ [cos(azL),        -sin(azL),         0],
-                 [cos(x)*sin(z), cos(ax)*cos(azL),-sin(ax)],
-                 [sin(x)*sin(z), sin(ax)*cos(azL), cos(ax)] ]
+  srv = G.face_server
+  cont = G.getCurrentController()
+  eyes_done, spine_done = False, False
+  time_diff = time.time() - G.last_update_time
 
-    srv = G.face_server
-    cont = G.getCurrentController()
-    eyes_done, spine_done = False, False
-    time_diff = time.time() - G.last_update_time
+  # threaded server is thread-safe
+  face_map = srv.update(time_diff)
 
-    # threaded server is thread-safe
-    face_map = srv.update(time_diff)
+  for au, values in face_map.iteritems():
+    # XXX: yes, 6 is an eye prefix (do better ?)
+    if au.startswith('6'):
+        if eyes_done:                   # all in one pass
+            continue
+        ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
+        azR =  face_map['61.5R'][3]
+        azL =  face_map['61.5L'][3]
+        G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
+        G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
+        eyes_done = True
 
-    for au, values in face_map.iteritems():
-        # XXX: yes, 6 is an eye prefix (do better ?)
-        if au.startswith('6'):
-            if eyes_done:                   # all in one pass
-                continue
-            ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
-            azR =  face_map['61.5R'][3]
-            azL =  face_map['61.5L'][3]
-            G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
-            G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
-            eyes_done = True
-
-        elif au.startswith('T'):
-            if au[-1] == '0':
-                cont.owner['p'+au] = SH_ACT_LEN * values[3]
-                cont.activate(cont.actuators[au])
-            else:
-                a_min, a_max = G.Skeleton.limits[au]
-                a_bound = values[3] < 0 and a_min or a_max
-                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
-
-        # XXX: yes, 9 is a tongue prefix (do better ?)
-        elif au.startswith('9'):
-            G.tongue[au] = SH_ACT_LEN * values[3]
-
-        # XXX: yes, 5 is a head prefix (do better ?)
-        elif au.startswith('5'):
-            if float(au) <= 55.5:   # pan, tilt, roll
-                a_min, a_max = G.Skeleton.limits[au]
-                a_bound = values[3] < 0 and a_min or a_max
-                G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
-
-        elif au == '26':
-            # TODO: try with G.setChannel ?
-            G.Skeleton['p26'] = SH_ACT_LEN * values[3]
-
-        elif au[0].isdigit():
+    elif au.startswith('T'):
+        if au[-1] == '0':
             cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
-
         else:
             a_min, a_max = G.Skeleton.limits[au]
-            if values[3] >= 0:
-                G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
-            if values[3] < 0:
-                G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+            a_bound = values[3] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
 
-    G.last_update_time = time.time()
+    # XXX: yes, 9 is a tongue prefix (do better ?)
+    elif au.startswith('9'):
+        G.tongue[au] = SH_ACT_LEN * values[3]
 
-    G.info_duration += time_diff
-    if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
-        print "--- RENDERING INFO ---"
-        print "BGE logic running at", G.getLogicTicRate(), "fps."
+    # XXX: yes, 5 is a head prefix (do better ?)
+    elif au.startswith('5'):
+        if float(au) <= 55.5:   # pan, tilt, roll
+            a_min, a_max = G.Skeleton.limits[au]
+            a_bound = values[3] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+
+    elif au == '26':
+        # TODO: try with G.setChannel ?
+        G.Skeleton['p26'] = SH_ACT_LEN * values[3]
+
+    elif au[0].isdigit():
+        cont.owner['p'+au] = SH_ACT_LEN * values[3]
+        cont.activate(cont.actuators[au])
+
+    else:
+        a_min, a_max = G.Skeleton.limits[au]
+        if values[3] >= 0:
+            G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+        if values[3] < 0:
+            G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+
+  G.last_update_time = time.time()
+
+  G.info_duration += time_diff
+  if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
+      print "--- RENDERING INFO ---"
+      print "BGE logic running at", G.getLogicTicRate(), "fps."
 #        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
-        print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
-        G.info_duration = 0
+      print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
+      G.info_duration = 0
 
 
 #
