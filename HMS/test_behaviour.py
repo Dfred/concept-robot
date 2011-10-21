@@ -1,18 +1,18 @@
 
 import sys
-cogmod_root = '/home/joachim/PhD@Plymouth/Concept_project/workspace/weighted_cs/src/'
-concept_dir = '/home/joachim/PhD@Plymouth/Concept_project/workspace/concept-robot/'
-sys.path.append(cogmod_root)
-sys.path.append(concept_dir)
+from HMS import cogmod
     
 from HMS import expression_player as ep
-from utils import conf, handle_exception
+from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 from HMS.communication import ExpressionComm
 
+
+from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from layout import Ui_MainWindow
-import graphic
+from cogmod.layout import Ui_MainWindow
+from cogmod import cfg, agent, lg, graphic
+
 
 
 class TestBehaviour_Builder(ep.Behaviour_Builder):
@@ -24,18 +24,21 @@ class TestBehaviour_Builder(ep.Behaviour_Builder):
         
         
     def detect(self):
-        app = QApplication(sys.argv)
-        mainwindow = graphic.GUI()
-        ui = Ui_MainWindow()
-        ui.setupUi(mainwindow)
-        mainwindow.layout = ui
-        mainwindow.set_defaults()
-        mainwindow.show()
-        sys.exit(app.exec_())
+#        app = QApplication(sys.argv)
+#        mainwindow = graphic.GUI()
+#        ui = Ui_MainWindow()
+#        ui.setupUi(mainwindow)
+#        mainwindow.layout = ui
+#        mainwindow.set_defaults()
+#        mainwindow.show()
+#        sys.exit(app.exec_())
+
+        print self.comm_expr.status
+
         return SMFSM.STOPPED
         
           
-    def stopped(self):
+    def stopped(self, arg):
         print 'test stopped'
         return
       
@@ -46,7 +49,8 @@ class TestBehaviour_Builder(ep.Behaviour_Builder):
 
 
 if __name__ == '__main__':
-    
+    #import logging
+    #logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
     player = TestBehaviour_Builder()
     player.run()
     player.cleanup()
