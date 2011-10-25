@@ -2,15 +2,14 @@
 import sys
 import Queue
 import threading
-from HMS import cogmod
     
 from HMS import expression_player as ep
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
-from HMS.communication import ExpressionComm
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from HMS import cogmod
 from cogmod.layout import Ui_MainWindow
 from cogmod import graphic
 
@@ -23,9 +22,7 @@ class Behaviour_thread(threading.Thread):
     
     def run(self):
         self.player.run()
-        
-    def end(self):
-        self.player.cleanup()
+        self.player.cleanup()        
 
 
 
@@ -74,8 +71,8 @@ class FollowBehaviour_Builder(ep.Behaviour_Builder):
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
-    comm_queue = Queue.Queue()
     
+    comm_queue = Queue.Queue()
     bt = Behaviour_thread(comm_queue)
     bt.start()
     
