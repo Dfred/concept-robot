@@ -173,7 +173,7 @@ class ExpressionComm(ThreadedComm):
         intensity: normalized gain.
         """
         assert type(name) is str and type(intensity) is float, 'wrong types'
-        self.datablock[0] = '{0s}:{1:.3f}'.format(name, intensity)
+        self.datablock[0] = '{0!s}:{1:.3f}'.format(name, intensity)
 
     def set_text(self, text):
         """
