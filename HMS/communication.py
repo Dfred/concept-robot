@@ -92,6 +92,7 @@ class LightHeadComm(ThreadedComm):
         self.lips_info = None
         self.gaze_info = None
         self.face_info = None
+        self.snapshot = None
 
     def cmd_lips(self, argline):
         self.lips_info = argline
@@ -101,6 +102,9 @@ class LightHeadComm(ThreadedComm):
 
     def cmd_face(self, argline):
         self.face_info = argline
+        
+    def cmd_snapshot(self, argline):
+        self.snapshot = argline
 
     def get_snapshot(self):
         self.send_msg("get_snapshot")

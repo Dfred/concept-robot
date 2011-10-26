@@ -1,9 +1,8 @@
 
-import sys
-import Queue
-import threading
+import sys, threading, math, Queue, time
     
 from HMS import expression_player as ep
+from HMS.communication import LightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
@@ -15,52 +14,85 @@ from cogmod import graphic
 
 
 class Behaviour_thread(threading.Thread):
+    """ class which creates a dedicated thread for a Follow_Behaviour
+    """
     
     def __init__(self, comm_queue):
         threading.Thread.__init__(self)
-        self.player = FollowBehaviour_Builder(comm_queue)
+        self.player = Follow_Behaviour(comm_queue)
     
     def run(self):
         self.player.run()
+        print "check"
         self.player.cleanup()        
 
 
 
-class FollowBehaviour_Builder(ep.Behaviour_Builder):
-    """
+class Follow_Behaviour(ep.Behaviour_Builder):
+    """ FSM which tracks faces and adjust gaze accordingly
     """
     
     def __init__(self, comm_queue):
         
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT',  self.detect), (SMFSM.STOPPED,self.stopped) )
+        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_to_target), (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
+        self.comm_lighthead = LightHeadComm(conf.lightHead_server)
     
 
     def started(self):
         print 'test started'
         return 'DETECT'
-        
-        
-    def detect(self):
-        print "detecting"
-        
-        self.comm_expr.set_gaze((0.1, 0.5, 0.0))
-        self.comm_expr.send_datablock("Test")
-                
+    
+    
+    def get_features(self):
+        print "getting features"
+
         while True:
-            
             try:
                 item = self.comm_queue.get(False)
             except Queue.Empty:
                 item = None
-                
             if item == "quit_fsm":
                 return SMFSM.STOPPED
-            elif item:
-                print item
+            else:
+                self.comm_lighthead.get_snapshot()
+                print self.comm_lighthead.snapshot
+                time.sleep(1)
+    
+        
+    def set_gaze_to_target(self):
+        """ sets the gaze to whichever target (x, y, z) is pulled from the vision queue
+        """
+        
+        print "detecting"
+        #self.comm_expr.set_fExpression("neutral", 1.0)
+        #self.comm_expr.set_gaze((-0.1, 0.6, 0.0))
+        #self.comm_expr.set_datablock("happy:1.0", 1.0, "", (0.0, 0.5, 0.0), (0.1, 0.0, 0.0), (0.0, 0.0, 0.0), "")
+        #self.comm_expr.send_datablock("Test")
+        #return SMFSM.STOPPED
+        
+        while True:
+            try:    # query the queue
+                item = self.comm_queue.get(False)
+            except Queue.Empty:
+                item = None
                 
+            if item == "quit_fsm":  # if receiving the stop command, move state
+                return SMFSM.STOPPED
+            
+            elif item:  # else, direct gaze to target
+                (fx, fy, fw, fh) = item
+                face_dist = ((-88.5 * math.log(fw)) + 538.5)
+                fx = fx + (fw/2.0)
+                fy = fy + (fh/2.0)
+                x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
+                y_dist = (((fy/544.0) *-2) +1)*0.05
+
+                self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
+                self.comm_expr.send_datablock("GAZE_AJUST")
+
         
     def stopped(self, arg):
         print 'test stopped'
