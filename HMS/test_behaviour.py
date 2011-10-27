@@ -63,7 +63,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
         
     def set_gaze_to_target(self):
-        """ sets the gaze to whichever target (x, y, z) is pulled from the vision queue
+        """ sets the gaze to target pulled from the vision queue
         """
         
         print "detecting"
@@ -79,19 +79,28 @@ class Follow_Behaviour(ep.Behaviour_Builder):
             except Queue.Empty:
                 item = None
                 
-            if item == "quit_fsm":  # if receiving the stop command, move state
-                return SMFSM.STOPPED
-            
-            elif item:  # else, direct gaze to target
-                (fx, fy, fw, fh) = item
-                face_dist = ((-88.5 * math.log(fw)) + 538.5)
-                fx = fx + (fw/2.0)
-                fy = fy + (fh/2.0)
-                x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
-                y_dist = (((fy/544.0) *-2) +1)*0.05
-
-                self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
-                self.comm_expr.send_datablock("GAZE_AJUST")
+            if item:
+                if item == "quit_fsm":  # if receiving the stop command, move state
+                    return SMFSM.STOPPED
+                
+                elif item[0] == "face":  # face detected
+                    (fx, fy, fw, fh) = item[1]
+                    face_dist = ((-88.5 * math.log(fw)) + 538.5)
+                    fx = fx + (fw/2.0)
+                    fy = fy + (fh/2.0)
+                    x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
+                    y_dist = (((fy/544.0) *-2) +1)*0.05
+    
+                    self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
+                    self.comm_expr.send_datablock("GAZE_AJUST")
+                    
+                elif item[0] == "motion":  # motion detected
+                    (fx,fy) = item[1]
+                    x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
+                    y_dist = (((fy/544.0) *-2) +1)*0.05
+    
+                    self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
+                    self.comm_expr.send_datablock("GAZE_AJUST")
 
         
     def stopped(self, arg):
