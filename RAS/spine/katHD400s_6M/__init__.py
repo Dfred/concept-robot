@@ -9,21 +9,11 @@
 import math
 
 from utils import conf, get_logger
+import LH_KNI_wrapper
 
 __all__ = ['SpineHW']
 
 LOG = get_logger(__package__)
-
-
-try:
-  import KNI
-except ImportError,e:
-  import os.path
-  if not os.path.exists(os.path.join( __path__[0],'KNI.py')):
-    raise ImportError('The KNI module is not included in this release and shall'
-                      ' be built from source.')
-  else:
-    raise
 
 if __name__ == '__main__':
   from utils import conf
@@ -52,7 +42,8 @@ class SpineHW(SpineBase):
     self._accel = 1
     self._tolerance = 50
     #TODO: fill self.neck_info and self.torso_info
-    init_arm(self.hardware_name, self.KNI_cfg_file, self.KNI_address)
+    LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
+    self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
     self.switch_on()
 
   def load_conf(self):
@@ -82,8 +73,8 @@ class SpineHW(SpineBase):
     except:
       raise conf.LoadException("lib_spine['%s'] has no 'POSE_OFF' key" %
                                 self.hardware_name)
-    import os.path
-    self.KNI_cfg_file = __path__[0]+os.path.sep+"katana6M90T.cfg"
+    from os.path import dirname, sep
+    self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
 
   def rad2enc(self, axis, rad):
     mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
@@ -98,12 +89,7 @@ class SpineHW(SpineBase):
     return 1.0/factor*(enc - neutral)
 
   def is_moving(self):
-    #XXX: any safer way to do this ?
-    print KNI.getRobotEncoders()
-    p1, p2 = KNI.TPos(), KNI.TPos()
-    KNI.getPosition(p1)
-    KNI.getPosition(p2)
-    return p1.X,p1.Y,p1.Z == p2.X,p2.Y,p2.Z
+    return self.KNI.is_moving()
 
   def get_speedLimit(self):
     """In rad/s"""
@@ -113,7 +99,7 @@ class SpineHW(SpineBase):
     """In rad/s"""
     max_speed = self.SPEED_LIMITS[0][1]
     self._speed = min(int(value*max_speed), max_speed)
-    KNI.SetMotorVelocityLimit()
+    self.KNI.SetMotorVelocityLimit()
 
   def set_accel(self, value):
     """Set normalized values, relative to hardware capabilities."""
@@ -126,21 +112,21 @@ class SpineHW(SpineBase):
 
   def get_torso_info(self):
     """Returns TorsoInfo instance"""
-    self._torso_info.rot= self.round([self.enc2rad(2,KNI.getEncoder(2)),
+    self._torso_info.rot= self.round([self.enc2rad(2,self.KNI.getEncoder(2)),
                                       0.0,
-                                      self.enc2rad(1,KNI.getEncoder(1))])
+                                      self.enc2rad(1,self.KNI.getEncoder(1))])
     return self._torso_info
 
   def get_neck_info(self):
     """Returns NeckInfo instance"""
     # XXX: we are not using the same reference: create a mapping function
-    #tp = KNI.TPos()
-    #KNI.getPosition(tp)
+    #tp = self.KNI.TPos()
+    #self.KNI.getPosition(tp)
     #self._neck_info.pos= self.round([tp.X, tp.Y, tp.Z])
     #self._neck_info.rot= self.round([tp.phi, tp.theta, tp.psi])
 
     self._neck_info.rot = self.round( \
-        [ self.enc2rad(i, KNI.getEncoder(i+1)) for i in \
+        [ self.enc2rad(i, self.KNI.getEncoder(i+1)) for i in \
               xrange(3, len(self.AXIS_LIMITS)) ])
     return self._neck_info
 
@@ -163,13 +149,13 @@ class SpineHW(SpineBase):
 
   def switch_manual(self):
     """WARNING: Allow free manual handling of the robot. ALL MOTORS OFF!"""
-    if KNI.allMotorsOff() == -1:
+    if self.KNI.allMotorsOff() == -1:
       raise SpineError('failed to switch motors off')
     self._motors_on = False
 
   def switch_auto(self):
     """Resumes normal (driven-mode) operation of the robot."""
-    if not self._motors_on and KNI.allMotorsOn() == -1:
+    if not self._motors_on and self.KNI.allMotorsOn() == -1:
       raise SpineError('failed to switch motors on')
     self._motors_on = True
 
@@ -177,16 +163,16 @@ class SpineHW(SpineBase):
     """Mandatory call upon hardware switch on. Also can be use to test
      calibration procedure."""
     # TODO: use another sequence so that the arm does not collide itself
-    if KNI.calibrate(0) == -1:
+    if self.KNI.calibrate(0) == -1:
       raise SpineError('failed to calibrate hardware')
 
   def check_motors(self):
     """Test each motor status"""
     motors = [None]*len(self.AXIS_LIMITS)
+    encoders = self.KNI.getEncoders()
     for i in xrange(len(self.AXIS_LIMITS)):
       LOG.debug('checking motor %i', i+1)
-      enc = KNI.getEncoder(i+1)
-      motors[i] = KNI.moveMot(i+1, enc, self._speed, self._accel) != -1
+      motors[i] = self.KNI.moveMot(i+1, encoders[i], self._speed, self._accel) != -1
     if not all(motors):
       LOG.debug("some motors can't move before calibration: %s", motors)
     return motors
@@ -199,7 +185,7 @@ class SpineHW(SpineBase):
     if pose_name not in SpineBase.POSE_IDs:
       LOG.warning('pose %s does not exist', pose_name)
       return
-    if KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
+    if self.KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
                         [self._speed, self._accel, self._tolerance, wait])== -1:
       raise SpineError('failed to reach pose %s' % pose_name)
 
@@ -209,12 +195,12 @@ class SpineHW(SpineBase):
     encs = [ (4+i, self.rad2enc(4+i, v)) for i,v in enumerate(xyz) ]
     for axis, enc in encs:
       LOG.debug('moving axis %i to encoder %i', axis, enc)
-      if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
+      if self.KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
         raise SpineError('failed to reach rotation (axis %i)' % axis)
     if not wait:
       return
     for axis, enc in encs:
-      if KNI.waitForMot(axis, enc, self._tolerance) != 1:
+      if self.KNI.waitForMot(axis, enc, self._tolerance) != 1:
         raise SpineError('failed to wait for motor %i' % (axis))
 
   def set_torso_orientation(self, xyz, wait=True):
@@ -225,12 +211,12 @@ class SpineHW(SpineBase):
              (3, self.rad2enc(3, 0)) ]
     for axis, enc in encs:
       LOG.debug('moving axis %i to encoder %i', axis, enc)
-      if KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
+      if self.KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
         raise SpineError('failed to reach rotation (axis %i)' % axis)
     if not wait:
       return
     for axis, enc in encs:
-      if KNI.waitForMot(axis, enc, self._tolerance) != 1:
+      if self.KNI.waitForMot(axis, enc, self._tolerance) != 1:
         raise SpineError('failed to wait for motor %i' % axis)
 
   def set_neck_rot_pos(self, rot_xyz=None, pos_xyz=None):
@@ -239,27 +225,18 @@ class SpineHW(SpineBase):
       LOG.info('motors are %s [rot: %s\t pos: %s]', self._motors_on,
                rot_xyz, pos_xyz)
       return False
-    tp = KNI.TPos()
-    KNI.getPosition(tp)
+    tp = self.KNI.TPos()
+    self.KNI.getPosition(tp)
     if rot_xyz:
       tp.phi, tp.theta, tp.psi = rot_xyz
     if pos_xyz:
       tp.X, tp.Y, tp.Z = pos_xyz
-    ret = KNI.moveToPos(tp, self._speed, self._accel)
-    KNI.getPosition(tp)
+    ret = self.KNI.moveToPos(tp, self._speed, self._accel)
+    self.KNI.getPosition(tp)
     if ret == -1:
       raise SpineError('failed to reach rotation/position')
     return True
 
-
-def init_arm(name, KNI_cfg_file, address):
-  # Just initializes the arm
-  LOG.info('trying to connect to %s on %s', name, address)
-  if KNI.initKatana(KNI_cfg_file, address) == -1:
-    raise SpineError('KNI configuration file not found or'
-                     ' failed to connect to hardware', KNI_cfg_file)
-  else:
-    print 'loaded config file', KNI_cfg_file, 'and now connected'
 
 if __name__ == '__main__':
   import time
@@ -268,16 +245,13 @@ if __name__ == '__main__':
   comm.set_debug_logging(True)
   # just set the arm in manual mode and print motors' values upon key input.
   s = SpineHW()
+  print "getting to pose 'rest';"
   s.reach_pose('rest', wait=False)
-  p = KNI.TPos()
-  while s.is_moving():
-    KNI.getPosition(p)
-    print p.X, p.Y, p.Z, p.phi, p.theta, p.psi, "velocity:", KNI.getVelocity(4)
-    time.sleep(.2)
-  KNI.getPosition(p)
-  print p.X, p.Y, p.Z, p.phi, p.theta, p.psi, "velocity:", KNI.getVelocity(4)
-  time.sleep(.5)
 
+  while s.KNI.is_moving():
+    print '.'
+    time.sleep(.2)
+  print "\nencoders:", s.KNI.getEncoders(), "velocities:", s.KNI.getVelocities()
   s.switch_off()
   while not raw_input('press any key then Enter to finish > '):
-    print [ (m+1,KNI.getEncoder(m+1)) for m in range(len(s.AXIS_LIMITS)) ]
+    print "encoders:", s.KNI.getEncoders(), "velocities:", s.KNI.getVelocities()
