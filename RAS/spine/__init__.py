@@ -246,30 +246,33 @@ class SpineBase(object):
     raise NotImplementedError()
 
 
-try:
-  backend= __import__('RAS.spine.'+conf.ROBOT['mod_spine']['backend'],
-                      fromlist=['RAS.spine'])
-except ImportError, e:
-  LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
-  LOG.error('check in your config file for mod_spine "backend" entry.\n')
-  import sys; print sys.path; sys.exit(1)
-#from RAS.spine import katHD400s_6M as backend
-Spine_Server = backend.SpineHW
+def get_server_class():
+  """Gets the server class (with backend implementation).
+  """
+  try:
+    backend= __import__('RAS.spine.'+conf.ROBOT['mod_spine']['backend'],
+                        fromlist=['RAS.spine'])
+  except ImportError, e:
+    LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
+    LOG.error('check in your config file for mod_spine "backend" entry.\n')
+#    import sys; print sys.path; sys.exit(1)
+    from RAS.spine import katHD400s_6M as backend
+  return backend.SpineHW
 
 
 if __name__ == '__main__':
-  from utils import comm
-  import sys
+  import logging
+  from utils import comm, conf, LOGFORMATINFO
+  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+  conf.load(name='lightHead')
   try:
-    comm.set_debug_logging(debug=True)
-    server = comm.create_server(Spine_Server, Spine_Handler,
-                                conf.mod_spine['conn'], (False,False))
+    conf.ROBOT = conf.ARM
+    LOG.info("initializing %s", get_server_class())
+    server = comm.create_server(Spine_Handler, conf.ARM['mod_spine']['comm'],
+                                (False,False), get_server_class())
   except (conf.LoadException, UserWarning), err:
+    import sys
     LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
     exit(-1)
-  while server.running:
-    try:
-      server.serve_forever()
-    except SpineError, e:
-      print 'Error:', e
+  server.serve_forever()
   LOG.debug("Spine server done")

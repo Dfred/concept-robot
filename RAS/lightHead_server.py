@@ -41,7 +41,7 @@ from utils import get_logger, conf
 from RAS import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
+ORIGINS = ('face', 'gaze', 'lips', 'spine')                  # protocol keywords
 
 
 class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
@@ -147,7 +147,7 @@ class LightHeadServer(object):#MetaServerMixin):
                           " can't be loaded. Error: %s", name, e)
                 sys.exit(3)
             try:
-                subserv_class = getattr(module, name.capitalize()+'_Server')
+                subserv_class = getattr(module, 'get_server_class')()
                 handler_class = getattr(module, name.capitalize()+'_Handler')
             except AttributeError, e:
                 # Consider that missing class just means no subserver
