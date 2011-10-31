@@ -16,7 +16,7 @@
 #include <map>
 
 #define EXPORT_FCNS
-#include "kni_wrapper/kni_wrapper.h"
+#include "LH_KNI_wrapper.h"
 
 //#include <pthread.h>
 #include <sstream>
@@ -215,8 +215,6 @@ openGripper(){
 DLLEXPORT int 
 moveToPosEnc(int enc1, int enc2, int enc3, int enc4, int enc5, int enc6,
 	     int velocity, int acceleration, int tolerance, bool _wait){
-  std::cout <<"moving to: "<< enc1 <<", "<< enc2 <<", "<< enc3 <<", "<< enc4;
-  std::cout <<", "<< enc5 <<", "<< enc6 <<"\n";
   try{
     for(int i = 0; i < numberOfMotors; i++){
       //set speed
@@ -473,45 +471,45 @@ executeMovement(struct TMovement *movement){
 }
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int
-executeConnectedMovement(struct TMovement *movement, struct TPos *startPos,
+executeConnectedMovement(struct TMovement *mv, struct TPos *startPos,
 			 bool first, bool last){
   int status = ERR_SUCCESS;
-  setMaxAccel(0, movement->acceleration);
-  setMaxVelocity(0, movement->velocity);
+  setMaxAccel(0, mv->acceleration);
+  setMaxVelocity(0, mv->velocity);
   bool wait = last; // only wait at the last of the connected movements
-  if (movement->transition == PTP) {
+  if (mv->transition == PTP) {
     //move PTP
     try{
       if (first) {
 	// first of the connected movements, no startpos known
-	katana->moveRobotTo(movement->pos.X, movement->pos.Y, movement->pos.Z,
-			    movement->pos.phi, movement->pos.theta, movement->pos.psi,
+	katana->moveRobotTo(mv->pos.X, mv->pos.Y, mv->pos.Z,
+			    mv->pos.phi, mv->pos.theta, mv->pos.psi,
 			    wait);
       } else {
 	// startpos known
 	katana->movP2P(startPos->X, startPos->Y, startPos->Z, startPos->phi,
-		       startPos->theta, startPos->psi, movement->pos.X, movement->pos.Y,
-		       movement->pos.Z, movement->pos.phi, movement->pos.theta,
-		       movement->pos.psi, true, movement->velocity, wait);
+		       startPos->theta, startPos->psi, mv->pos.X, mv->pos.Y,
+		       mv->pos.Z, mv->pos.phi, mv->pos.theta,
+		       mv->pos.psi, true, mv->velocity, wait);
       }
     }
     catch(...){
       status = ERR_FAILED;
     }
-  } else if (movement->transition == LINEAR) {
+  } else if (mv->transition == LINEAR) {
     //move linear
     try{
       if (first) {
 	// first of the connected movements, no startpos known
-	katana->moveRobotLinearTo(movement->pos.X, movement->pos.Y, movement->pos.Z,
-				  movement->pos.phi, movement->pos.theta, movement->pos.psi,
+	katana->moveRobotLinearTo(mv->pos.X, mv->pos.Y, mv->pos.Z,
+				  mv->pos.phi, mv->pos.theta, mv->pos.psi,
 				  wait);
       } else {
 	// startpos known
 	katana->movLM2P(startPos->X, startPos->Y, startPos->Z, startPos->phi,
-			startPos->theta, startPos->psi, movement->pos.X, movement->pos.Y,
-			movement->pos.Z, movement->pos.phi, movement->pos.theta,
-			movement->pos.psi, true, movement->velocity, wait);
+			startPos->theta, startPos->psi, mv->pos.X, mv->pos.Y,
+			mv->pos.Z, mv->pos.phi, mv->pos.theta,
+			mv->pos.psi, true, mv->velocity, wait);
       }
     }
     catch(...){
@@ -545,7 +543,7 @@ ModBusTCP_writeWord(int address, int value){
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int ModBusTCP_readWord(int address, int &value){
+int ModBusTCP_readWord(int address, int *value){
   try{
     byte packet[32];
     byte size;
@@ -559,7 +557,7 @@ int ModBusTCP_readWord(int address, int &value){
     int val = buffer[2];
     val <<= 8;
     val += buffer[1];
-    value = val;
+    *value = val;
   }
   catch(Exception &e){
     std::cout << "ERROR: " << e.message() << std::endl;
@@ -591,7 +589,7 @@ IO_setOutput(char output, int value){
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int IO_readInput(int inputNr, int &value){
+int IO_readInput(int inputNr, int *value){
   try{
     byte	packet[32];
     byte size;
@@ -615,7 +613,7 @@ int IO_readInput(int inputNr, int &value){
     if((mask & (int)buffer[1]) > 0){
       value = 0;
     } else {
-      value = 1;
+      *value = 1;
     }
     return ERR_SUCCESS;
   }
@@ -637,24 +635,24 @@ clearMoveBuffers(){
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int getVelocity(int axis, int &value){
-  try{
-    katana->GetBase()->GetMOT()->arr[axis-1].recvPVP();
-    short vel = katana->GetBase()->GetMOT()->arr[axis-1].GetPVP()->vel;
-    value = (int) vel;
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
-  return ERR_SUCCESS;
-}
+// int getVelocity(int axis, int value[6]){
+//   try {
+//     katana->GetBase()->GetMOT()->arr[axis-1].recvPVP();
+//     short vel = katana->GetBase()->GetMOT()->arr[axis-1].GetPVP()->vel;
+//     value = (int) vel;
+//   }
+//   catch(Exception &e){
+//     std::cout << "ERROR: " << e.message() << std::endl;
+//     ERROR(e); return ERR_FAILED;
+//   }
+//   return ERR_SUCCESS;
+// }
 ////////////////////////////////////////////////////////////////////////////////
-int getDrive(int axis, int &value){
+int getDrive(int axis, int *value){
   try{
     katana->GetBase()->GetMOT()->arr[axis-1].recvPVP();
     byte pwm = katana->GetBase()->GetMOT()->arr[axis-1].GetPVP()->pwm;
-    value = (int) pwm;
+    *value = (int) pwm;
   }
   catch(Exception &e){
     std::cout << "ERROR: " << e.message() << std::endl;
@@ -663,17 +661,17 @@ int getDrive(int axis, int &value){
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int getEncoder(int axis, int &value){
-  try{
-    katana->getRobotEncoders(encoders.begin(), encoders.end());
-    value = encoders.at(axis-1);
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
-  return ERR_SUCCESS;
-}
+// int getEncoder(int axis, int *value){
+//   try{
+//     katana->getRobotEncoders(encoders.begin(), encoders.end());
+//     *value = encoders.at(axis-1);
+//   }
+//   catch(Exception &e){
+//     std::cout << "ERROR: " << e.message() << std::endl;
+//     ERROR(e); return ERR_FAILED;
+//   }
+//   return ERR_SUCCESS;
+// }
 ////////////////////////////////////////////////////////////////////////////////
 int getAxisFirmwareVersion(int axis, char value[]){
   try{
@@ -892,26 +890,73 @@ ping(int axis){
   }
   return ERR_SUCCESS;
 }
-////////////////////////////////////////////////////////////////////////////////
+
+// ---------- Extended part of Neuronics' kni_wrapper ----------
+
 /*
- **
- ** The swig wrapper provided by Neuronics is missing methods. This is a wrapper
- ** in C to be used with python ctypes (ctypes cannot access C++).
- ** Compile it, adapting the paths of this command:
- ** gcc -shared -o -I./KNI/include KNI.so KNI_wrapper.cpp
- **
+ ** MOTIVATION: Python ctypes cannot access C++ (since there's no strict ABI at
+ ** the time of this writting) and the swig wrapper provided by Neuronics is 
+ ** missing some useful methods.
  */
 DLLEXPORT int
-get_encoders(int dest_encs[6])	// handle only 6 axis
+getEncoders(int dest_encs[MAX_MOTORS])			// handle only 6 axis
 {
   try {
+    const TKatMOT* motors = katana->GetBase()->GetMOT();
+    assert(motors->cnt <= MAX_MOTORS);
     katana->getRobotEncoders(encoders.begin(), encoders.end());
+    for (int i = 0; i < motors->cnt; i++)
+      dest_encs[i] = encoders[i];
   }
   catch(Exception &e) {
     std::cout <<"KNI ERROR: "<< e.message() << std::endl;
     ERROR(e); return ERR_FAILED;
   }
-  for (int i = 0; i < 6; i++)
-    dest_encs[i] = encoders[i];
   return ERR_SUCCESS;
+}
+
+////
+//
+//
+int getVelocities(int dest_vels[MAX_MOTORS]){
+  try {
+    const TKatMOT* motors = katana->GetBase()->GetMOT();
+    assert(motors->cnt <= MAX_MOTORS);
+    //    katana->GetBase()->recvGMS();
+    for (int i = 0; i < motors->cnt; i++)
+      {
+	motors->arr[i].recvPVP();
+	dest_vels[i] = (int) motors->arr[i].GetPVP()->vel;
+      }
+  }
+  catch(Exception &e){
+    std::cout << "ERROR: " << e.message() << std::endl;
+    ERROR(e); return ERR_FAILED;
+  }
+  return ERR_SUCCESS;
+}
+
+////
+// XXX: limited to 8 motors (currently 6 are available).
+// TODO: try{} catch() {}
+DLLEXPORT int
+is_moving(int axis)					// axis 0 => all axis
+{
+  unsigned char status = 0;
+  try {
+    const TKatMOT* motors = katana->GetBase()->GetMOT();
+    katana->GetBase()->recvGMS();
+    if (axis)
+      return motors->arr[axis-1].GetPVP()->msf == MSF_NORMOPSTAT;
+    for (int i=0; i < motors->cnt; i++)
+      {
+	status += motors->arr[i].GetPVP()->msf == MSF_NORMOPSTAT;
+	status <<= 1;
+      }
+  }
+  catch(Exception &e) {
+    std::cout <<"KNI ERROR: "<< e.message() << std::endl;
+    ERROR(e); return ERR_FAILED;
+  }
+  return (int) status;					// can't be negative
 }
