@@ -109,15 +109,17 @@ def build_candidates():
         locs.append(path.join('/etc', __NAME+'.conf'))
     return locs
 
-def load(raise_exception=True, reload=False, required_entries=()):
+def load(raise_exception=True, reload=False, required_entries=(), name=None):
     """Try to load 1st available configuration file, ignoring Subsequent calls
     unless reload is set to True.
     required_names: iterable of strings specifying variable names to be found.
     Returns: [missing_definitions]
     """
     global __NAME, __LOADED_FILE
-    if not __NAME:
+    if not name:
         get_name()
+    else:
+        set_name(name)
 
     def check_missing(required_entries):
         """check for missing mandatory configuration entries.
