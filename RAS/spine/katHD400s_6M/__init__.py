@@ -77,6 +77,8 @@ class SpineHW(SpineBase):
     self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
 
   def rad2enc(self, axis, rad):
+    """Considers axis limits.
+    """
     mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
     e = int(factor*rad) + neutral
     f = min(max(mn, e), mx)
