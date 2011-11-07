@@ -47,10 +47,15 @@ byte	size = 0; 	//comm readbuf size
 # define ERROR(e)
 #endif
 
+#define EXCEPT(src)  try{src}	catch(Exception &e){		\
+  std::cout << __FILE__<<":"<<__LINE__<<" ERROR: "<< e.message() << std::endl;\
+  ERROR(e); return ERR_FAILED; }
+
+
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
 initKatana(char* configFile, char* ipaddress){
-  try {
+  EXCEPT(
     int port = 5566;
     device.reset(new CCdlSocket(ipaddress, port));
     protocol.reset(new CCplSerialCRC());
@@ -62,40 +67,26 @@ initKatana(char* configFile, char* ipaddress){
       encoders.push_back(0);
     }
     //MessageBox(NULL, "Katana successfully initiated!",TEXT(""),MB_OK);
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e)
-    return ERR_FAILED;
-  }
+	 )
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
 calibrate(int axis){
-  try{
-    katana->calibrate();
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+  EXCEPT(katana->calibrate();)
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
 moveMot(int axis, int enc, int speed, int accel){
-  try{
-    //set speed
-    katana->setMotorVelocityLimit(axis-1, speed);
-    //set acceleration
-    katana->setMotorAccelerationLimit(axis-1, accel);
-    //move
-    katana->moveMotorToEnc(axis-1, enc);
-  }
-  catch(...){
-    return ERR_FAILED;
-  }
+  EXCEPT(
+	 //set speed
+	 katana->setMotorVelocityLimit(axis-1, speed);
+	 //set acceleration
+	 katana->setMotorAccelerationLimit(axis-1, accel);
+	 //move
+	 katana->moveMotorToEnc(axis-1, enc);
+	 )
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +206,7 @@ openGripper(){
 DLLEXPORT int 
 moveToPosEnc(int enc1, int enc2, int enc3, int enc4, int enc5, int enc6,
 	     int velocity, int acceleration, int tolerance, bool _wait){
-  try{
+  EXCEPT(
     for(int i = 0; i < numberOfMotors; i++){
       //set speed
       katana->setMotorVelocityLimit(i, velocity);
@@ -231,11 +222,7 @@ moveToPosEnc(int enc1, int enc2, int enc3, int enc4, int enc5, int enc6,
     enc.push_back(enc5);
     enc.push_back(enc6);
     katana->moveRobotToEnc(enc.begin(), enc.end(), _wait, tolerance);
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+	 )
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -804,13 +791,7 @@ getCurrentControllerType(int axis){
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
 unblock(){
-  try{
-    katana->unBlock();
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+  EXCEPT(katana->unBlock();)
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -828,21 +809,14 @@ setControllerParameters(int axis, int ki, int kspeed, int kpos){
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
 setMaxVelocity(int axis, int vel){
-  try{
-    if (axis == 0){
-      for(int i = 0; i <= getNumberOfMotors()-1; i++){
+  EXCEPT(
+    if (axis == 0)
+      for(int i = 0; i <= getNumberOfMotors()-1; i++)
 	katana->setMotorVelocityLimit(i, vel);
-      }
-    }
-    else{
+    else
       katana->setMotorVelocityLimit(axis-1, vel);
-    }
     katana->setMaximumLinearVelocity((double)vel);
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+	 )
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -898,28 +872,25 @@ ping(int axis){
  ** the time of this writting) and the swig wrapper provided by Neuronics is 
  ** missing some useful methods.
  */
+
+///
 DLLEXPORT int
 getEncoders(int dest_encs[MAX_MOTORS])			// handle only 6 axis
 {
-  try {
+  EXCEPT(
     const TKatMOT* motors = katana->GetBase()->GetMOT();
     assert(motors->cnt <= MAX_MOTORS);
     katana->getRobotEncoders(encoders.begin(), encoders.end());
     for (int i = 0; i < motors->cnt; i++)
       dest_encs[i] = encoders[i];
-  }
-  catch(Exception &e) {
-    std::cout <<"KNI ERROR: "<< e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+	 )
   return ERR_SUCCESS;
 }
 
-////
-//
-//
-int getVelocities(int dest_vels[MAX_MOTORS]){
-  try {
+///
+DLLEXPORT int 
+getVelocities(int dest_vels[MAX_MOTORS]){
+  EXCEPT(
     const TKatMOT* motors = katana->GetBase()->GetMOT();
     assert(motors->cnt <= MAX_MOTORS);
     //    katana->GetBase()->recvGMS();
@@ -928,22 +899,17 @@ int getVelocities(int dest_vels[MAX_MOTORS]){
 	motors->arr[i].recvPVP();
 	dest_vels[i] = (int) motors->arr[i].GetPVP()->vel;
       }
-  }
-  catch(Exception &e){
-    std::cout << "ERROR: " << e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+	 )
   return ERR_SUCCESS;
 }
 
 ////
 // XXX: limited to 8 motors (currently 6 are available).
-// TODO: try{} catch() {}
 DLLEXPORT int
 is_moving(int axis)					// axis 0 => all axis
 {
   unsigned char status = 0;
-  try {
+  EXCEPT(
     const TKatMOT* motors = katana->GetBase()->GetMOT();
     katana->GetBase()->recvGMS();
     if (axis)
@@ -953,10 +919,6 @@ is_moving(int axis)					// axis 0 => all axis
 	status += motors->arr[i].GetPVP()->msf == MSF_NORMOPSTAT;
 	status <<= 1;
       }
-  }
-  catch(Exception &e) {
-    std::cout <<"KNI ERROR: "<< e.message() << std::endl;
-    ERROR(e); return ERR_FAILED;
-  }
+	 )
   return (int) status;					// can't be negative
 }
