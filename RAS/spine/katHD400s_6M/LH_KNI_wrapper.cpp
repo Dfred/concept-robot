@@ -72,7 +72,7 @@ initKatana(char* configFile, char* ipaddress){
 }
 ////////////////////////////////////////////////////////////////////////////////
 DLLEXPORT int 
-calibrate(int axis){
+calibrate(){
   EXCEPT(katana->calibrate();)
   return ERR_SUCCESS;
 }
@@ -904,7 +904,20 @@ getVelocities(int dest_vels[MAX_MOTORS]){
 }
 
 ////
-// XXX: limited to 8 motors (currently 6 are available).
+DLLEXPORT int
+calibrate_if_needed()
+{
+  int encoders[6];
+  if (getEncoders(encoders) == ERR_FAILED)
+    return ERR_FAILED;
+  for (int i=0; i<6; i++)
+    if (moveMot(i+1, encoders[i], 10, 1) == ERR_FAILED)
+      return calibrate();
+  return 0;
+}
+
+////
+// XXX: limited to 7 motors (currently 6 are available).
 DLLEXPORT int
 is_moving(int axis)					// axis 0 => all axis
 {
@@ -914,11 +927,10 @@ is_moving(int axis)					// axis 0 => all axis
     katana->GetBase()->recvGMS();
     if (axis)
       return motors->arr[axis-1].GetPVP()->msf == MSF_NORMOPSTAT;
-    for (int i=0; i < motors->cnt; i++)
-      {
-	status += motors->arr[i].GetPVP()->msf == MSF_NORMOPSTAT;
-	status <<= 1;
-      }
+    for (int i=0; i < motors->cnt; i++) {
+      status += motors->arr[i].GetPVP()->msf == MSF_NORMOPSTAT;
+      status <<= 1;
+    }
 	 )
-  return (int) status;					// can't be negative
+  return status > 0;					// can't be negative
 }

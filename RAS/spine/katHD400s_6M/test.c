@@ -9,7 +9,7 @@
 
 #include "LH_KNI_wrapper.h"
 
-#define ERR_FAILED 0
+#define ERR_FAILED -1
 #define MAX_SPEED 180	// in encoders per 10 ms => 18 000 encoders/s.
 #define ACCEL	2	// 1: long accel (~sqrt) / 2: short accel (~linear)
 
@@ -23,20 +23,6 @@ void print_status(int encoders[6], int velocities[6], char self_overwrite)
     printf("(#%i : %ie %iv) ", i+1, encoders[i], velocities[i]);
   if (! self_overwrite)
     printf("\n");
-}
-
-char check_calibration()
-{
-  int encoders[6];
-  if (getEncoders(encoders) == ERR_FAILED)
-    exit(1);
-  for (int i=0; i<6; i++)
-    if (moveMot(i+1, encoders[i], 10, 1) == ERR_FAILED) {
-      calibrate(0);
-      if (is_moving(0))
-	exit(2);       
-    }
-  return 0;
 }
 
 typedef float (*p_fct)(float);
@@ -106,7 +92,9 @@ int main(int ac, char *argv[])
     { printf("config file argument required.\n"); exit(1); }
   if (initKatana(argv[1], "192.168.168.232") == -1)
     { printf("initKatana failed\n"); exit(1); }
-  check_calibration(encoders);
+  if (calibrate_if_needed() == -1)
+      exit(1);
+
   float fac = 1;
   if (sscanf(argv[ac-1], "%f", &fac) == -1)
     { printf("invalid factor: bad float value: %s\n", argv[ac-1]); exit(1); }

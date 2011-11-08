@@ -28,21 +28,34 @@ Only basic control on the arm is needed. Avoiding swig also allows us to be
 closer to low-level apis, hence reducing overhead.
 """
 from os.path import dirname, sep
+from platform import system
 from ctypes import *
+
 
 class LHKNI_wrapper(object):
     """
     """
+    @staticmethod
+    def validate(API_return_value):
+        if API_return_value == -1:
+            raise SpineError('KNI failure')
+        return API_return_value
+
+    #XXX: Careful: it seems ctypes has issues with debug symbols!
+    LIB_PATH = dirname(__file__)+sep+'libLH_KNI_wrapper'+(
+        system() == 'Windows' and '.dll' or '.so')
+
     def __init__(self, KNI_cfg_file, address):
         try:
-            self.KNI = CDLL(dirname(__file__)+sep+'libLH_KNI_wrapper-debug.so')
+            self.KNI = CDLL(self.LIB_PATH)
         except OSError, e:
             raise ImportError('trying to load shared object: '+e.args[0])
         
-        if self.initKatana(KNI_cfg_file, address) == -1:
+        if self.KNI.initKatana(KNI_cfg_file, address) == -1:
             raise SpineError('KNI configuration file not found or'
                              ' failed to connect to hardware', KNI_cfg_file)
         print 'loaded config file', KNI_cfg_file, 'and now connected'
+        self.KNI.restype = LHKNI_wrapper.validate
 
     def __getattr__(self,name):
         """
@@ -63,10 +76,4 @@ class LHKNI_wrapper(object):
         vels = (c_int * 6)()
         self.KNI.getVelocities(vels)
         return [ v for v in vels ]
-
-    def is_axis_moving(self, axis):
-        return self.KNI.is_moving(axis)
-
-    def is_moving(self):
-        return self.KNI.is_moving(0)
-
+        
