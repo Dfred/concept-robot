@@ -1,7 +1,7 @@
-# LightHead programm is a HRI PhD project at the University of Plymouth,
-#  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.  
-# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
+#  of Plymouth (UK). LightHead is a Robotic Animation System and features
+#  hardware, sensor, high-level animation and remote management interfaces.
+# Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
 #  This program is free software: you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License as
@@ -15,4 +15,3 @@
 
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-

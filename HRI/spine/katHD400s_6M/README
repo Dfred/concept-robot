@@ -1,8 +1,0 @@
-
-In order to load the KNI module, you need to create 3 (sim)links in this directory:
-
-1) to KatanaNativeInterface/py/KNI.py
-2) to KatanaNativeInterface/py/_KNI.so 
-3) to one of KatanaNativeInterface/configfiles../katana...cfg
-
-It is not yet clear if the KNI license allows for distribution of these.

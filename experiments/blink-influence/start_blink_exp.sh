@@ -1,4 +1,4 @@
-if test -x ./start_blink_exp.sh; then
+if test -f ./start_blink_exp.sh; then
     cd ../..
 else
     echo 'you may start this script from the top directory or where you found it'

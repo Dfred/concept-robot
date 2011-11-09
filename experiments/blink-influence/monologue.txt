@@ -1,7 +1,9 @@
-0 simple_smile1:1;"Hello dear participant!";;;;TAG1
-0 ;"I am LightHead,";;;;TAG2
-1 slow_neutral:1;"the child robot.";;;;TAG3
-0 ;"Here's what I know about a bird called the Yellow-crowned Bishop";;;;TAG
+# monologue script
+
+1 surprised:1;"Hello, dear participant!";;;;TAG1
+0 happy:1;"I am LightHead,";;;;TAG2
+1 happy:-1;"the child robot.";;;;TAG3
+0 nod:.5;"Here's what I know about a bird called the Yellow-crowned Bishop";;;;TAG
 0 ;"also known as Euplectes afer";;;;TAG
 0 ;"is a species of passerine bird in the Ploceidae family native to Africa south of the Sahara.";;;;TAG
 0 ;"It is highly sexually dimorphic in its breeding season, that is...";;;;TAG

@@ -1,14 +1,14 @@
-This document describes file organisation of the Human-Robot Interaction part of the CONCEPT project.
+This document describes file organisation of this project.
 
-./		high-level information, startup script, and executables
-common/		common (and hopefully reusable) python modules and utilities
-control/	various system control interfaces and learning specifics	
-HRI/		main python modules and utilities
-HRI/face/	display engine (Blender) and client interfaces
-HRI/gaze/	gazing dynamics, postures (eg: thinking -> gazing up) and iris
-HRI/vision/	set of image processing modules (color/edge/face/expression detection)
-HRI/neck/	head movements (dynamics, postures, IK)
-HRI/affect/	affective module (emotion, mood, personality)
-HRI/dynamics/	motion dynamics (movement functions for other modules)
-interface/	interface modules for the concept learning part (other repository)
-experiments/	default directory for specific code and results
+./		high-level information and startup scripts
+common/		scripts, configuration and miscelaneous files for the project
+experiments/	experiments and results
+extern/		embedded dependencies
+HMS/		High-level Management System folder
+HMS/control/	modules for the concept learning part (from Joachim's repository)
+RAS/		Robotic Animation System folder
+RAS/eyes/	eye animation engine (currently a place holder since eye animation is handled by face)
+RAS/face/	facial animation engine(s)
+RAS/spine/	includes thorax, neck and head movements
+RAS/vision/	image sensor and processing classes
+utils/		reusable python modules and utilities for other projects
