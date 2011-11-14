@@ -60,6 +60,15 @@ INFO_PERIOD = None
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
+from RAS.face import Face_Server
+class FaceHW(Face_Server):
+    """Blender is our entry point, so make it simple letting blender take over.
+    So this script fetches Face's data pool directly in update().
+
+    No hardware implementation is actually needed in this case.
+    """
+    pass
+
 def exiting():
   # server may not have been successfully created
   if hasattr(G, "server") and G.server.is_started():
@@ -103,29 +112,28 @@ def initialize(server):
   # get driven objects
   objs = G.getCurrentScene().objects
   for obj_name in REQUIRED_OBJECTS:
-    if OBJ_PREFIX+obj_name not in objs:
-      return fatal("Object '%s' not found in blender scene" % obj_name)
-    setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
+      if OBJ_PREFIX+obj_name not in objs:
+          return fatal("Object '%s' not found in blender scene" % obj_name)
+      setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
   # set available Action Units from the blender file (Blender Shape Actions)
   cont = G.getCurrentController()
   owner = cont.owner
-  acts = [ act for act in cont.actuators if not act.name.startswith('-') and
-          act.action ]
+  acts = [act for act in cont.actuators if
+          not act.name.startswith('-') and act.action]
   check_defects(owner, acts)
 
   # properties must be set to 'head' and 'Skeleton'.
   # BEWARE to not set props to these objects before, they'll be included here.
-  AUs = [(pAU[1:],
-          getattr(owner,pAU)/SH_ACT_LEN) for pAU in owner.getPropertyNames()] + \
-        [(pAU[1:],
-          getattr(G.Skeleton,pAU)/SH_ACT_LEN) for pAU in G.Skeleton.getPropertyNames()]
+  AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
+          pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
-    return fatal('Check your .blend file for bad property names')
+      return fatal('Check your .blend file for bad property names')
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
   from utils import conf;                 #TODO: get values from blend file?
+  # blender might issue a warning here, nvm as we add a member, not access it.
   G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
   # ok, startup

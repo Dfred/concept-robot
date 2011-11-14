@@ -125,6 +125,7 @@ class Face_Handler(ASCIIRequestHandler):
     #XXX: we return the number of immediately following bytes to be ignored
     return int(size)                                        # design limitation
 
+
 class Face_Server(object):
   """Main facial feature animation module
 
@@ -207,19 +208,25 @@ class Face_Server(object):
       """
       pass
 
-try:
-  backend = __import__('RAS.face.'+conf.ROBOT['mod_face']['backend'],
-                       fromlist=['RAS.face'])
-except ImportError, e:
-  LOG.error("\n*** FACE INITIALIZATION ERROR *** (%s)", e)
-  LOG.error('check in your config file for mod_face "backend" entry.')
-  raise
+
+def get_server_class():
+  """Gets the server class (with backend implementation).
+  """
+  try:
+    backend = __import__('RAS.face.'+conf.ROBOT['mod_face']['backend'],
+                         fromlist=['RAS.face'])
+  except ImportError, e:
+    LOG.error("\n*** FACE INITIALIZATION ERROR *** (%s)", e)
+    LOG.error('check in your config file for mod_face "backend" entry.')
+    raise
+  return backend.FaceHW
+
 
 if __name__ == '__main__':
   from utils import comm
   comm.set_debug_logging(len(sys.argv) > 1 and sys.argv[1] == '-d')
-
   try:
+    conf.load(name='lightHead')
     fconf = conf.ROBOT['mod_face']
     server = comm.session.create_server(Face_Handler, fconf['comm'],
                                         (False,False),Face_Server)

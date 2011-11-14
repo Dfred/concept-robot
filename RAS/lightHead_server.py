@@ -41,7 +41,7 @@ from utils import get_logger, conf
 from RAS import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'gaze', 'lips', 'head')                  # protocol keywords
+ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords
 
 
 class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
@@ -49,8 +49,8 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def __init__(self, server, sock, client_addr):
         super(LightHeadHandler,self).__init__(server, sock, client_addr)
-        self.handlers = {}              # { origin : subhandler }
-        self.transacting = None         # current transaction ('origin' command)
+        self.handlers = {}                              # {origin : subhandler}
+        self.transacting = None                         # current transaction
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
@@ -87,8 +87,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 #        for k,v in self.server.FP.get_snapshot(origins).iteritems():
 #            self.send_msg(k+' '+' '.join(v))
         for o in origins:
-            self.send_msg('snapshot %s\n%s' % (o, self.server.FP[o]))
-        self.send_msg('end_snapshot')
+            self.send_msg('snapshot %s %s' % (o, self.server.FP[o].__repr__().replace('\n', ' ')))
 
 
 class LightHeadServer(object):#MetaServerMixin):
@@ -147,7 +146,7 @@ class LightHeadServer(object):#MetaServerMixin):
                           " can't be loaded. Error: %s", name, e)
                 sys.exit(3)
             try:
-                subserv_class = getattr(module, name.capitalize()+'_Server')
+                subserv_class = getattr(module, 'get_server_class')()
                 handler_class = getattr(module, name.capitalize()+'_Handler')
             except AttributeError, e:
                 # Consider that missing class just means no subserver
