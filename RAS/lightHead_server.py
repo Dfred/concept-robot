@@ -41,7 +41,7 @@ from utils import get_logger, conf
 from RAS import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'gaze', 'lips', 'spine')                  # protocol keywords
+ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords
 
 
 class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
@@ -49,8 +49,8 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def __init__(self, server, sock, client_addr):
         super(LightHeadHandler,self).__init__(server, sock, client_addr)
-        self.handlers = {}              # { origin : subhandler }
-        self.transacting = None         # current transaction ('origin' command)
+        self.handlers = {}                              # {origin : subhandler}
+        self.transacting = None                         # current transaction
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
