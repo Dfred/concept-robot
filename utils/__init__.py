@@ -175,6 +175,9 @@ def handle_exception(logger, msg=''):
     else:
       handle_exception_debug(logger, force_debugger=True)
 
+def round(iterable):
+    """version for iterables, different signature from __builtins__.round"""
+    return [ round(v, Spine_Server.PRECISION) for v in iterable ]
 
 # TODO: move this class elsewhere
 class Frame(object):
