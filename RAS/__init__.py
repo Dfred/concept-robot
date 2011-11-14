@@ -36,6 +36,7 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 import site
 import logging
+import numpy
 
 LOG = logging.getLogger(__package__)                  # updated in initialize()
 REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
@@ -43,18 +44,18 @@ REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
 
 
 class FeaturePool(dict):
-  """This class serves as a short term memory. It holds all possible features
-  so other modules can query a snapshot of the current robot's state.
-  Also, it's a singleton.
+  """This singleton class serves as an efficient working memory (numpy arrays) 
+  for each part of the system (aka origin).
+  Snapshots of the current robot's state can be returned.
   """
   # single instance holder
   instance = None
 
   def __new__(cls):
     """Creates a singleton.
-    Another feature pool? Derive from that class overriding self.instance,
+    Need another feature pool? Derive from that class, overriding self.instance,
      and don't bother with the __ prefix to make it pseudo-private...
-    cls: don't touch (it's the current type, ie: maybe a derived class type)
+    cls: Current type (ie: maybe a derived class type)
     """
     if cls.instance is None:
       cls.instance = super(FeaturePool,cls).__new__(cls)
@@ -66,7 +67,6 @@ class FeaturePool(dict):
     np_array: numpy.ndarray (aka numpy array) of arbitrary size
     """
     # load non-standard module only now
-    import numpy
     LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
     assert np_array is not None and isinstance(np_array, numpy.ndarray) , \
            'Not a numpy ndarray instance'
@@ -74,7 +74,7 @@ class FeaturePool(dict):
 
   def get_snapshot(self, features=None):
     """Get a snapshot, optionally selecting specific features.
-    features: iterable of str specifying features to be returned.
+    features: iterable of strings identifying features to be returned.
     Returns: all context (default) or subset from specified features.
     """
     # load non-standard module only now
@@ -82,6 +82,57 @@ class FeaturePool(dict):
     features = features or features.iterkeys()
     return dict( (f, isinstance(self[f],numpy.ndarray) and self[f] or
                   self[f].get_feature()) for f in features )
+
+
+class AUPool(dict):
+  """This class facilitates the use of Action Units within the Feature Pool.
+  Also, it uses motion dynamics.
+  """
+  def __init__(self, origin, dynamics):
+    """Initialize an AU pool for a specific origin, using a Dynamics instance.
+    origin: ID (name) of the origin using this AU pool
+    dynamics: a Dynamics instance defining motion/speed control.
+    """
+    super(AUPool, self).__init__(self)
+    self.origin = origin
+    self.FP = FeaturePool()
+    self.dynamics = dynamics
+
+  def set_availables(self, AUs, values=None):
+    """Register supported AUs, optionally setting their initial values.
+    AUs: iterable of Action Unit IDs (names)
+    values: iterable of floats. Needs to be the same length as AUs.
+    """
+    if values:
+      assert len(AUs) == len(values), "AUs and values have different lengths"
+    else:
+      values = [0] * len(AUs)
+    # target value, target duration, current value, time remaining
+    table = [ values, [.0]*len(values), values, [.0]*len(values) ]
+    self.FP[self.origin] = numpy.array(zip(*table))     # transpose
+    LOG.info("Available AUs:\n")
+    for i,au in enumerate(AUs):
+      dict.__setitem__(self, au, self.FP[self.origin][i])
+      LOG.info("%5s : %s", au, self[au])
+    return True
+
+  def udpate(self, time_interval):
+    """
+    """
+    data = self.FP[self.origin][1]                      # numpy array
+    actives_idx = data[:,1] > 0                         # filter on time left
+    if not any(actives_idx):
+      return {}
+    # TODO: use the motion dynamics here (dynamics/__init__.py)
+    data[actives_idx,3] += data[actives_idx,2] * time_step
+    data[:,1] -= time_step
+    # finish off shortest activations
+    overdue_idx = data[:,1] < self.MIN_ATTACK_TIME
+    data[overdue_idx, 1] = 0
+    data[overdue_idx, 3] = data[overdue_idx, 0]
+    if self.thread_id != thread.get_ident():
+      self.threadsafe_stop()
+    return self.AUs
 
 
 def initialize(thread_info):
