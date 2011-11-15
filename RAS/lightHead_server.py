@@ -142,8 +142,7 @@ class LightHeadServer(object):#MetaServerMixin):
             try:
                 module = __import__('RAS.'+name, fromlist=['RAS'])
             except ImportError, e:
-                LOG.error("Configuration mentions 'mod_%s' but this module"
-                          " can't be loaded. Error: %s", name, e)
+                LOG.error("Error while loading 'mod_%s': %s", name, e)
                 sys.exit(3)
             try:
                 subserv_class = getattr(module, 'get_server_class')()

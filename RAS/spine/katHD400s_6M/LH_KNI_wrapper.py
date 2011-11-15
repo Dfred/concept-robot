@@ -49,8 +49,8 @@ class LHKNI_wrapper(object):
         try:
             self.KNI = CDLL(self.LIB_PATH)
         except OSError, e:
-            raise ImportError('trying to load shared object: '+e.args[0])
-        
+            raise ImportError('trying to load '+self.LIB_PATH+': '+e.args[-1])
+
         if self.KNI.initKatana(KNI_cfg_file, address) == -1:
             raise SpineError('KNI configuration file not found or'
                              ' failed to connect to hardware', KNI_cfg_file)
@@ -66,7 +66,7 @@ class LHKNI_wrapper(object):
         enc = c_int()
         self.KNI.getEncoder(axis, byref(enc))
         return enc
-    
+
     def getEncoders(self):
         encs = (c_int * 6)()
         self.KNI.getEncoders(encs)
@@ -76,4 +76,3 @@ class LHKNI_wrapper(object):
         vels = (c_int * 6)()
         self.KNI.getVelocities(vels)
         return [ v for v in vels ]
-        

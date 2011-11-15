@@ -38,7 +38,7 @@ import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
-from dynamics import DYNAMICS
+from RAS.dynamics import DYNAMICS
 
 import RAS
 
