@@ -40,11 +40,18 @@ fi
 # set environment
 . ./common/source_me_to_set_env.sh
 
+
+PREFIX="./"
+
 # handle MinGW and Windows suffix
 case `uname -s` in
     MINGW*)
         BIN_SUFFIX=".exe"
         ;;
+    Darwin*)
+    	BIN_SUFFIX=".app/"
+    	PREFIX="open "
+    	;;
     *)
         BIN_SUFFIX=""
         ;;
@@ -73,5 +80,5 @@ echo -n "--- launching face ---"
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 
-./$PROJECT_NAME$BIN_SUFFIX $@ "$PROJECT_NAME"
+$PREFIX$PROJECT_NAME$BIN_SUFFIX $@
 
