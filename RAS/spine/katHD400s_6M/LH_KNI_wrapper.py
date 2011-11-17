@@ -31,6 +31,7 @@ from os.path import dirname, sep
 from platform import system
 from ctypes import *
 
+from RAS.spine import SpineError
 
 class LHKNI_wrapper(object):
     """

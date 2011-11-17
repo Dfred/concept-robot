@@ -78,7 +78,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def cmd_get_snapshot(self, argline):
         #TODO: use pickle: human readable doesn't make much sense for snapshots.
-        """Returns the current snapshot of robot context
+        """Returns the current snapshot of the robot's state.
         argline: origins identifying arrays to be sent.
         """
         origins = ( argline.strip() and [ o.strip() for o in argline.split()
@@ -148,12 +148,16 @@ class LightHeadServer(object):#MetaServerMixin):
                 subserv_class = getattr(module, 'get_server_class')()
                 handler_class = getattr(module, name.capitalize()+'_Handler')
             except AttributeError, e:
-                # Consider that missing class just means no subserver
+                # Consider that a missing class just means no subserver
                 LOG.warning("Module %s: Missing mandatory classes (%s)" %
                             (name, e))
                 continue
-            subserver = subserv_class()
-#            subserver = self.create_subserver(subserv_class)
+            try:
+                subserver = subserv_class()
+            except StandardError, e:
+                LOG.error("Error while initializing module %s: %s", 
+                          name, ' : '.join(e))
+                sys.exit(4)
             self.register(subserver, handler_class, name)
             if info.has_key(EXTRA_ORIGINS):
                 for origin in info[EXTRA_ORIGINS]:

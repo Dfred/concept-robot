@@ -7,6 +7,7 @@
 # Axis are independant: an axis can be controlled (rigid) while others not.
 #
 import math
+import threading
 
 try:
   from utils import conf, get_logger
@@ -18,7 +19,7 @@ import LH_KNI_wrapper
 __all__ = ['SpineHW']
 
 
-SPEED = 10
+SPEED = 20
 ACCEL = 1
 TOLER = 10
 LOG = get_logger(__package__)
@@ -29,28 +30,33 @@ if __name__ == '__main__':
 from RAS.spine import SpineError, Spine_Server
 
 
-def showTPos(tpos):
-  print 'rotation: (phi/X:{0.phi}, theta/Y:{0.theta}, psi/Z:{0.psi})'\
-        '- position: (X:{0.X}, Y:{0.Y}, Z:{0.Z})'.format(tpos)
-
 class SpineHW(Spine_Server):
   """Spine implementation for the Katana400s-6m"""
 
-  AUs = ['51.5','53.5', '55.5', '57.5', 'TZ']
+  AU2Axis = {'51.5': 6,
+             '53.5': 4,
+             '55.5': 5,
+             '57.5': None,
+             'TZ':   1}
 
-  POSES = {'rest' : None,                                   # safe rest position
-           'zero' : None,                                   # all axis at 0rad.
-           'avg'  : None,                                   # all at mid-range
+  POSES = {'rest'       : None,                         # safe rest position
+           'oper-start' : None,                         # operating start pose
+           'zero'       : None,                         # all axis at 0rad.
+           'avg'        : None,                         # all at mid-range
            }
 
   def __init__(self):
     Spine_Server.__init__(self)
+    self.running = False
+    self.SC_thread = threading.Thread(name='LHKNISpeedControl',
+                                      target=self.update_loop)
+    self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
   #TODO: load essentials to connect to the arm, connect, retreive hardware limits (TMotENL), and then add software limits from conf.
     self.parse_conf()
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
     self.switch_on()
-    self.AUs.set_availables(SpineHW.AUs)
+    self.AUs.set_availables(self.enabled_AUs)
 
   def parse_conf(self):
     spine_conf = conf.ROBOT['mod_spine']
@@ -100,6 +106,23 @@ class SpineHW(Spine_Server):
   def is_moving(self):
     return self.KNI.is_moving(0)
 
+  def update_loop(self):
+    """Move arm upon new AU update. self.speed_control deals with dynamics.
+    """
+    while self.running:
+      self.AUs.wait()
+      for au, infos in self.AUs.items():
+        axis, target = SpineHW.AU2Axis[au], infos[0]
+        assert axis, 'axis for AU %s is disabled!!?' % au
+        # TODO: use dynamics
+        self.KNI.moveMot(axis, self.rad2enc(axis, target*math.pi), SPEED, ACCEL)
+
+  #TODO: complete this
+  def speed_control(self):
+    """Control the arm with speed to apply the required movement dynamics. 
+    """
+    pass
+
   def set_accel(self, value):
     """Set normalized values, relative to hardware capabilities."""
     self._accel = min(value, self.SPEED_LIMITS[1][1])
@@ -108,11 +131,18 @@ class SpineHW(Spine_Server):
     """Mandatory 1st call after hardware is switched on.
     Starts calibration if needed.
     """
-    self.KNI.calibrate_if_needed()
+    self.KNI.calibrate_if_needed()                      #XXX: motor fail => axis
     self.switch_auto()
+    self.reach_pose('oper-start')
+    if not self.running:
+      self.running = True
+      self.SC_thread.start()
 
   def switch_off(self):
     """Set the robot for safe hardware switch off."""
+    if self.running:
+      self.running = False
+      self.SC_thread.join()
     self.reach_pose('rest')
     self.switch_manual()
 
@@ -127,7 +157,7 @@ class SpineHW(Spine_Server):
     self._motors_on = True
 
   def reach_pose(self, pose_name, wait=True):
-    """Set the motors to an absolute position.
+    """Set all the motors to a pose (an absolute position).
     pose_name: identifier from Spine_Server.POSE_IDs
     wait: wait for the pose to be reached before returning
     """
@@ -135,45 +165,13 @@ class SpineHW(Spine_Server):
       LOG.warning('pose %s does not exist', pose_name)
       return
     try:
+      LOG.debug('reaching pose %s : %s', pose_name, SpineHW.POSES[pose_name])
       self.KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
                              [50, ACCEL, TOLER, wait])
     except SpineError:
       raise SpineError('failed to reach pose %s' % pose_name)
 
 
-  # def set_torso_orientation(self, xyz, wait=True):
-  #   """Absolute orientation:
-  #   Our own version since the IK is useless (ERROR: No solution found)"""
-  #   encs = [ (1, self.rad2enc(1, xyz[2])),
-  #            (2, self.rad2enc(2, xyz[0])),
-  #            (3, self.rad2enc(3, 0)) ]
-  #   for axis, enc in encs:
-  #     LOG.debug('moving axis %i to encoder %i', axis, enc)
-  #     if self.KNI.moveMot(axis, enc, self._speed, self._accel) == -1:
-  #       raise SpineError('failed to reach rotation (axis %i)' % axis)
-  #   if not wait:
-  #     return
-  #   for axis, enc in encs:
-  #     if self.KNI.waitForMot(axis, enc, self._tolerance) != 1:
-  #       raise SpineError('failed to wait for motor %i' % axis)
-
-  # def set_neck_rot_pos(self, rot_xyz=None, pos_xyz=None):
-  #   """Absolute orentation and position using KNI IK"""
-  #   if not self._motors_on or (rot_xyz == pos_xyz == None):
-  #     LOG.info('motors are %s [rot: %s\t pos: %s]', self._motors_on,
-  #              rot_xyz, pos_xyz)
-  #     return False
-  #   tp = self.KNI.TPos()
-  #   self.KNI.getPosition(tp)
-  #   if rot_xyz:
-  #     tp.phi, tp.theta, tp.psi = rot_xyz
-  #   if pos_xyz:
-  #     tp.X, tp.Y, tp.Z = pos_xyz
-  #   ret = self.KNI.moveToPos(tp, self._speed, self._accel)
-  #   self.KNI.getPosition(tp)
-  #   if ret == -1:
-  #     raise SpineError('failed to reach rotation/position')
-  #   return True
 
 if __name__ == "__main__":
   import time

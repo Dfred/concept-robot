@@ -92,28 +92,29 @@ class Spine_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
-    self.server.set_AUs(self.fifo)
+    self.server.AUs.update_targets(self.fifo)
     self.fifo.clear()
 
   def cmd_switch(self, argline):
+    """Special function for test purposes (not documented - non official).
+    """
     args = argline.split()
     try:
       fct = getattr(self.server, 'switch_'+args[0])
     except AttributeError :
       LOG.debug('no switch_%s function available', args[0])
       return
+
+#    #TODO: implement and use the 'with' statement for threaded servers
+#    self.server.threaded and self.server.threadsafe_start()
+#    try:
     if len(args)>1:
       fct(int(args[1]))
     else:
       fct()
-
-  def cmd_move(self, argline):
-    """relative position on 3 axis"""
-    if not argline:
-#      self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
-      return
-    args = [ float(arg) for arg in argline.split(',') ]
-    self.server.set_neck_rot_pos(pos_xyz=tuple(args))
+#    except StandardError, e:
+#      LOG.critical('Exception in thread-protected section: %s', e)
+#    self.server.threaded and self.server.threadsage_stop()
 
 
 class Spine_Server(object):
@@ -128,21 +129,7 @@ class Spine_Server(object):
     super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
-    self.AUs = RAS.AUPool('spine', DYNAMICS)
-
-  def set_AUs(self, iterable):
-    """Set targets for a specific AU.
-    iterable: list of tuples (AU, normalized target value, duration in sec).
-    """
-#    if self.thread_id != thread.get_ident():
-#      self.threadsafe_start()
-    for AU, target, attack in iterable:
-      try:
-        self.AUs[AU][:-1]= target, attack, 0
-      except IndexError:
-        LOG.warning("AU '%s' not found", AU)
-#    if self.thread_id != thread.get_ident():
-#      self.threadsafe_stop()
+    self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
 
   def is_moving(self):
     """Returns True if moving"""
@@ -194,7 +181,6 @@ def get_server_class():
   except ImportError, e:
     LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
     LOG.error('check in your config file for mod_spine "backend" entry.\n')
-#    import sys; print sys.path; sys.exit(1)
     from RAS.spine import katHD400s_6M as backend
   return backend.SpineHW
 
@@ -205,9 +191,9 @@ if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   conf.load(name='lightHead')
   try:
-    conf.ROBOT = conf.ARM
+#    conf.ROBOT = conf.ARM
     LOG.info("initializing %s", get_server_class())
-    server = comm.create_server(Spine_Handler, conf.ARM['mod_spine']['comm'],
+    server = comm.create_server(Spine_Handler, conf.ROBOT['mod_spine']['comm'],
                                 (False,False), get_server_class())
   except (conf.LoadException, UserWarning), err:
     import sys

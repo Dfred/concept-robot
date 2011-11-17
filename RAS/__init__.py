@@ -36,6 +36,8 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 import site
 import logging
+import threading
+
 import numpy
 
 LOG = logging.getLogger(__package__)                  # updated in initialize()
@@ -86,17 +88,20 @@ class FeaturePool(dict):
 
 class AUPool(dict):
   """This class facilitates the use of Action Units within the Feature Pool.
+  Threads can call wait() to avoid polling all the time.
   Also, it uses motion dynamics.
   """
-  def __init__(self, origin, dynamics):
+  def __init__(self, origin, dynamics, threaded=False):
     """Initialize an AU pool for a specific origin, using a Dynamics instance.
     origin: ID (name) of the origin using this AU pool
     dynamics: a Dynamics instance defining motion/speed control.
+    threaded: if evaluates to True, enables thread synchronization via wait().
     """
     super(AUPool, self).__init__(self)
     self.origin = origin
     self.FP = FeaturePool()
     self.dynamics = dynamics
+    self.event = threaded and threading.Event()
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -107,7 +112,7 @@ class AUPool(dict):
       assert len(AUs) == len(values), "AUs and values have different lengths"
     else:
       values = [0] * len(AUs)
-    # target value, target duration, current value, time remaining
+    # target value, target duration, time remaining, current value
     table = [ values, [.0]*len(values), values, [.0]*len(values) ]
     self.FP[self.origin] = numpy.array(zip(*table))     # transpose
     LOG.info("Available AUs:\n")
@@ -116,7 +121,20 @@ class AUPool(dict):
       LOG.info("%5s : %s", au, self[au])
     return True
 
-  def udpate(self, time_interval):
+  def update_targets(self, iterable):
+    """Set targets for a set of AUs.
+    iterable: list of (AU, normalized target value, target duration in sec).
+    """
+    for AU, target, attack in iterable:
+      try:
+        self[AU][0:3]= target, attack, 0
+      except IndexError:
+        LOG.warning("AU '%s' not found", AU)
+    if self.event:
+      self.event.set()                                  # unlock waiting thread
+
+  # TODO: check algo
+  def udpate_time(self, time_interval):
     """
     """
     data = self.FP[self.origin][1]                      # numpy array
@@ -133,6 +151,13 @@ class AUPool(dict):
     if self.thread_id != thread.get_ident():
       self.threadsafe_stop()
     return self.AUs
+
+  def wait(self, timeout=None):
+    """Wait for an update of any AU in this pool.
+    """
+    if self.event:
+      self.event.wait(timeout)
+      self.event.clear()
 
 
 def initialize(thread_info):
