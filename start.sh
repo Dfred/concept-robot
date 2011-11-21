@@ -65,6 +65,14 @@ if [ "$OPTS" = "w" ]; then
     fi
 fi
 
+getopts "i" OPTS
+if [ "$OPTS" = "i" ]; then
+    shift;
+    if [ "$OPTS" = "i" ]; then
+    	PREFIX="optirun ./"
+    fi
+fi
+
 if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
     exit 2
