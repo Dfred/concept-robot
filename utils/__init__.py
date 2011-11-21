@@ -21,17 +21,20 @@
 
 import logging
 
+# convenient format.
+LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
+                        "%(lineno)-4d-%(levelname)s-\t%(message)s",
+               'datefmt':"%H:%M:%S"}
+VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
+
 def get_logger(name):
     return logging.getLogger(name)
 
 def set_logger_debug(logger, lvl):
     logger.setLevel(lvl and logging.DEBUG or logging.INFO)
 
-# convenient format.
-LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
-                        "%(lineno)-4d-%(levelname)s-\t%(message)s",
-               'datefmt':"%H:%M:%S"}
-VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
+def set_logging_default(verbosity_level=0):
+    logging.basicConfig(level=VFLAGS2LOGLVL[verbosity_level], **LOGFORMATINFO)
 
 # now we patch Python code to add color support to logging.StreamHandler
 #Taken from stackoverflow.com, Thanks and Credits to sorin (and Peter Hoffman?)
