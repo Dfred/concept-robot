@@ -68,7 +68,7 @@ from presentation import BasePresentation
 from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
-FATAL_ERRORS = ( errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
+FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
 DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, ]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
