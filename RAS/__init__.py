@@ -44,7 +44,7 @@ import numpy
 LOG = logging.getLogger(__package__)                  # updated in initialize()
 REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
                          'ROBOT', 'lib_vision', 'lib_spine')
-NEED_WAIT_PATCH = sys.version_info[0] == 2 && sys.version_info[1] < 7
+NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
 
 class FeaturePool(dict):
   """This singleton class serves as an efficient working memory (numpy arrays) 
