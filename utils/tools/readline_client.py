@@ -38,8 +38,8 @@ import os
 sys.path.insert(1,os.path.join(sys.path[0],'..','..'))
 from utils import comm, set_logging_default, handle_exception_debug
 
-set_logging_default(verbosity_level=2)
-comm.set_debug_logging(True)
+set_logging_default(verbosity_level=1)
+comm.set_debug_logging(False)
 
 # readline history
 try:
