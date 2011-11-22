@@ -833,7 +833,7 @@ class BaseClient(BasePeer):
       self.read_while_running(read_timeout)
       ret = True
     except select.error, e:
-      self.handle_error(self.socket, e)
+      self.handle_error(e)
       ret = False
     finally:
       if self.socket:
