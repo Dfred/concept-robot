@@ -193,15 +193,25 @@ class ExpressionComm(ThreadedComm):
         assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
         self.datablock[2] = str(vector3)[1:-1]
 
-    def set_neck(self, rotation=(), position=()):
+    def set_neck(self, rotation=(), orientation=(), position=()):
+        """Set head placement.
+        rotation: (x,y,z) : relative normalized orientation 
+        rotation: (x,y,z) : absolute normalized orientation
+        position: (x,y,z) : relative normalized position
+        right handedness (ie: with y+ pointing forward)
         """
-        rotation: (x,y,z) : orientation in radians
-        position: (x,y,z) : right handedness (ie: with y+ pointing forward)
-        """
+        assert len(orientation)==3 and type(position[0]) is float, 'wrong types'
         assert len(rotation) == 3 and type(rotation[0]) is float, 'wrong types'
         assert len(position) == 3 and type(position[0]) is float, 'wrong types'
-        self.datablock[3] = "{0}[{1}]".format(str(rotation)[1:-1],
-                                              str(position)[1:-1])
+        assert roation or orientation, 'cannot specify orientation and rotation'
+        msg = ""
+        if rotation:
+          self.datablock[3] += str(rotation)
+        if orientation:
+          self.datablock[3] += "(%s)" % orientation
+        if position:
+          self.datablock[3] += str(list(position))
+        
 
     def set_instinct(self, command):
         """
