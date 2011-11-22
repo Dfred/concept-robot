@@ -58,7 +58,10 @@ class SpineHW(Spine_Server):
     """
     super(SpineHW, self).configure()
     from os.path import dirname, sep
-    self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
+    if dirname(__file__):
+      self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
+    else:
+      self.KNI_cfg_file = "katana6M90T.cfg"
 
   def rad2enc(self, axis, rad):
     """Considers axis limits.
