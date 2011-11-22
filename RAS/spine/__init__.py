@@ -120,16 +120,50 @@ class Spine_Handler(ASCIIRequestHandler):
 class Spine_Server(object):
   """Skeleton animation module.
   """
-  POSE_IDs = ('rest',                                   # safe switch-off
-              'zero',                                   # all axis at 0rad.
-              'avg',                                    # all at mid-range
-             )
+  POSES = {'rest'       : None,                         # safe switch-off pose
+           'ready'      : None,                         # operating start pose
+           'zero'       : None,                         # all axis at 0rad.
+           'avrg'       : None,                         # all at mid-range
+           }
+
 
   def __init__(self):
     super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
     self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
+    self.configure()
+
+  def configure(self):
+    """
+    """
+    spine_conf = conf.ROBOT['mod_spine']
+    try:
+      self.hardware_name = spine_conf['backend']
+    except:
+      raise conf.LoadException("mod_spine has no 'backend' key")
+    try:
+      self.KNI_address = spine_conf['hardware_addr']
+    except:
+      raise conf.LoadException("mod_spine has no 'hardware_addr' key")
+
+    try:
+      hardware = conf.lib_spine[self.hardware_name]
+    except:
+      raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
+    try:
+      self.AXIS_LIMITS = hardware['AXIS_LIMITS']
+    except:
+      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
+                                self.hardware_name)
+    try:
+      Spine_Server.POSES['rest'] = hardware['POSE_REST']
+      Spine_Server.POSES['ready'] = hardware['POSE_READY']
+    except:
+      raise conf.LoadException("lib_spine['%s'] need 'POSE_OFF' and 'POSE_ON'" %
+                                self.hardware_name)
+    Spine_Server.POSES['zero'] = [0]*len(self.AXIS_LIMITS)
+    Spine_Server.POSES['avrg'] = [(mn+mx)/2 for mn,mx,o,f in self.AXIS_LIMITS]
 
   def is_moving(self):
     """Returns True if moving"""
@@ -156,6 +190,11 @@ class Spine_Server(object):
   def set_lock_handler(self, handler):
     """function to call upon collision detection locking"""
     self._lock_handler = handler
+
+  def reach_pose(self, pose):
+    """
+    """
+    raise NotImplementedError()
 
   def switch_on(self):
     """Mandatory 1st call after hardware is switched on.
@@ -191,13 +230,16 @@ if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   conf.load(name='lightHead')
   try:
-#    conf.ROBOT = conf.ARM
     LOG.info("initializing %s", get_server_class())
     server = comm.create_server(Spine_Handler, conf.ROBOT['mod_spine']['comm'],
                                 (False,False), get_server_class())
   except (conf.LoadException, UserWarning), err:
     import sys
-    LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
-    exit(-1)
+    LOG.fatal("%s (%s)", sys.argv[0], ':'.join(err))
+    exit(1)
+  except SpineError, e:
+    LOG.fatal("%s", e)
+    exit(2)
+  print 'Initialization OK'
   server.serve_forever()
   LOG.debug("Spine server done")

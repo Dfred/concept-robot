@@ -39,53 +39,24 @@ class SpineHW(Spine_Server):
              '57.5': None,
              'TZ':   1}
 
-  POSES = {'rest'       : None,                         # safe rest position
-           'oper-start' : None,                         # operating start pose
-           'zero'       : None,                         # all axis at 0rad.
-           'avg'        : None,                         # all at mid-range
-           }
-
   def __init__(self):
     Spine_Server.__init__(self)
     self.running = False
-    self.SC_thread = threading.Thread(name='LHKNISpeedControl',
-                                      target=self.update_loop)
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
-  #TODO: load essentials to connect to the arm, connect, retreive hardware limits (TMotENL), and then add software limits from conf.
-    self.parse_conf()
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
-    self.switch_on()
+    try:
+      self.switch_on()
+    except SpineError, e:
+      LOG.fatal('Could not switch on properly: %s', e)
+      self.stop_speed_control()
+      raise
     self.AUs.set_availables(self.enabled_AUs)
 
-  def parse_conf(self):
-    spine_conf = conf.ROBOT['mod_spine']
-    try:
-      self.hardware_name = spine_conf['backend']
-    except:
-      raise conf.LoadException("mod_spine has no 'backend' key")
-    try:
-      self.KNI_address = spine_conf['hardware_addr']
-    except:
-      raise conf.LoadException("mod_spine has no 'hardware_addr' key")
-
-    try:
-      hardware = conf.lib_spine[self.hardware_name]
-    except:
-      raise conf.LoadException("lib_spine has no '%s' key" %
-                                 self.hardware_name)
-    try:
-      self.AXIS_LIMITS = hardware['AXIS_LIMITS']
-    except:
-      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
-                                self.hardware_name)
-    SpineHW.POSES['zero'] = [0]*len(self.AXIS_LIMITS)
-    SpineHW.POSES['avg'] = [(mn+mx)/2 for mn,mx,orig,fac in self.AXIS_LIMITS]
-    try:
-      SpineHW.POSES['rest'] = hardware['POSE_OFF']
-    except:
-      raise conf.LoadException("lib_spine['%s'] has no 'POSE_OFF' key" %
-                                self.hardware_name)
+  def configure(self):
+    """
+    """
+    super(SpineHW, self).configure()
     from os.path import dirname, sep
     self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
 
@@ -110,12 +81,26 @@ class SpineHW(Spine_Server):
     """Move arm upon new AU update. self.speed_control deals with dynamics.
     """
     while self.running:
-      self.AUs.wait()
-      for au, infos in self.AUs.items():
-        axis, target = SpineHW.AU2Axis[au], infos[0]
-        assert axis, 'axis for AU %s is disabled!!?' % au
-        # TODO: use dynamics
-        self.KNI.moveMot(axis, self.rad2enc(axis, target*math.pi), SPEED, ACCEL)
+      if self.AUs.wait(timeout=2):
+        print 'update'
+        for au, infos in self.AUs.items():
+          axis, target = SpineHW.AU2Axis[au], infos[0]
+          assert axis, 'axis for AU %s is disabled!!?' % au
+          # TODO: use dynamics
+          print au, infos, target*math.pi
+          self.KNI.moveMot(axis, self.rad2enc(axis,target*math.pi), SPEED,ACCEL)
+
+  def start_speed_control(self):
+    if not self.running:
+      self.SC_thread = threading.Thread(name='LHKNISpeedControl',
+                                        target=self.update_loop)
+      self.SC_thread.start()
+      self.running = True
+
+  def stop_speed_control(self):
+    if self.running:
+      self.running = False
+      self.SC_thread.join()
 
   #TODO: complete this
   def speed_control(self):
@@ -127,22 +112,32 @@ class SpineHW(Spine_Server):
     """Set normalized values, relative to hardware capabilities."""
     self._accel = min(value, self.SPEED_LIMITS[1][1])
 
+  def calibrate_if_needed(self):
+    """Start calibration if needed. Also unblock blocked axis.
+    """
+    if self.KNI.is_blocked():
+      self.KNI.unblock()
+
+    encs = self.KNI.getEncoders()
+    for axis in range(6):
+      try:
+        self.KNI.moveMot(axis+1, encs[axis], SPEED, ACCEL)
+      except SpineError, e:
+        self.KNI.calibrate()
+        break
+
   def switch_on(self):
     """Mandatory 1st call after hardware is switched on.
-    Starts calibration if needed.
     """
-    self.KNI.calibrate_if_needed()                      #XXX: motor fail => axis
+    self.calibrate_if_needed()                          #XXX: motor fail => axis
     self.switch_auto()
-    self.reach_pose('oper-start')
-    if not self.running:
-      self.running = True
-      self.SC_thread.start()
+    self.reach_pose('rest')                             # we may have moved
+    self.reach_pose('ready')
+    self.start_speed_control()
 
   def switch_off(self):
     """Set the robot for safe hardware switch off."""
-    if self.running:
-      self.running = False
-      self.SC_thread.join()
+    self.stop_speed_control()
     self.reach_pose('rest')
     self.switch_manual()
 
@@ -161,7 +156,7 @@ class SpineHW(Spine_Server):
     pose_name: identifier from Spine_Server.POSE_IDs
     wait: wait for the pose to be reached before returning
     """
-    if pose_name not in Spine_Server.POSE_IDs:
+    if pose_name not in Spine_Server.POSES.keys():
       LOG.warning('pose %s does not exist', pose_name)
       return
     try:
@@ -169,7 +164,7 @@ class SpineHW(Spine_Server):
       self.KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
                              [50, ACCEL, TOLER, wait])
     except SpineError:
-      raise SpineError('failed to reach pose %s' % pose_name)
+      raise SpineError("failed to reach pose '%s'" % pose_name)
 
 
 
