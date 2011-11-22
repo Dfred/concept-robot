@@ -82,20 +82,20 @@ class SpineHW(Spine_Server):
     """
     while self.running:
       if self.AUs.wait(timeout=2):
-        print 'update'
         for au, infos in self.AUs.items():
           axis, target = SpineHW.AU2Axis[au], infos[0]
           assert axis, 'axis for AU %s is disabled!!?' % au
           # TODO: use dynamics
           print au, infos, target*math.pi
           self.KNI.moveMot(axis, self.rad2enc(axis,target*math.pi), SPEED,ACCEL)
+    print 'update_loop done!'
 
   def start_speed_control(self):
     if not self.running:
       self.SC_thread = threading.Thread(name='LHKNISpeedControl',
                                         target=self.update_loop)
-      self.SC_thread.start()
       self.running = True
+      self.SC_thread.start()
 
   def stop_speed_control(self):
     if self.running:
