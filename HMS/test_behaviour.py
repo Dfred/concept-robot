@@ -13,6 +13,9 @@ from cogmod.layout import Ui_MainWindow
 from cogmod import graphic
 
 
+use_gui = 0
+
+
 class Behaviour_thread(threading.Thread):
     """ class which creates a dedicated thread for a Follow_Behaviour
     """
@@ -35,7 +38,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def __init__(self, comm_queue):
         
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_to_target), (SMFSM.STOPPED,self.stopped) )
+        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.pose_test), (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
         self.comm_lighthead = LightHeadComm(conf.lightHead_server)
@@ -44,6 +47,17 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def started(self):
         print 'test started'
         return 'DETECT'
+    
+    
+    def pose_test(self):
+        print 'test started'
+        
+        #self.comm_expr.set_gaze((0.0, 0.5, 0.0))
+        self.comm_expr.set_neck((0.0, 0.0, -1.0), [0.0, 0.0, 0.0])
+        #self.comm_expr.set_datablock("", 1.0, "", (0.0, 0.5, 0.0), (0.1, 0.0, 0.0), (0.0, 0.0, 0.0), "")
+        self.comm_expr.send_datablock("Test")
+        
+        return SMFSM.STOPPED 
     
     
     def get_features(self):
@@ -117,14 +131,15 @@ if __name__ == '__main__':
     bt = Behaviour_thread(comm_queue)
     bt.start()
     
-    app = QApplication(sys.argv)
-    mainwindow = graphic.GUI(comm_queue)
-    ui = Ui_MainWindow()
-    ui.setupUi(mainwindow)
-    mainwindow.layout = ui
-    mainwindow.set_defaults()
-    mainwindow.show()
-    sys.exit(app.exec_())
+    if use_gui:
+        app = QApplication(sys.argv)
+        mainwindow = graphic.GUI(comm_queue)
+        ui = Ui_MainWindow()
+        ui.setupUi(mainwindow)
+        mainwindow.layout = ui
+        mainwindow.set_defaults()
+        mainwindow.show()
+        sys.exit(app.exec_())
     
     
     
