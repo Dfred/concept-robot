@@ -56,12 +56,16 @@ class LHKNI_wrapper(object):
             raise SpineError('KNI configuration file not found or'
                              ' failed to connect to hardware', KNI_cfg_file)
         print 'loaded config file', KNI_cfg_file, 'and now connected'
-        self.KNI.restype = LHKNI_wrapper.validate
 
     def __getattr__(self,name):
         """
         """
-        return self.KNI.__getattr__(name)
+        try:
+          fct = self.KNI.__getattr__(name)
+          fct.restype = LHKNI_wrapper.validate
+          return fct
+        except AttributeError:
+          raise
 
     def getEncoder(self, axis):
         enc = c_int()

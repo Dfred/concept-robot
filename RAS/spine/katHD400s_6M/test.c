@@ -85,6 +85,28 @@ int get_speed(float total_dist, float total_dur,
   return speed > 0 ? speed : 0;
 }
 
+int
+calibrate_if_needed()
+{
+  int encoders[6];
+  printf("-- checking if blocked.\n");
+  switch (is_blocked())
+    {
+    case ERR_FAILED: exit(2);
+    case 1 : unblock();
+    }
+  getEncoders(encoders);
+  printf("-- checking if calibration is needed.\n");
+  for (int axis = 1; axis <= 6; axis++)
+    if (moveMot(axis, encoders[axis-1], 10, ACCEL) == ERR_FAILED)
+      {
+	calibrate();
+  	break;
+      }
+  printf("DONE testing blocked & calibration\n");
+  return 0;
+}
+
 int main(int ac, char *argv[])
 {
   int encoders[6], velocities[6];

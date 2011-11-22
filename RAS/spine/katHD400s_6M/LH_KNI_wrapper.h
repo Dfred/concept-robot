@@ -426,10 +426,10 @@ extern "C" {
   DLLEXPORT int  
   getVelocities(int dest_vels[6]);
 
-  //!calibrate the robot if at least one motor cannot be activated.
-  //!@return returns -1 on failure, 0 if skipping calibration, 1 if calibrated.
+  //!Check if a particular axis is blocked.
+  //!@return returns -1 on failure, 0 if not blocked, 1 if axis is blocked.
   DLLEXPORT int
-  calibrate_if_needed();
+  is_blocked();
 
   //!get the moving status of one or all axis
   //!@param axis index of the motor to use. If 0, use all.

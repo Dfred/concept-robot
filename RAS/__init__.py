@@ -35,6 +35,7 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import sys
 import site
+import time
 import logging
 import threading
 
@@ -43,7 +44,7 @@ import numpy
 LOG = logging.getLogger(__package__)                  # updated in initialize()
 REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
                          'ROBOT', 'lib_vision', 'lib_spine')
-
+NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
 
 class FeaturePool(dict):
   """This singleton class serves as an efficient working memory (numpy arrays) 
@@ -154,10 +155,17 @@ class AUPool(dict):
 
   def wait(self, timeout=None):
     """Wait for an update of any AU in this pool.
+    Return: False if timeout elapsed, True otherwise
     """
+    outtimed = True
+    if NEED_WAIT_PATCH:
+      t = time.time()                                   # for python < 2.7
     if self.event:
-      self.event.wait(timeout)
+      outtimed = self.event.wait(timeout)
       self.event.clear()
+      if NEED_WAIT_PATCH:
+        outtimed = (time.time() - t) < timeout          # for python < 2.7
+    return outtimed
 
 
 def initialize(thread_info):
