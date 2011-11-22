@@ -40,16 +40,17 @@ byte	size = 0; 	//comm readbuf size
 
 
 #ifdef WIN32
-# define ERROR(e)	MessageBox(NULL, TEXT(e.message().c_str()),\
-				   TEXT("KNI ERROR"),\
-				   MB_OK | MB_ICONWARNING | MB_SYSTEMMODAL);
+# define ERROR(e)	MessageBox(NULL, TEXT(e.message().c_str()),	       \
+				   TEXT("KNI ERROR"),			       \
+				   MB_OK | MB_ICONWARNING | MB_SYSTEMMODAL);   \
+			std::cout<< __FILE__ <<":"<< __LINE__		       \
+			<<" ERROR: "<<e.message()<<std::endl;
 #else
-# define ERROR(e)
+# define ERROR(e)	std::cout<< __FILE__ <<":"<< __LINE__		       \
+			<<" ERROR: "<<e.message()<<std::endl;
 #endif
 
-#define EXCEPT(src)  try{src}	catch(Exception &e){		\
-  std::cout << __FILE__<<":"<<__LINE__<<" ERROR: "<< e.message() << std::endl;\
-  ERROR(e); return ERR_FAILED; }
+#define EXCEPT(src)  try{src} catch(Exception &e){ ERROR(e);return ERR_FAILED; }
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,17 +649,17 @@ int getDrive(int axis, int *value){
   return ERR_SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////////////////
-// int getEncoder(int axis, int *value){
-//   try{
-//     katana->getRobotEncoders(encoders.begin(), encoders.end());
-//     *value = encoders.at(axis-1);
-//   }
-//   catch(Exception &e){
-//     std::cout << "ERROR: " << e.message() << std::endl;
-//     ERROR(e); return ERR_FAILED;
-//   }
-//   return ERR_SUCCESS;
-// }
+int getEncoder(int axis, int *value){
+  try{
+    katana->getRobotEncoders(encoders.begin(), encoders.end());
+    *value = encoders.at(axis-1);
+  }
+  catch(Exception &e){
+    std::cout << "ERROR: " << e.message() << std::endl;
+    ERROR(e); return ERR_FAILED;
+  }
+  return ERR_SUCCESS;
+}
 ////////////////////////////////////////////////////////////////////////////////
 int getAxisFirmwareVersion(int axis, char value[]){
   try{
@@ -904,19 +905,6 @@ getVelocities(int dest_vels[MAX_MOTORS]){
 }
 
 ////
-DLLEXPORT int
-calibrate_if_needed()
-{
-  int encoders[6];
-  if (getEncoders(encoders) == ERR_FAILED)
-    return ERR_FAILED;
-  for (int i=0; i<6; i++)
-    if (moveMot(i+1, encoders[i], 10, 1) == ERR_FAILED)
-      return calibrate();
-  return 0;
-}
-
-////
 // XXX: limited to 7 motors (currently 6 are available).
 DLLEXPORT int
 is_moving(int axis)					// axis 0 => all axis
@@ -933,4 +921,18 @@ is_moving(int axis)					// axis 0 => all axis
     }
 	 )
   return status > 0;					// can't be negative
+}
+
+////
+//
+DLLEXPORT int
+is_blocked()
+{
+  for (int axis = 1; axis < 6; axis++)
+    {
+      try { katana->setMotorVelocityLimit(axis,1); }
+      catch (FirmwareException &e) { return 1; }
+      catch (Exception &e) { ERROR(e); return ERR_FAILED; }
+    }
+  return 0;
 }
