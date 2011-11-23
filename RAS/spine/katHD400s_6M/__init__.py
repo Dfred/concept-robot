@@ -39,14 +39,14 @@ class SpineHW(Spine_Server):
              '57.5': None,
              'TZ':   1}
 
-  def __init__(self):
+  def __init__(self, with_ready_pose=True):
     Spine_Server.__init__(self)
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
     try:
-      self.switch_on()
+      self.switch_on(with_ready_pose)
     except SpineError, e:
       LOG.fatal('Could not switch on properly: %s', e)
       self.stop_speed_control()
@@ -66,8 +66,8 @@ class SpineHW(Spine_Server):
   def rad2enc(self, axis, rad):
     """Considers axis limits.
     """
-    mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
-    e = int(factor*rad) + neutral
+    mn, mx, factor = self.AXIS_LIMITS[axis-1]
+    e = int(factor*rad) + SpineHW.POSES['ready'][axis-1]
     f = min(max(mn, e), mx)
     if e != f:
       LOG.warning('axis %i: limited value %i to %i %s', axis,e,f,(mn,mx))
@@ -119,7 +119,16 @@ class SpineHW(Spine_Server):
     """Start calibration if needed. Also unblock blocked axis.
     """
     if self.KNI.is_blocked():
+      LOG.critical("---- The arm is blocked! -----")
+      LOG.critical('GET READY TO HOLD THE ARM - ALL MOTORS WILL BE SHUT OFF!')
       self.KNI.unblock()
+      if self.KNI.is_blocked():
+        LOG.fatal("Failed to unblock the arm! Bailing out!")
+        sys.exit(2)                                     # crude but safer
+      raw_input('PRESS ENTER TO ENTER MANUAL MODE')
+      self.switch_manual()
+      raw_input('PRESS ENTER ONCE THE ARM IS READY TO BE OPERATED AGAIN')
+      self.switch_auto()
 
     encs = self.KNI.getEncoders()
     for axis in range(6):
@@ -129,13 +138,14 @@ class SpineHW(Spine_Server):
         self.KNI.calibrate()
         break
 
-  def switch_on(self):
+  def switch_on(self, with_ready_pose=True):
     """Mandatory 1st call after hardware is switched on.
     """
     self.calibrate_if_needed()                          #XXX: motor fail => axis
     self.switch_auto()
     self.reach_pose('rest')                             # we may have moved
-    self.reach_pose('ready')
+    if with_ready_pose:
+      self.reach_pose('ready')
     self.start_speed_control()
 
   def switch_off(self):
@@ -159,7 +169,7 @@ class SpineHW(Spine_Server):
     pose_name: identifier from Spine_Server.POSE_IDs
     wait: wait for the pose to be reached before returning
     """
-    if pose_name not in Spine_Server.POSES.keys():
+    if pose_name not in SpineHW.POSES.keys():
       LOG.warning('pose %s does not exist', pose_name)
       return
     try:
@@ -174,9 +184,7 @@ class SpineHW(Spine_Server):
 if __name__ == "__main__":
   import time
   # just set the arm in manual mode and print motors' values upon key input.
-  s = SpineHW()
-  print "getting to pose 'rest';"
-  s.reach_pose('rest', wait=False)
+  s = SpineHW(with_ready_pose=False)
 
   while s.is_moving():
     print '.'
