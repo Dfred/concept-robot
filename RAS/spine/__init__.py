@@ -158,12 +158,12 @@ class Spine_Server(object):
                                 self.hardware_name)
     try:
       Spine_Server.POSES['rest'] = hardware['POSE_REST']
-      Spine_Server.POSES['ready'] = hardware['POSE_READY']
+      Spine_Server.POSES['ready'] = hardware['POSE_READY_NEUTRAL']
     except:
-      raise conf.LoadException("lib_spine['%s'] need 'POSE_OFF' and 'POSE_ON'" %
-                                self.hardware_name)
+      raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
+                               "'POSE_READY_NEUTRAL'" % self.hardware_name)
     Spine_Server.POSES['zero'] = [0]*len(self.AXIS_LIMITS)
-    Spine_Server.POSES['avrg'] = [(mn+mx)/2 for mn,mx,o,f in self.AXIS_LIMITS]
+    Spine_Server.POSES['avrg'] = [(mn+mx)/2 for mn,mx,f in self.AXIS_LIMITS]
 
   def is_moving(self):
     """Returns True if moving"""
