@@ -50,7 +50,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
     def __init__(self, server, sock, client_addr):
         super(LightHeadHandler,self).__init__(server, sock, client_addr)
         self.handlers = {}                              # {origin : subhandler}
-        self.transacting = None                         # current transaction
+        self.transacting = []                           # transacting origins
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
@@ -60,7 +60,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
             argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
-                self.transacting = argline
+                self.transacting.append(argline)
             except KeyError:
                 LOG.warning("unknown origin: '%s'", argline)
         else:
@@ -68,8 +68,9 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        self.handlers[self.transacting].cmd_commit(argline)
-        self.transacting = None
+        for origin in self.transacting:
+          self.handlers[origin].cmd_commit(argline)
+        self.transacting = []
 
     # TODO: implement a reload of modules ?
     def cmd_reload(self, argline):
