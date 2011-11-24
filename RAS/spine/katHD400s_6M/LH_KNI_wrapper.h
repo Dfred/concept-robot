@@ -7,7 +7,13 @@
  ******************************************************************************/
 
 /*******************************************************************************
- * Frederic Delaunay @ plymouth.ac.uk: appended more functions + cosmetics
+ * Frederic Delaunay @ plymouth.ac.uk: appended functions:
+- getEncoders
+- getVelocities
+- getAxisMinMaxEPC
+- is_moving
+- is_blocked
+ also applied cosmetics to original KNI files.
  ******************************************************************************/
 
 
@@ -89,39 +95,39 @@ extern "C" {
   DLLEXPORT int  
   allMotorsOff();
 	
-  //!Put all axes into hold state
+  //!Puts all axes into hold state
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   allMotorsOn();
 
-  //!closes the Katana session
+  //!Closes the Katana session
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   calibrate();
 	
-  //!clears the movebuffers
+  //!Clears the movebuffers
   DLLEXPORT int  
   clearMoveBuffers();
 	
-  //!closes the gripper if available
+  //!Closes the gripper if available
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
   //!ERR_STATE_MISMATCH if the command was given to a wrong state, 
   //!1 if successful
   DLLEXPORT int  
   closeGripper();	
-	
-  //!deletes a movement from the stack
+  
+  //!Deletes a movement from the stack
   //!@param name the name of the stack
   //!@param index the index of the movement to delete
   DLLEXPORT int  
   deleteMovementFromStack(char* name, int index);	
 	
-  //!deletes a movemnt stack
+  //!Deletes a movemnt stack
   DLLEXPORT int  
   deleteMovementStack(char* name);	
 	
-  //!execute a connected movement
+  //!Executes a connected movement
   //!@param movement	a TMovement struct to execute
   //!@param startPos	start position, can be omitted if first=true
   //!@param first	first of the connected movements (start at current pos)
@@ -130,20 +136,20 @@ extern "C" {
 					 struct TPos *startPos,
 					 bool first, bool last);
 	
-  //!execute a movement
+  //!Executes a movement
   //!@param movement movement to execute, starting from the current position
   DLLEXPORT int  
   executeMovement(struct TMovement *movement);
 	
-  //!flush all the movebuffers
+  //!Flushes all the movebuffers
   DLLEXPORT int flushMoveBuffers();
 	
-  //!gets the axis firmware version and returns it in the value argument
+  //!Gets the axis firmware version and returns it in the value argument
   // length of value array at least 12, will be '\0' terminated
   DLLEXPORT int  
   getAxisFirmwareVersion(int axis, char value[]);	
 	
-  //!gets the pwm and returns it in the value argument
+  //!Gets the pwm and returns it in the value argument
   //!@param axis The axis to send the command to
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -152,7 +158,7 @@ extern "C" {
   DLLEXPORT int  
   getDrive(int axis, int *value);	
 	
-  //!gets the position and returns it in the value argument
+  //!Gets the position and returns it in the value argument
   //!@param axis The axis to send the command to
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -161,21 +167,22 @@ extern "C" {
   DLLEXPORT int  
   getEncoder(int axis, int *value);
 
-  //!returns the number of motors configured
+  //!Returns the number of motors configured
   DLLEXPORT int  
   getNumberOfMotors();
 
-  //!gets a position
+  //!Gets a position
   DLLEXPORT int  
   getPosition(struct TPos *pos);
 
-  //!gets the velocity and returns it in the value argument
+  //!Gets the velocity and returns it in the value argument
   //!@param axis The axis to send the command to
   //!@return returns -1 on failure, 1 if successful
-  //DLLEXPORT int  
-  //getVelocity(int axis, int *value);
+  /*DLLEXPORT int  
+    getVelocity(int axis, int *value);
+  */
 
-  //!gets the controlboard firmware version and returns it in the value argument
+  //!Gets the controlboard firmware version and returns it in the value argument
   // length of value array at least 8, will be '\0' terminated
   DLLEXPORT int  
   getVersion(char value[]);
@@ -184,7 +191,7 @@ extern "C" {
   DLLEXPORT int  
   initKatana(char* configFile, char* ipaddress);
 	
-  //!reads an input from the digital I/O and returns it in the value argument
+  //!Reads an input from the digital I/O and returns it in the value argument
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
   //!ERR_STATE_MISMATCH if the command was given to a wrong state, 
@@ -193,19 +200,19 @@ extern "C" {
   IO_readInput(int inputNr, int *value);
 
   //I/O Interface
-  //!sets an output of the digital I/Os
+  //!Sets an output of the digital I/Os
   //!@param ouputNr 1, or 2 for OutA or OutB
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   IO_setOutput(char output, int value);
 
-  //!reads a value from the register 'address'(connect to the IP in katana.conf)
+  //!Reads a value from the register 'address'(connect to the IP in katana.conf)
   // and returns it in the value argument given by reference
   //!@return returns -1 on failure, the read value if successful
   DLLEXPORT int  
   ModBusTCP_readWord(int address, int *value);
-	
-  //!writes a value to the register 'address' (connect to the IP in katana.conf)
+  
+  //!Writes a value to the register 'address' (connect to the IP in katana.conf)
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   ModBusTCP_writeWord(int address, int value);
@@ -237,8 +244,8 @@ extern "C" {
   //!1 if successful
   DLLEXPORT int  
   moveMot(int axis, int enc, int speed, int accel);
-	
-  //! calls MoveMot() and WaitForMot()
+  
+  //!Calls MoveMot() and WaitForMot()
   //!@param axis The axis to send the command to
   //!@param tolerance in encoder values (0 means wait until reached)
   //!@return returns ERR_FAILURE on failure, 
@@ -249,10 +256,10 @@ extern "C" {
   DLLEXPORT int  
   moveMotAndWait(int axis, int targetpos, int tolerance);
 	
-  //!moves in IK
+  //!Moves in IK
   DLLEXPORT int  
   moveToPos(struct TPos *pos, int velocity, int acceleration);
-	
+  
   //!Moves all axes to a target encoder value
   //!@param enc (encX) the target positions
   //!@param tolerance in encoders. sent unscaled to axis and handled there.
@@ -266,11 +273,11 @@ extern "C" {
   moveToPosEnc(int enc1, int enc2, int enc3, int enc4, int enc5, int enc6,
 	       int velocity, int acceleration, int tolerance, bool _wait);
 	
-  //!moves in LM
+  //!Moves in LM
   DLLEXPORT int  
   moveToPosLin(struct TPos *targetPos, int velocity, int acceleration);
-	
-  //!opens the gripper if available
+  
+  //!Opens the gripper if available
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
   //!ERR_STATE_MISMATCH if the command was given to a wrong state, 
@@ -278,7 +285,7 @@ extern "C" {
   DLLEXPORT int  
   openGripper();
 
-  //!checks the alive state of an axis
+  //!Checks the alive state of an axis
   //!@param axis 0 = get all axes
   //!@return If axis 0: 1 if all axes are present,
   //!negative value is the inverted number of the first axis found failing,
@@ -287,7 +294,7 @@ extern "C" {
   DLLEXPORT int  
   ping(int axis);
 
-  //!pushes a movement onto a stack
+  //!Pushes a movement onto a stack
   //!@param movement structure filled with position and movement parameters
   //!@param name the name of the stack to push it onto
   DLLEXPORT int  
@@ -300,7 +307,7 @@ extern "C" {
   runThroughMovementStack(char* name, int loops);
 
   //Linear Movement
-  //!sends a single polynomial to an axis (G)
+  //!Sends a single polynomial to an axis (G)
   //!@param axis The axis to send the command to
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -310,8 +317,8 @@ extern "C" {
   DLLEXPORT int  
   sendSplineToMotor(int axis, int targetpos, int duration,
 				   int p0, int p1, int p2, int p3);
-	
-  //!sets the collision detection on the axes. 
+  
+  //!Sets the collision detection on the axes. 
   //!@param state true = on
   //!@param axis 0 = set all axes
   //!@return returns ERR_FAILURE on failure, 
@@ -320,16 +327,16 @@ extern "C" {
   //!1 if successful
   DLLEXPORT int  
   setCollisionDetection(int axis, bool state);
-	
-  //!sets the collision parameters
+  
+  //!Sets the collision parameters
   //!this function calls setPositionCollisionLimit and setVelocityCollisionLimit
   //!@param axis 0 = set all axes
   //!@param position range 1-10
   //!@param velocity range 1-10
   DLLEXPORT int  
   setCollisionParameters(int axis, int position, int velocity);
-	
-  //! sets the controller parameters
+  
+  //!Sets the controller parameters
   //!@param axis 0 = set all axes
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -337,8 +344,8 @@ extern "C" {
   //!1 if successful
   DLLEXPORT int  
   setControllerParameters(int axis, int ki, int kspeed, int kpos);
-	
-  //!sets or unsets whether the Katana has a Gripper
+  
+  //!Sets or unsets whether the Katana has a Gripper
   //!@param hasGripper true if gripper present. Startup default: false
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -347,7 +354,7 @@ extern "C" {
   DLLEXPORT int  
   setGripper(bool hasGripper);	
 
-  //!sets the maximum acceleration (allowed values are only 1 and 2)
+  //!Sets the maximum acceleration (allowed values are only 1 and 2)
   //!@param axis 0 = set all axes
   //!@return returns ERR_FAILURE on failure, 
   //!ERR_INVALID_ARGUMENT if an argument is out of range,
@@ -355,8 +362,8 @@ extern "C" {
   //!1 if successful
   DLLEXPORT int  
   setMaxAccel(int axis, int acceleration);
-	
-  //!sets the maximum velocity
+  
+  //!Sets the maximum velocity
   //!@param axis 0 = set all axes
   //!@param vel 1-180 are valid
   //!@return returns ERR_FAILURE on failure, 
@@ -365,42 +372,42 @@ extern "C" {
   //!1 if successful
   DLLEXPORT int  
   setMaxVelocity(int axis, int vel);
-	
-  //!set the position collision limit
+  
+  //!Sets the position collision limit
   //!@param axis 0 = all axes
   DLLEXPORT int  
   setPositionCollisionLimit(int axis, int limit);
-	
-  //!set the velocity collision limit
+  
+  //!Sets the velocity collision limit
   //!@param axis 0 = all axes
   DLLEXPORT int  
   setVelocityCollisionLimit(int axis, int limit); 
-	
-  //!set the force limit
+  
+  //!Sets the force limit
   //!@param axis 0 = all axes
   //!@param limit limit in percent
   DLLEXPORT int  
   setForceLimit(int axis, int limit); 
-	
-  //!set the current force
+  
+  //!Sets the current force
   DLLEXPORT int  
   getForce(int axis); 
-	
-  //!set the current controller limit
+  
+  //!Sets the current controller limit
   //!@return 0 for position controller, 1 for current controller
   DLLEXPORT int  
   getCurrentControllerType(int axis); 
-	
-  //!starts the linear movement (G+128)
+  
+  //!Starts the linear movement (G+128)
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   startSplineMovement(int contd, int exactflag);
-
-  //!unblocks the robot after collision/instantstop
+  
+  //!Unblocks the robot after collision/instantstop
   DLLEXPORT int  
   unblock();
 
-  //!waits for a motor
+  //!Waits for a motor
   //!@param axis The axis to wait for
   //!@param targetpos (only relevant if mode is 0)
   //!@param tolerance (only relevant if mode is 0) in encoder values
@@ -414,24 +421,33 @@ extern "C" {
 
 # define MAX_MOTORS 6
 
-  //!get all motors encoder at once
+  //!Gets all motors encoder at once
   //!@param dest_encs An array of int
   //!@return returns -1 on failure  
   DLLEXPORT int
   getEncoders(int dest_encs[MAX_MOTORS]);
 
-  //!gets all motors velocity at once
+  //!Gets all motors velocity at once
   //!@param dest_vels An array of int
   //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int  
   getVelocities(int dest_vels[6]);
 
-  //!Check if a particular axis is blocked.
+  //!Gets minimum and maximum encoder values and Encoders Per Cycle for all axis
+  //!@param dest_mins allocated table receiving minimum encoder values
+  //!@param dest_mins allocated table receiving maximum encoder values
+  //!@param dest_mins allocated table receiving encoder per cycle values
+  DLLEXPORT int
+  getAllAxisMinMaxEPC(int dest_mins[MAX_MOTORS], 
+		      int dest_maxs[MAX_MOTORS],
+		      int dest_EPCs[MAX_MOTORS]);
+
+  //!Checks if a particular axis is blocked.
   //!@return returns -1 on failure, 0 if not blocked, 1 if axis is blocked.
   DLLEXPORT int
   is_blocked();
 
-  //!get the moving status of one or all axis
+  //!Gets the moving status of one or all axis
   //!@param axis index of the motor to use. If 0, use all.
   //!@return returns -1 on failure, 0 if not moving
   DLLEXPORT int

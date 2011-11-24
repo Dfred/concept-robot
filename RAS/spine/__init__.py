@@ -152,7 +152,7 @@ class Spine_Server(object):
     except:
       raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
     try:
-      self.AXIS_LIMITS = hardware['AXIS_LIMITS']
+      self.SW_limits = hardware['AXIS_LIMITS']
     except:
       raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                 self.hardware_name)
@@ -162,8 +162,8 @@ class Spine_Server(object):
     except:
       raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
                                "'POSE_READY_NEUTRAL'" % self.hardware_name)
-    Spine_Server.POSES['zero'] = [0]*len(self.AXIS_LIMITS)
-    Spine_Server.POSES['avrg'] = [(mn+mx)/2 for mn,mx,f in self.AXIS_LIMITS]
+    Spine_Server.POSES['SW_zero'] = [0]*len(self.SW_limits)
+    Spine_Server.POSES['SW_avrg'] = [(mn+mx)/2 for mn,mx,f in self.SW_limits]
 
   def is_moving(self):
     """Returns True if moving"""

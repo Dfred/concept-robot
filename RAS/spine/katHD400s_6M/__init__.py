@@ -52,6 +52,10 @@ class SpineHW(Spine_Server):
       self.stop_speed_control()
       raise
     self.AUs.set_availables(self.enabled_AUs)
+    self.HW_limits, self.EPCs = self.KNI.getMinMaxEPC()
+    self.EPCs = [ epc/2 for epc in self.EPCs ]
+    for i in range(6):
+      LOG.debug('axis %i HW: %se %se/pi', i+1, self.HW_limits[i], self.EPCs[i])
 
   def configure(self):
     """
@@ -63,19 +67,33 @@ class SpineHW(Spine_Server):
     else:
       self.KNI_cfg_file = "katana6M90T.cfg"
 
-  def rad2enc(self, axis, rad):
-    """Considers axis limits.
-    """
-    mn, mx, factor = self.AXIS_LIMITS[axis-1]
-    e = int(factor*rad) + SpineHW.POSES['ready'][axis-1]
-    f = min(max(mn, e), mx)
-    if e != f:
-      LOG.warning('axis %i: limited value %i to %i %s', axis,e,f,(mn,mx))
-    return f
+  # def rad2enc(self, axis, rad):
+  #   """Considers axis limits.
+  #   """
+  #   mn, mx, factor = self.AXIS_LIMITS[axis-1]
+  #   e = int(factor*rad) + SpineHW.POSES['ready'][axis-1]
+  #   f = min(max(mn, e), mx)
+  #   if e != f:
+  #     LOG.warning('axis %i: limited value %i to %i %s', axis,e,f,(mn,mx))
+  #   return f
 
-  def enc2rad(self, axis, enc):
-    mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
-    return 1.0/factor*(enc - neutral)
+  # def enc2rad(self, axis, enc):
+  #   mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
+  #   return 1.0/factor*(enc - neutral)
+
+  def get_encoders(self, axis, nvalue):
+    """Computes the encoder value for a specific axis considering its limits.
+    axis: KNI axis
+    nvalue: normalized angle in [-1,1] (equivalent to [-pi,pi] or [-180,180])
+    """
+    axis -= 1
+    value = int(self.EPCs[axis]*nvalue) + SpineHW.POSES['ready'][axis]
+    HWenc = min( max(value,self.HW_limits[axis][0]),
+               self.HW_limits[axis][1])
+    SWenc = min( max(HWenc, self.SW_limits[axis][0]), self.SW_limits[axis][1])
+    LOG.debug("Axis %i: asked [%s -> %i] HW:%i SW:%s %s", axis+1, nvalue, value,
+              HWenc, SWenc, value!=SWenc and "(clamped from %i)"%HWenc or "")
+    return SWenc
 
   def is_moving(self):
     return self.KNI.is_moving(0)
@@ -89,8 +107,7 @@ class SpineHW(Spine_Server):
           axis, target = SpineHW.AU2Axis[au], infos[0]
           assert axis, 'axis for AU %s is disabled!!?' % au
           # TODO: use dynamics
-          print au, infos, target*math.pi
-          self.KNI.moveMot(axis, self.rad2enc(axis,target*math.pi), SPEED,ACCEL)
+          self.KNI.moveMot(axis, self.get_encoders(axis,target), SPEED,ACCEL)
     print 'update_loop done!'
 
   def start_speed_control(self):
