@@ -84,5 +84,5 @@ class LHKNI_wrapper(object):
 
     def getMinMaxEPC(self):
         mins, maxs, EPCs = (c_int * 6)(),(c_int * 6)(),(c_int * 6)()    # *3
-        self.KNI.getAxisMinMaxEPC(mins,maxs,EPCs)
+        self.KNI.getAllAxisMinMaxEPC(mins,maxs,EPCs)
         return zip([e for e in mins],[e for e in maxs]), [epc for epc in EPCs]

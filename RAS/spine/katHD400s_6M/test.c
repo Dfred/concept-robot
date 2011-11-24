@@ -125,7 +125,7 @@ int main(int ac, char *argv[])
       exit(1);
 
   int axis_min[NBR_AXIS], axis_max[NBR_AXIS], axis_EPC[NBR_AXIS];
-  if (getAxisMinMaxEPC(axis_min, axis_max, axis_EPC) == -1)
+  if (getAllAxisMinMaxEPC(axis_min, axis_max, axis_EPC) == -1)
     { printf("getAxisMinMaxEPC failed\n"); exit(1); }
   for (int i = 0; i < NBR_AXIS; i++)
     printf("Axis #%i encoders [%i,%i] , %i encoders per cycle\n", i+1,
