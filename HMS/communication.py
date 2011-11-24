@@ -36,19 +36,24 @@ set_debug_logging(True)
 LOG = get_logger(__package__)
 
 
+class CommunicationError(Exception):
+    pass
+
+
 class ThreadedComm(ASCIICommandClient):
     """A communication class based on the comm protocol with threaded polling.
     """
 
     CONNECT_TIMEOUT = 3
 
-    def __init__(self, server_addrPort):
+    def __init__(self, server_addrPort, connection_succeded_function):
         super(ThreadedComm,self).__init__(server_addrPort)
         self.connect_timeout = self.CONNECT_TIMEOUT
         self.working = True
         # let's the threaded object manage the socket independently
         self.thread = threading.Thread(target=self.always_connected)
         self.thread.start()
+        self.connect_success_function = connection_succeded_function
 
     def handle_connect_error(self, e):
         """See handle_connect_timeout.
@@ -60,7 +65,12 @@ class ThreadedComm(ASCIICommandClient):
         """Sleeps a bit.
         """
         time.sleep(1)
-
+        
+    def handle_connect(self):
+        self.connect_success_function()
+        print "went into connect"
+        
+        
     def always_connected(self):
         """
         """
@@ -80,14 +90,14 @@ class ThreadedComm(ASCIICommandClient):
         LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
 
-class LightHeadComm(ThreadedComm):
+class ThreadedLightHeadComm(ThreadedComm):
     """Class dedicated for communication with lightHead server.
     """
 
-    def __init__(self, srv_addrPort):
+    def __init__(self, srv_addrPort, connection_succeded_function):
         """
         """
-        super(LightHeadComm, self).__init__(srv_addrPort)
+        super(ThreadedLightHeadComm, self).__init__(srv_addrPort, connection_succeded_function)
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -113,16 +123,16 @@ class LightHeadComm(ThreadedComm):
         return (self.lips_info, self.gaze_info, self.face_info)
 
 
-class ExpressionComm(ThreadedComm):
+class ThreadedExpressionComm(ThreadedComm):
     """Class dedicated for communication with expression server.
     """
 
     ST_ACK, ST_NACK, ST_INT, ST_DSC = range(4)
 
-    def __init__(self, srv_addrPort):
+    def __init__(self, srv_addrPort, connection_succeded_function):
         """
         """
-        super(ExpressionComm,self).__init__(srv_addrPort)
+        super(ThreadedExpressionComm,self).__init__(srv_addrPort, connection_succeded_function)
         self.tag = None
         self.tag_count = 0
         self.status = None

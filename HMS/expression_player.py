@@ -35,7 +35,7 @@ import time
 
 from utils import conf, handle_exception
 from utils.FSMs import SMFSM
-from HMS.communication import ExpressionComm
+from HMS.communication import ThreadedExpressionComm
 
 
 def fatal(msg):
@@ -85,7 +85,11 @@ class Behaviour_Builder():
         self.vision.update()
       except vision.VisionException, e:
         fatal(e)
-    self.comm_expr = ExpressionComm(conf.expression_server)
+    self.comm_expr = ThreadedExpressionComm(conf.expression_server, connection_succeded_function=self.connected)
+    
+    
+  def connected(self):
+    self.connected = True
 
   def cleanup(self):
     """
