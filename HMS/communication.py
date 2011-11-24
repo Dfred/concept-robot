@@ -68,7 +68,6 @@ class ThreadedComm(ASCIICommandClient):
         
     def handle_connect(self):
         self.connect_success_function()
-        print "went into connect"
         
         
     def always_connected(self):

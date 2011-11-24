@@ -13,7 +13,7 @@ from cogmod.layout import Ui_MainWindow
 from cogmod import graphic
 
 
-use_gui = 0
+use_gui = 1
 
 ########### Tuning params #################
 neck_adj_fact_x = 1.0
@@ -35,7 +35,6 @@ class Behaviour_thread(threading.Thread):
     def run(self):
         self.player.run()
         self.player.cleanup()
-        print "check"
 
 
 
@@ -46,7 +45,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def __init__(self, comm_queue):
         
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_pose_default), (SMFSM.STOPPED,self.stopped) )
+        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_to_target), (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
         self.connected = False
@@ -198,7 +197,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
 
         
     def stopped(self, arg):
-        print 'test stopped'
+        print 'behaviour ended'
         return
       
 
