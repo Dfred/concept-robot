@@ -5,9 +5,11 @@
  * Copyright (C) Neuronics AG
  * Philipp Keller, Tino Perucchi, 2008
  **************************************************************************/
-/***
- * Frederic Delaunay @ plymouth.ac.uk: Added get_encoders() + cosmetics 
- ***/
+
+/*******************************************************************************
+ * Frederic Delaunay @ plymouth.ac.uk: see LH_KNI_wrapper.h
+ ******************************************************************************/
+
 #include <iostream>
 #include <memory>
 #include <math.h>
@@ -890,15 +892,35 @@ getEncoders(int dest_encs[MAX_MOTORS])			// handle only 6 axis
 
 ///
 DLLEXPORT int 
-getVelocities(int dest_vels[MAX_MOTORS]){
+getVelocities(int dest_vels[MAX_MOTORS])
+{
   EXCEPT(
     const TKatMOT* motors = katana->GetBase()->GetMOT();
     assert(motors->cnt <= MAX_MOTORS);
-    //    katana->GetBase()->recvGMS();
     for (int i = 0; i < motors->cnt; i++)
       {
 	motors->arr[i].recvPVP();
 	dest_vels[i] = (int) motors->arr[i].GetPVP()->vel;
+      }
+	 )
+  return ERR_SUCCESS;
+}
+
+///
+// Get all axis min/max encoder values and Encoders Per Cycle (per 360 deg)
+DLLEXPORT int
+getAllAxisMinMaxEPC(int dest_mins[MAX_MOTORS], 
+		    int dest_maxs[MAX_MOTORS],
+		    int dest_EPCs[MAX_MOTORS])
+{
+  EXCEPT(
+    const TKatMOT* motors = katana->GetBase()->GetMOT();
+    assert(motors->cnt <= MAX_MOTORS);
+    for (int i = 0; i < motors->cnt; i++)
+      {
+	dest_mins[i] = motors->arr[i].GetEncoderMinPos();
+	dest_maxs[i] = motors->arr[i].GetEncoderMaxPos();
+	dest_EPCs[i] = motors->arr[i].GetInitialParameters()->encodersPerCycle;
       }
 	 )
   return ERR_SUCCESS;

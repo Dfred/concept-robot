@@ -81,3 +81,8 @@ class LHKNI_wrapper(object):
         vels = (c_int * 6)()
         self.KNI.getVelocities(vels)
         return [ v for v in vels ]
+
+    def getMinMaxEPC(self):
+        mins, maxs, EPCs = (c_int * 6)(),(c_int * 6)(),(c_int * 6)()    # *3
+        self.KNI.getAxisMinMaxEPC(mins,maxs,EPCs)
+        return zip([e for e in mins],[e for e in maxs]), [epc for epc in EPCs]
