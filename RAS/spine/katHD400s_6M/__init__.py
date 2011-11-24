@@ -43,19 +43,18 @@ class SpineHW(Spine_Server):
     Spine_Server.__init__(self)
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
-    LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
-    self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
-    try:
-      self.switch_on(with_ready_pose)
-    except SpineError, e:
-      LOG.fatal('Could not switch on properly: %s', e)
-      self.stop_speed_control()
-      raise
     self.AUs.set_availables(self.enabled_AUs)
-    self.HW_limits, self.EPCs = self.KNI.getMinMaxEPC()
-    self.EPCs = [ epc/2 for epc in self.EPCs ]
-    for i in range(6):
-      LOG.debug('axis %i HW: %se %se/pi', i+1, self.HW_limits[i], self.EPCs[i])
+    self.init_hardware()
+    # check limits for floats (normalized angles) and convert them to encoders
+    for i in range(len(self.SW_limits)):
+      for b in range(2):
+        if type(self.SW_limits[i][b]) == type(.1):
+          self.SW_limits[i] = list(self.SW_limits[i])
+          self.SW_limits[i][b] = self.value2encoder(i+1, self.SW_limits[i][b],
+                                                    raw=True)
+          LOG.debug('axis %i %s SW_limit: %ienc', i+1, ("min","max")[b],
+                    self.SW_limits[i][b])
+    self.switch_on()
 
   def configure(self):
     """
@@ -67,28 +66,47 @@ class SpineHW(Spine_Server):
     else:
       self.KNI_cfg_file = "katana6M90T.cfg"
 
-  # def rad2enc(self, axis, rad):
-  #   """Considers axis limits.
-  #   """
-  #   mn, mx, factor = self.AXIS_LIMITS[axis-1]
-  #   e = int(factor*rad) + SpineHW.POSES['ready'][axis-1]
-  #   f = min(max(mn, e), mx)
-  #   if e != f:
-  #     LOG.warning('axis %i: limited value %i to %i %s', axis,e,f,(mn,mx))
-  #   return f
+  def init_hardware(self):
+    """
+    """
+    LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
+    self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
 
-  # def enc2rad(self, axis, enc):
-  #   mn, mx, neutral, factor = self.AXIS_LIMITS[axis-1]
-  #   return 1.0/factor*(enc - neutral)
+    # calibrate_if_needed
+    encoders_at_init = self.KNI.getEncoders()
+    for axis in range(6):
+      try:
+        self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
+      except SpineError, e:
+        try:
+          self.KNI.calibrate()
+          break
+        except SpineError, e:
+          LOG.fatal('Could not switch on properly: %s', e)
+          raise
 
-  def get_encoders(self, axis, nvalue):
+    self.HW_limits, self.EPCs = self.KNI.getMinMaxEPC()
+    self.EPCs = [ epc/2 for epc in self.EPCs ]
+    for i in range(6):
+      LOG.debug('axis %i HW: %se %se/pi', i+1, self.HW_limits[i], self.EPCs[i])
+
+    # Check for generated poses values from config
+    for name, pose in self.poses.iteritems():
+      for i,enc in enumerate(pose):
+        if enc == None:
+          pose[i] = encoders_at_init[i]
+          LOG.debug("Pose '%s', axis %i: 0 is now %senc.", name, i+1, pose[i])
+
+  def value2encoder(self, axis, nvalue, raw=False):
     """Computes the encoder value for a specific axis considering its limits.
     axis: KNI axis
     nvalue: normalized angle in [-1,1] (equivalent to [-pi,pi] or [-180,180])
     """
     axis -= 1
-    value = int(self.EPCs[axis]*nvalue) + SpineHW.POSES['ready'][axis]
-    HWenc = min( max(value,self.HW_limits[axis][0]),
+    value = int(self.EPCs[axis]*nvalue) + self.poses['ready'][axis]
+    if raw:
+      return value
+    HWenc = min( max(value, int(self.HW_limits[axis][0])),
                self.HW_limits[axis][1])
     SWenc = min( max(HWenc, self.SW_limits[axis][0]), self.SW_limits[axis][1])
     LOG.debug("Axis %i: asked [%s -> %i] HW:%i SW:%s %s", axis+1, nvalue, value,
@@ -107,7 +125,7 @@ class SpineHW(Spine_Server):
           axis, target = SpineHW.AU2Axis[au], infos[0]
           assert axis, 'axis for AU %s is disabled!!?' % au
           # TODO: use dynamics
-          self.KNI.moveMot(axis, self.get_encoders(axis,target), SPEED,ACCEL)
+          self.KNI.moveMot(axis, self.value2encoder(axis,target), SPEED,ACCEL)
     print 'update_loop done!'
 
   def start_speed_control(self):
@@ -132,8 +150,8 @@ class SpineHW(Spine_Server):
     """Set normalized values, relative to hardware capabilities."""
     self._accel = min(value, self.SPEED_LIMITS[1][1])
 
-  def calibrate_if_needed(self):
-    """Start calibration if needed. Also unblock blocked axis.
+  def unblock_if_needed(self):
+    """
     """
     if self.KNI.is_blocked():
       LOG.critical("---- The arm is blocked! -----")
@@ -147,18 +165,10 @@ class SpineHW(Spine_Server):
       raw_input('PRESS ENTER ONCE THE ARM IS READY TO BE OPERATED AGAIN')
       self.switch_auto()
 
-    encs = self.KNI.getEncoders()
-    for axis in range(6):
-      try:
-        self.KNI.moveMot(axis+1, encs[axis], SPEED, ACCEL)
-      except SpineError, e:
-        self.KNI.calibrate()
-        break
-
   def switch_on(self, with_ready_pose=True):
     """Mandatory 1st call after hardware is switched on.
     """
-    self.calibrate_if_needed()                          #XXX: motor fail => axis
+    self.unblock_if_needed()
     self.switch_auto()
     self.reach_pose('rest')                             # we may have moved
     if with_ready_pose:
@@ -186,12 +196,12 @@ class SpineHW(Spine_Server):
     pose_name: identifier from Spine_Server.POSE_IDs
     wait: wait for the pose to be reached before returning
     """
-    if pose_name not in SpineHW.POSES.keys():
+    if pose_name not in self.poses.keys():
       LOG.warning('pose %s does not exist', pose_name)
       return
     try:
-      LOG.debug('reaching pose %s : %s', pose_name, SpineHW.POSES[pose_name])
-      self.KNI.moveToPosEnc(*list(SpineHW.POSES[pose_name])+
+      LOG.debug('reaching pose %s : %s', pose_name, self.poses[pose_name])
+      self.KNI.moveToPosEnc(*list(self.poses[pose_name])+
                              [50, ACCEL, TOLER, wait])
     except SpineError:
       raise SpineError("failed to reach pose '%s'" % pose_name)
