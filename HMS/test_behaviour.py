@@ -194,7 +194,6 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
                     self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
                     self.comm_expr.send_datablock("GAZE_AJUST")
-                    
 
         
     def stopped(self, arg):
