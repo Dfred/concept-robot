@@ -195,20 +195,26 @@ class ExpressionComm(ThreadedComm):
 
     def set_neck(self, rotation=(), orientation=(), position=()):
         """Set head placement.
-        rotation: (x,y,z) : relative normalized orientation 
-        rotation: (x,y,z) : absolute normalized orientation
-        position: (x,y,z) : relative normalized position
+        rotation:    (x,y,z) : relative normalized orientation 
+        orientation: (x,y,z) : absolute normalized orientation
+        position:    (x,y,z) : relative normalized position
         right handedness (ie: with y+ pointing forward)
         """
-        assert len(orientation)==3 and type(position[0]) is float, 'wrong types'
-        assert len(rotation) == 3 and type(rotation[0]) is float, 'wrong types'
-        assert len(position) == 3 and type(position[0]) is float, 'wrong types'
-        assert roation or orientation, 'cannot specify orientation and rotation'
+        assert rotation and \
+            (len(rotation)==3 and type(rotation[0]) is float) or \
+            True, 'wrong types'
+        assert orientation and \
+            (len(orientation) == 3 and type(orientation[0]) is float) or\
+            True, 'wrong types'
+        assert position and \
+            (len(position) == 3 and type(position[0]) is float) or \
+            True, 'wrong types'
+        assert rotation or orientation, 'cannot specify orientation and rotation'
         msg = ""
         if rotation:
           self.datablock[3] += str(rotation)
         if orientation:
-          self.datablock[3] += "(%s)" % orientation
+          self.datablock[3] += "((%s, %s, %s))" % orientation
         if position:
           self.datablock[3] += str(list(position))
         

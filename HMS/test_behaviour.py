@@ -13,7 +13,7 @@ from cogmod.layout import Ui_MainWindow
 from cogmod import graphic
 
 
-use_gui = 0
+use_gui = 1
 
 
 class Behaviour_thread(threading.Thread):
@@ -22,12 +22,12 @@ class Behaviour_thread(threading.Thread):
     
     def __init__(self, comm_queue):
         threading.Thread.__init__(self)
-        self.player = Follow_Behaviour(comm_queue)
+        self.comm_queue = comm_queue
+        self.player = Follow_Behaviour(self.comm_queue)
     
     def run(self):
         self.player.run()
-        print "check"
-        self.player.cleanup()        
+        self.player.cleanup()
 
 
 
@@ -38,10 +38,10 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def __init__(self, comm_queue):
         
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.pose_test), (SMFSM.STOPPED,self.stopped) )
+        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_neck_to_target), (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
-        self.comm_lighthead = LightHeadComm(conf.lightHead_server)
+        #self.comm_lighthead = LightHeadComm(conf.lightHead_server)
     
 
     def started(self):
@@ -52,12 +52,10 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def pose_test(self):
         print 'test started'
         
-        #self.comm_expr.set_gaze((0.0, 0.5, 0.0))
-        self.comm_expr.set_neck((0.0, 0.0, -1.0), [0.0, 0.0, 0.0])
-        #self.comm_expr.set_datablock("", 1.0, "", (0.0, 0.5, 0.0), (0.1, 0.0, 0.0), (0.0, 0.0, 0.0), "")
+        self.comm_expr.set_neck( (-1.0, 0.0, -1.0))
         self.comm_expr.send_datablock("Test")
         
-        return SMFSM.STOPPED 
+        return SMFSM.STOPPED
     
     
     def get_features(self):
@@ -74,7 +72,36 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                 self.comm_lighthead.get_snapshot()
                 print self.comm_lighthead.snapshot
                 time.sleep(1)
+                
+                
+    def set_neck_to_target(self):
+        """ sets the gaze to target pulled from the vision queue
+        """
+        print "neck follows target"
+        
+        while True:
+            try:    # query the queue
+                item = self.comm_queue.get(False)
+            except Queue.Empty:
+                item = None
+                
+            if item:
+                if item == "quit_fsm":  # if receiving the stop command, move state
+                    return SMFSM.STOPPED
+                
+                elif item[0] == "face":  # face detected
+                    (fx, fy, fw, fh) = item[1]
+                    print (fx, fy, fw, fh)
+                    face_dist = ((-88.5 * math.log(fw)) + 538.5)
+                    fx = fx + (fw/2.0)
+                    fy = fy + (fh/2.0)
+                    x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
+                    y_dist = (((fy/544.0) *-2) +1)*0.05
     
+                    self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
+                    self.comm_expr.send_datablock("GAZE_AJUST")
+
+        
         
     def set_gaze_to_target(self):
         """ sets the gaze to target pulled from the vision queue
@@ -139,7 +166,7 @@ if __name__ == '__main__':
         mainwindow.layout = ui
         mainwindow.set_defaults()
         mainwindow.show()
-        sys.exit(app.exec_())
-    
+        app.exec_()
+        comm_queue.join()
     
     
