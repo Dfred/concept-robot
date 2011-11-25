@@ -120,18 +120,13 @@ class Spine_Handler(ASCIIRequestHandler):
 class Spine_Server(object):
   """Skeleton animation module.
   """
-  POSES = {'rest'       : None,                         # safe switch-off pose
-           'ready'      : None,                         # operating start pose
-           'zero'       : None,                         # all axis at 0rad.
-           'avrg'       : None,                         # all at mid-range
-           }
-
 
   def __init__(self):
     super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
     self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
+    self.poses = {}
     self.configure()
 
   def configure(self):
@@ -152,18 +147,18 @@ class Spine_Server(object):
     except:
       raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
     try:
-      self.SW_limits = hardware['AXIS_LIMITS']
+      self.SW_limits = list(hardware['AXIS_LIMITS'])    # may contain angles
     except:
       raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                 self.hardware_name)
     try:
-      Spine_Server.POSES['rest'] = hardware['POSE_REST']
-      Spine_Server.POSES['ready'] = hardware['POSE_READY_NEUTRAL']
+      self.poses['rest'] = list(hardware['POSE_REST'])
+      self.poses['ready'] = list(hardware['POSE_READY_NEUTRAL'])
     except:
       raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
                                "'POSE_READY_NEUTRAL'" % self.hardware_name)
-    Spine_Server.POSES['SW_zero'] = [0]*len(self.SW_limits)
-    Spine_Server.POSES['SW_avrg'] = [(mn+mx)/2 for mn,mx,f in self.SW_limits]
+    self.poses['SW_zero'] = [0]*len(self.SW_limits)
+    self.poses['SW_avrg'] = [int((mn+mx)/2) for mn,mx in self.SW_limits]
 
   def is_moving(self):
     """Returns True if moving"""
