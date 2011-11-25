@@ -79,6 +79,9 @@ class SpineHW(Spine_Server):
         self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
       except SpineError, e:
         try:
+          LOG.info("Calibration needed.")
+          print "\n\n\n\n=== MAKE SURE THE HEAD IS NOT ATTACHED TO THE ARM ==="
+          raw_input("Press Enter key to start calibration")
           self.KNI.calibrate()
           break
         except SpineError, e:
@@ -159,7 +162,7 @@ class SpineHW(Spine_Server):
       self.KNI.unblock()
       if self.KNI.is_blocked():
         LOG.fatal("Failed to unblock the arm! Bailing out!")
-        sys.exit(2)                                     # crude but safer
+        exit(2)                                         # crude but safer
       raw_input('PRESS ENTER TO ENTER MANUAL MODE')
       self.switch_manual()
       raw_input('PRESS ENTER ONCE THE ARM IS READY TO BE OPERATED AGAIN')
