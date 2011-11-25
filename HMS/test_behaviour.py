@@ -142,6 +142,8 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         
         print "detecting"
         
+        comm_send_tag = None
+        
         while True:
             try:    # query the queue
                 item = self.comm_queue.get(False)
@@ -152,21 +154,31 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                 if item == "quit_fsm":  # if receiving the stop command, move state
                     return SMFSM.STOPPED
                 
+                elif item[0] == "adjust_gaze":
+                    gaze = item[1]
+                    self.comm_expr.set_gaze(gaze)
+                    self.comm_expr.send_datablock("GAZE_AJUST")
+                
+                elif item[0] == "adjust_neck":
+                    rotation = item[1]
+                    self.comm_expr.set_neck(rotation)
+                    self.comm_expr.send_datablock("NECK_AJUST")
+                
+                
                 elif item[0] == "face_gaze":
                     (fx, fy, fw, fh) = item[1]
-                    print "fx, fy: ", fx, fy
                     face_dist = ((-88.5 * math.log(fw)) + 538.5)
                     fx = fx + (fw/2.0)
                     fy = fy + (fh/2.0)
                     if item[2]:
-                        self.gaze_adjust_x = item[2][0]/100.0
-                        self.gaze_adjust_y = item[2][1]/100.0
+                        self.gaze_adjust_x = item[2][0]/200.0
+                        self.gaze_adjust_y = item[2][1]/200.0
                         
-                    x_dist = (((fx/960.0) *-2) +1)*-self.gaze_adjust_x # mirror
+                    x_dist = (((fx/960.0) *-2) +1)*self.gaze_adjust_x # mirror
                     y_dist = (((fy/544.0) *-2) +1)*self.gaze_adjust_y
     
                     self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
-                    self.comm_expr.send_datablock("GAZE_AJUST")
+                    comm_send_tag = self.comm_expr.send_datablock("GAZE_AJUST")
                     
                     
                 elif item[0] == "face_neck":
@@ -174,17 +186,23 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     nx = fx+(fw/2.0)
                     ny = fy+(fh/2.0)
                     if item[2]:
-                        self.neck_adjust_x = item[2][2]/100.0
-                        self.neck_adjust_y = item[2][3]/100.0
-                        
-                    print self.neck_adjust_x, self.neck_adjust_y
+                        self.neck_adjust_x = item[2][2]/500.0
+                        self.neck_adjust_y = item[2][3]/500.0
                     
-#                    if nx < 320:
-#                        self.comm_expr.set_neck( (0.0, 0.0, self.neck_adjust_x * (-.5 + (nx/640.0))) )
-#                        self.comm_expr.send_datablock("NECK_AJUST")
-#                    if nx < 320:
-#                        self.comm_expr.set_neck( (0.0, 0.0, self.neck_adjust_x * ( (nx-640)/640.0) ) )
-#                        self.comm_expr.send_datablock("NECK_AJUST")
+                    if nx < 320:
+                        print self.comm_expr.tag
+                        if self.comm_expr.tag == (comm_send_tag or None):
+                            self.comm_expr.tag = None
+                            z_value = -self.neck_adjust_x * (-.5 + (nx/640.0))
+                            print z_value
+                            self.comm_expr.set_neck((0.0, 0.0, z_value))
+                            comm_send_tag = self.comm_expr.send_datablock("NECK_AJUST")
+                        
+                    if nx > 640:
+                        z_value = -self.neck_adjust_x * ( (nx-640)/640.0)
+                        print z_value
+                        self.comm_expr.set_neck((0.0, 0.0, z_value))
+                        self.comm_expr.send_datablock("NECK_AJUST")
                         
                     
                 elif item[0] == "motion":  # motion detected
