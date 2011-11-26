@@ -22,25 +22,28 @@
 """
 SPINE MODULE
 
-This module controls generic orientation/position of the robot torso and neck.
-The backend (implemented in the module 'spine_backend') should inherit from
- SpineBase and implement the empty methods.
+ This module controls the robot's skeleton. The backend (implemented in the
+module 'spine_backend') should inherit from Spine_Server and implement the empty
+methods.
 
-The API is limited to hardware implementation and indeed results are hardware-
- dependent. However as long as the hardware provides the required DOF and
- backend provides required functions, the end-result should be similar.
+ The API is limited to hardware implementation and indeed results are hardware-
+dependent. However as long as the hardware provides the required DOF and
+backend provides required functions, the end-result should be similar.
 """
 
 #TODO: from abc import ABCMeta, abstractmethod
+from collections import deque
+
+import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
+from RAS.dynamics import DYNAMICS
+
 import RAS
 
 __all__ = [
   'SpineHW',
-  'TorsoInfo',
-  'NeckInfo',
   'SpineError']
 
 LOG = get_logger(__package__)
@@ -51,18 +54,14 @@ class SpineError(StandardError):
 
 
 class SpineElementInfo(object):
-  """Capabilities and Information about an element of the spine"""
-
+  """Information about a spine's element. An element is not a direct
+  representation of the skeleton (eg: the thorax can be physically made of many
+  sections).
+  """
   def __init__(self):
-    self.origin = [.0,]*3   # global coordinates of origin
-    self.limits_rot = []    # min and max orientation values for each axis
-    self.limits_pos = []    # min and max position values for each axis
-    self.rot = [None,]*3
-    self.pos = [None,]*3
-class TorsoInfo(SpineElementInfo):
-  pass
-class NeckInfo(SpineElementInfo):
-  pass
+    self.limits_rot = []                                # orientation
+    self.limits_pos = []                                # position
+    self.pivot_coords = [.0,]*3                         # in world coordinates
 
 
 class Spine_Handler(ASCIIRequestHandler):
@@ -70,108 +69,102 @@ class Spine_Handler(ASCIIRequestHandler):
   """
 
   def setup(self):
-    self.xyz = [[.0, 0]] *3         # value , attack_time (TODO: torso)
-    self.relative_rotators = { 'neck': self.server.rotate_neck,
-                               'torso': self.server.rotate_torso }
+    self.fifo = deque()
+
+  def cmd_AU(self, argline):
+    """Absolute rotation on 1 axis.
+    Syntax is: AU_name, target_value, attack_time (in s.)"""
+    try:
+      au_name, value, duration = argline.split()[:3]
+    except ValueError:
+      LOG.error("[AU] wrong number of arguments (%s)", argline)
+      return
+    try:
+      value, duration = float(value), float(duration)
+    except ValueError,e:
+      LOG.error("[AU] invalid float (%s)", e)
+      return
+    if self.server.AUs.has_key(au_name):
+      self.fifo.append((au_name, value, duration))
+    else:
+      LOG.warning("[AU] invalid AU (%s)", au_name)
+      return
+
+  def cmd_commit(self, argline):
+    """Commit valid buffered updates"""
+    self.server.AUs.update_targets(self.fifo)
+    self.fifo.clear()
 
   def cmd_switch(self, argline):
+    """Special function for test purposes (not documented - non official).
+    """
     args = argline.split()
     try:
       fct = getattr(self.server, 'switch_'+args[0])
     except AttributeError :
       LOG.debug('no switch_%s function available', args[0])
       return
+
+#    #TODO: implement and use the 'with' statement for threaded servers
+#    self.server.threaded and self.server.threadsafe_start()
+#    try:
     if len(args)>1:
       fct(int(args[1]))
     else:
       fct()
-
-  def cmd_AU(self, argline):
-    """Absolute rotation on 1 axis.
-    Syntax is: AU_name, target_value, attack_time (in s.)"""
-    args = argline.split()
-    if len(args) != 3:
-      LOG.warning('AU: expected 3 arguments (got %s)', args)
-      return
-    try:
-      dim = ('53.5', '55.5', '51.5').index(args[0])
-    except ValueError:
-      LOG.warning('AU not known: %s', args[0])
-      return
-    self.xyz[dim] = [ float(v) for v in args[1:] ]
-
-  def cmd_commit(self, argline):
-    """from expr2"""
-    self.server.animate(self.xyz, None)
-
-  def cmd_rotate(self, argline):
-    """relative rotation on 3 axis.
-    Syntax is: neck|torso x y z [wait]"""
-    if not argline:
-      self.send_msg('rot_neck %s\nrot_torso %s' % (
-                    SpineBase.round(self.server.get_neck_info().rot),
-                    SpineBase.round(self.server.get_torso_info().rot) ) )
-      return
-
-    args = argline.split()
-    if len(args) < 4:
-      raise SpineError('rotate: 4 or 5 arguments required')
-    wait = len(args) == 5 and args[4] == 'wait'
-    xyz = [ round(float(arg),SpineBase.PRECISION) for arg in args[1:4] ]
-    try:
-      self.relative_rotators[args[0]](xyz, wait)
-    except KeyError, e:
-      raise SpineError("invalid body-part %s (%s)", args[0], e)
-
-  def cmd_move(self, argline):
-    """relative position on 3 axis"""
-    if not argline:
-#      self.send_msg('head_pos %s' % self.server.get_neck_info().pos)
-      return
-    args = [ float(arg) for arg in argline.split(',') ]
-    self.server.set_neck_rot_pos(pos_xyz=tuple(args))
+#    except StandardError, e:
+#      LOG.critical('Exception in thread-protected section: %s', e)
+#    self.server.threaded and self.server.threadsage_stop()
 
 
-class SpineBase(object):
-  """API for spine management (includes neck)."""
-
-  PRECISION = 4                                             # for real part
-
-  POSE_IDs = ('rest',                                       # safe switch-off
-              'zero',                                       # all axis at 0rad.
-              'avg',                                        # all at mid-range
-             )
-
-  @staticmethod
-  def round(iterable):
-    """version for iterables, different signature from __builtins__.round"""
-    return [ round(v, SpineBase.PRECISION) for v in iterable ]
+class Spine_Server(object):
+  """Skeleton animation module.
+  """
 
   def __init__(self):
-    """torso_info and neck_info are readonly properties"""
-    self._torso_info = TorsoInfo()
-    self._neck_info  = NeckInfo()
-    self._speedLimit = 0.0                                  # in radians/s
-    self._accel = 0.0                                       # speed increment /s
-    self._tolerance = 0.0                                   # in radians
+    super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
-    self.FP = RAS.FeaturePool()               # dict of { origin : numpy.array }
+    self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
+    self.poses = {}
+    self.configure()
 
-  # Note: property decorators are great but don't allow child class to define
-  #       just the setter...
+  def configure(self):
+    """
+    """
+    spine_conf = conf.ROBOT['mod_spine']
+    try:
+      self.hardware_name = spine_conf['backend']
+    except:
+      raise conf.LoadException("mod_spine has no 'backend' key")
+    try:
+      self.KNI_address = spine_conf['hardware_addr']
+    except:
+      raise conf.LoadException("mod_spine has no 'hardware_addr' key")
+
+    try:
+      hardware = conf.lib_spine[self.hardware_name]
+    except:
+      raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
+    try:
+      self.SW_limits = list(hardware['AXIS_LIMITS'])    # may contain angles
+    except:
+      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
+                                self.hardware_name)
+    try:
+      self.poses['rest'] = list(hardware['POSE_REST'])
+      self.poses['ready'] = list(hardware['POSE_READY_NEUTRAL'])
+    except:
+      raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
+                               "'POSE_READY_NEUTRAL'" % self.hardware_name)
+    self.poses['SW_zero'] = [0]*len(self.SW_limits)
+    self.poses['SW_avrg'] = [int((mn+mx)/2) for mn,mx in self.SW_limits]
 
   def is_moving(self):
     """Returns True if moving"""
-    return
 
-  def get_torso_info(self):
-    """Returns TorsoInfo instance"""
-    return self._torso_info
-
-  def get_neck_info(self):
-    """Returns NeckInfo instance"""
-    return self._neck_info
+  # Note: property decorators are great but don't allow child class to define
+  #       just the setter...
 
   def get_tolerance(self):
     """In radians"""
@@ -193,43 +186,10 @@ class SpineBase(object):
     """function to call upon collision detection locking"""
     self._lock_handler = handler
 
-  def set_neck_orientation(self, axis3):
-    """Absolute orientation:"""
-    raise NotImplementedError()
-
-  def set_torso_orientation(self, axis3):
-    """Absolute orientation:"""
-    raise NotImplementedError()
-
-  def set_neck_rot_pos(self, axis3_rot=None, axis3_pos=None):
-    """Set head orientation and optional position from neck reference point.
-    axis3_rot: triplet of floats in radians
-    axis3_pos: triplet of floats in meters
+  def reach_pose(self, pose):
     """
-    # to be overriden
-    raise NotImplementedError()
-
-  # TODO: poll AU values from the AU pool after each update
-  def animate(self, neck_rot_attack, torso_rot_attack):
-    """Set neck and torso's absolute orientation with timing information.
-    neck_rot_attack:  X,Y,Z: (orientation_in_rads, attack_time_in_s)
-    torso_rot_attack: X,Y,Z: (orientation_in_rads, attack_time_in_s)
     """
-    self.set_neck_orientation([ rad for rad, att in neck_rot_attack])
-
-  def rotate_neck(self, xyz, wait=True):
-    """Set neck's relative orientation."""
-    ptp = self.get_neck_info().rot
-    xyz_ = map(float.__add__, ptp, xyz)
-    LOG.debug('neck %s + %s = %s', ptp, xyz, xyz_)
-    self.set_neck_orientation(xyz_, wait)
-
-  def rotate_torso(self, xyz, wait=True):
-    """Set torso's relative orientation."""
-    ptp = self.get_torso_info().rot
-    xyz_ = map(float.__add__, ptp, xyz)
-    LOG.debug('torso %s + %s = %s', ptp, xyz, xyz_)
-    self.set_torso_orientation(xyz_, wait)
+    raise NotImplementedError()
 
   def switch_on(self):
     """Mandatory 1st call after hardware is switched on.
@@ -255,7 +215,6 @@ def get_server_class():
   except ImportError, e:
     LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
     LOG.error('check in your config file for mod_spine "backend" entry.\n')
-#    import sys; print sys.path; sys.exit(1)
     from RAS.spine import katHD400s_6M as backend
   return backend.SpineHW
 
@@ -266,13 +225,16 @@ if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   conf.load(name='lightHead')
   try:
-    conf.ROBOT = conf.ARM
     LOG.info("initializing %s", get_server_class())
-    server = comm.create_server(Spine_Handler, conf.ARM['mod_spine']['comm'],
+    server = comm.create_server(Spine_Handler, conf.ROBOT['mod_spine']['comm'],
                                 (False,False), get_server_class())
   except (conf.LoadException, UserWarning), err:
     import sys
-    LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], ':'.join(err))
-    exit(-1)
+    LOG.fatal("%s (%s)", sys.argv[0], ':'.join(err))
+    exit(1)
+  except SpineError, e:
+    LOG.fatal("%s", e)
+    exit(2)
+  print 'Initialization OK'
   server.serve_forever()
   LOG.debug("Spine server done")

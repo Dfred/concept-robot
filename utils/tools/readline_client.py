@@ -28,7 +28,6 @@ from __future__ import print_function                       # easier with stderr
 
 import threading
 import readline
-import logging
 import atexit
 import time
 import sys
@@ -37,8 +36,9 @@ import os
 
 # include path of our utils package for next import
 sys.path.insert(1,os.path.join(sys.path[0],'..','..'))
-from utils import comm, handle_exception_debug
+from utils import comm, set_logging_default, handle_exception_debug
 
+set_logging_default(verbosity_level=1)
 comm.set_debug_logging(False)
 
 # readline history
@@ -172,20 +172,22 @@ class commConsClient(comm.ScriptCommandClient):
   def loop_forever(self):
     """Process inputs until self.looping is False or an Exception is received"""
     while self.looping:
-        self.status = CONNECTING + " to %s on %s" % self.addr_port
-        try:
-            self.connect_and_run()
-        except KeyboardInterrupt:
-            self.looping = False
-        except StandardError, e:
-            self.looping = False
-            if self.ui:
-              self.ui.done = True
-              self.ui.thread.join()
-              self.ui = None
-            handle_exception_debug(force_debugger=True)
+      self.status = CONNECTING + " to %s on %s" % self.addr_port
+      try:
+        if not self.connect_and_run():
+          time.sleep(1)
+      except KeyboardInterrupt:
+        self.looping = False
+      except StandardError, e:
+        self.looping = False
+        if self.ui:
+          self.ui.done = True
+          self.ui.thread.join()
+          self.ui = None
+          handle_exception_debug(force_debugger=True)
     if self.ui:
       self.ui.done = True
+      print('press Enter key to finish')                # to unblock input read
       self.ui.thread.join()
 
   def handle_connect(self):

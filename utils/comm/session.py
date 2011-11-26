@@ -68,7 +68,7 @@ from presentation import BasePresentation
 from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
-FATAL_ERRORS = ( errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
+FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
 DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, ]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
@@ -833,7 +833,7 @@ class BaseClient(BasePeer):
       self.read_while_running(read_timeout)
       ret = True
     except select.error, e:
-      self.handle_error(self.socket, e)
+      self.handle_error(e)
       ret = False
     finally:
       if self.socket:

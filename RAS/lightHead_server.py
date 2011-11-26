@@ -41,7 +41,7 @@ from utils import get_logger, conf
 from RAS import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'gaze', 'lips', 'spine')                  # protocol keywords
+ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords
 
 
 class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
@@ -49,8 +49,8 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def __init__(self, server, sock, client_addr):
         super(LightHeadHandler,self).__init__(server, sock, client_addr)
-        self.handlers = {}              # { origin : subhandler }
-        self.transacting = None         # current transaction ('origin' command)
+        self.handlers = {}                              # {origin : subhandler}
+        self.transacting = []                           # transacting origins
         for origin, srv_hclass in self.server.origins.iteritems():
             self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
@@ -60,7 +60,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
             argline = argline.strip()
             try:
                 self.set_current_subhandler(self.handlers[argline])
-                self.transacting = argline
+                self.transacting.append(argline)
             except KeyError:
                 LOG.warning("unknown origin: '%s'", argline)
         else:
@@ -68,8 +68,9 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def cmd_commit(self, argline):
         """Marks end of a transaction"""
-        self.handlers[self.transacting].cmd_commit(argline)
-        self.transacting = None
+        for origin in self.transacting:
+          self.handlers[origin].cmd_commit(argline)
+        self.transacting = []
 
     # TODO: implement a reload of modules ?
     def cmd_reload(self, argline):
@@ -78,7 +79,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
 
     def cmd_get_snapshot(self, argline):
         #TODO: use pickle: human readable doesn't make much sense for snapshots.
-        """Returns the current snapshot of robot context
+        """Returns the current snapshot of the robot's state.
         argline: origins identifying arrays to be sent.
         """
         origins = ( argline.strip() and [ o.strip() for o in argline.split()
@@ -142,19 +143,22 @@ class LightHeadServer(object):#MetaServerMixin):
             try:
                 module = __import__('RAS.'+name, fromlist=['RAS'])
             except ImportError, e:
-                LOG.error("Configuration mentions 'mod_%s' but this module"
-                          " can't be loaded. Error: %s", name, e)
+                LOG.error("Error while loading 'mod_%s': %s", name, e)
                 sys.exit(3)
             try:
                 subserv_class = getattr(module, 'get_server_class')()
                 handler_class = getattr(module, name.capitalize()+'_Handler')
             except AttributeError, e:
-                # Consider that missing class just means no subserver
+                # Consider that a missing class just means no subserver
                 LOG.warning("Module %s: Missing mandatory classes (%s)" %
                             (name, e))
                 continue
-            subserver = subserv_class()
-#            subserver = self.create_subserver(subserv_class)
+            try:
+                subserver = subserv_class()
+            except StandardError, e:
+                LOG.error("Error while initializing module %s: %s", 
+                          name, ' : '.join(e))
+                sys.exit(4)
             self.register(subserver, handler_class, name)
             if info.has_key(EXTRA_ORIGINS):
                 for origin in info[EXTRA_ORIGINS]:

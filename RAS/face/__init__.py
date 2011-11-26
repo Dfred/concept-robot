@@ -226,7 +226,7 @@ if __name__ == '__main__':
   from utils import comm
   comm.set_debug_logging(len(sys.argv) > 1 and sys.argv[1] == '-d')
   try:
-    conf.load('lightHead')
+    conf.load(name='lightHead')
     fconf = conf.ROBOT['mod_face']
     server = comm.session.create_server(Face_Handler, fconf['comm'],
                                         (False,False),Face_Server)

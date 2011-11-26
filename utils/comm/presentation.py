@@ -124,7 +124,7 @@ class ASCIICommandProto(BasePresentation):
     Return: unprocessed data, not finishing with a \n
     """
     LOG.debug("%s> command [%iB]:%s", self.socket.fileno(), len(recv_data),
-              len(recv_data)>32 and recv_data[:32]+'[...]' or recv_data)
+              len(recv_data)>32 and recv_data[:256]+'[...]' or recv_data)
     #XXX: this version allows tampering with buffers while parsing.
     self.data = recv_data                                   # allows extern read
     self.data_end = 0                                       # end data processed

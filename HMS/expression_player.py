@@ -35,13 +35,29 @@ import time
 
 from utils import conf, handle_exception
 from utils.FSMs import SMFSM
-from HMS.communication import ExpressionComm
+from HMS.communication import ThreadedExpressionComm
 
 
 def fatal(msg):
   print msg
   exit(1)
 
+
+class expressionComm(ThreadedExpressionComm):
+    
+    def __init__(self, srv_addrPort, connection_succeded_function):
+        super(expressionComm, self).__init__(srv_addrPort, connection_succeded_function)
+        self.neck_adjust_tag = None
+        
+    def cmd_ACK(self, argline):
+        self.status = self.ST_ACK
+        self.tag = argline.strip()
+        if "NECK_AJUST" in self.tag:
+            self.neck_adjust_tag = self.tag
+        try: self.on_reply[self.tag]('ACK', self.tag)
+        except KeyError: pass
+        
+        
 
 class Behaviour_Builder():
   """A generic framework for specifying behaviour through SMFSM objects.
@@ -85,7 +101,11 @@ class Behaviour_Builder():
         self.vision.update()
       except vision.VisionException, e:
         fatal(e)
-    self.comm_expr = ExpressionComm(conf.expression_server)
+    self.comm_expr = expressionComm(conf.expression_server, connection_succeded_function=self.connected)
+    
+    
+  def connected(self):
+    self.connected = True
 
   def cleanup(self):
     """
