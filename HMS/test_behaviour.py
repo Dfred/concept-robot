@@ -2,7 +2,7 @@
 import sys, threading, math, Queue, time
     
 from HMS import expression_player as ep
-from HMS.communication import ThreadedLightHeadComm
+from HMS.communication import ThreadedExpressionComm, ThreadedLightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
@@ -35,6 +35,7 @@ class Behaviour_thread(threading.Thread):
     def run(self):
         self.player.run()
         self.player.cleanup()
+    
 
 
 
@@ -49,7 +50,8 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
         self.connected = False
-        #self.comm_lighthead = ThreadedLightHeadComm(conf.lightHead_server, connection_succeded_function=self.on_connect)
+        # for snapshots, not used atm
+        #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_function=self.on_connect)
         
         # tuning
         self.gaze_adjust_x = 0.5
@@ -63,12 +65,12 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
     
     def started(self):
-        print 'test started'
+        print 'STATE: test started'
         return 'DETECT'
     
     
     def set_pose_default(self):
-        print 'test started'
+        print 'STATE: set defaul pose'
         
         #self.comm_expr.set_neck( rotation=(0.0, 0.0, -.01))
         #self.comm_expr.set_neck( orientation=(0.0, 0.0, .3))
@@ -80,11 +82,11 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
     
     def get_features(self):
-        print "getting features"
+        print "STATE: getting features"
 
         while True:
             try:
-                item = self.comm_queue.get(False)
+                item = self.comm_queue.get()
             except Queue.Empty:
                 item = None
             if item == "quit_fsm":
@@ -102,7 +104,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         
         while True:
             try:    # query the queue
-                item = self.comm_queue.get(False)
+                item = self.comm_queue.get()
             except Queue.Empty:
                 item = None
                 
@@ -140,13 +142,13 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         """ sets the gaze to target pulled from the vision queue
         """
         
-        print "detecting"
+        print "STATE: setting gaze and neck to target"
         
-        comm_send_tag = None
+        comm_send_tags = [None]
         
         while True:
             try:    # query the queue
-                item = self.comm_queue.get(False)
+                item = self.comm_queue.get()
             except Queue.Empty:
                 item = None
                 
@@ -164,7 +166,6 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     self.comm_expr.set_neck(rotation)
                     self.comm_expr.send_datablock("NECK_AJUST")
                 
-                
                 elif item[0] == "face_gaze":
                     (fx, fy, fw, fh) = item[1]
                     face_dist = ((-88.5 * math.log(fw)) + 538.5)
@@ -178,7 +179,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     y_dist = (((fy/544.0) *-2) +1)*self.gaze_adjust_y
     
                     self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
-                    comm_send_tag = self.comm_expr.send_datablock("GAZE_AJUST")
+                    self.comm_expr.send_datablock("GAZE_AJUST")
                     
                     
                 elif item[0] == "face_neck":
@@ -186,23 +187,30 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     nx = fx+(fw/2.0)
                     ny = fy+(fh/2.0)
                     if item[2]:
-                        self.neck_adjust_x = item[2][2]/500.0
-                        self.neck_adjust_y = item[2][3]/500.0
+                        self.neck_adjust_x = item[2][2]/250.0
+                        self.neck_adjust_y = item[2][3]/250.0
+                    
+                    #nx:  148.0 z:  0.023125
+                    #nx:  279.0 z:  0.04359375
+                    
                     
                     if nx < 320:
-                        print self.comm_expr.tag
-                        if self.comm_expr.tag == (comm_send_tag or None):
-                            self.comm_expr.tag = None
-                            z_value = -self.neck_adjust_x * (-.5 + (nx/640.0))
-                            print z_value
+                        print "turn left"
+                        if self.comm_expr.tag in comm_send_tags:
+                            comm_send_tags.remove(self.comm_expr.tag)
+                            z_value = self.neck_adjust_x * (1 - (nx/320.0))
+                            print "nx: ", nx, "z: ", z_value
                             self.comm_expr.set_neck((0.0, 0.0, z_value))
-                            comm_send_tag = self.comm_expr.send_datablock("NECK_AJUST")
+                            comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
                         
                     if nx > 640:
-                        z_value = -self.neck_adjust_x * ( (nx-640)/640.0)
-                        print z_value
-                        self.comm_expr.set_neck((0.0, 0.0, z_value))
-                        self.comm_expr.send_datablock("NECK_AJUST")
+                        print "turn right"
+                        if self.comm_expr.tag in comm_send_tags:
+                            comm_send_tags.remove(self.comm_expr.tag)
+                            z_value = -self.neck_adjust_x * ( (nx-640)/320.0)
+                            print "nx: ", nx, "z: ", z_value
+                            self.comm_expr.set_neck((0.0, 0.0, z_value))
+                            comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
                         
                     
                 elif item[0] == "motion":  # motion detected

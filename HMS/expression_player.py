@@ -43,6 +43,19 @@ def fatal(msg):
   exit(1)
 
 
+class expressionComm(ThreadedExpressionComm):
+    
+    def __init__(self, srv_addrPort, connection_succeded_function):
+        super(expressionComm, self).__init__(srv_addrPort, connection_succeded_function)
+        
+    def cmd_ACK(self, argline):
+        self.status = self.ST_ACK
+        self.tag = argline.strip()
+        try: self.on_reply[self.tag]('ACK', self.tag)
+        except KeyError: pass
+        
+        
+
 class Behaviour_Builder():
   """A generic framework for specifying behaviour through SMFSM objects.
   """
@@ -85,7 +98,7 @@ class Behaviour_Builder():
         self.vision.update()
       except vision.VisionException, e:
         fatal(e)
-    self.comm_expr = ThreadedExpressionComm(conf.expression_server, connection_succeded_function=self.connected)
+    self.comm_expr = expressionComm(conf.expression_server, connection_succeded_function=self.connected)
     
     
   def connected(self):
