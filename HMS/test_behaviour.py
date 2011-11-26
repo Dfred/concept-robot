@@ -46,10 +46,11 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     def __init__(self, comm_queue):
         
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_to_target), (SMFSM.STOPPED,self.stopped) )
+        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_neck_to_target), (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('test', rules, None) ]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
         self.connected = False
+        self.comm_send_tags = []
         # for snapshots, not used atm
         #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_function=self.on_connect)
         
@@ -96,55 +97,15 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                 print self.comm_lighthead.snapshot
                 time.sleep(1)
                 
-                
+   
+        
     def set_gaze_neck_to_target(self):
-        """ sets the gaze to target pulled from the vision queue
-        """
-        print "neck follows target"
-        
-        while True:
-            try:    # query the queue
-                item = self.comm_queue.get()
-            except Queue.Empty:
-                item = None
-                
-            if item:
-                if item == "quit_fsm":  # if receiving the stop command, move state
-                    return SMFSM.STOPPED
-                
-                elif item[0] == "face":  # face detected
-                    (fx, fy, fw, fh) = item[1]
-                    nx = fx+(fw/2.0)
-                    ny = fy+(fh/2.0)
-                    
-                    # adjust gaze
-                    face_dist = ((-88.5 * math.log(fw)) + 538.5)
-                    fx = fx + (fw/2.0)
-                    fy = fy + (fh/2.0)
-                    x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
-                    y_dist = (((fy/544.0) *-2) +1)*0.05
-    
-                    self.comm_expr.set_gaze((gaze_adj_fact_x * x_dist, face_dist/100.0, gaze_adj_fact_y * y_dist))
-                    self.comm_expr.send_datablock("GAZE_AJUST")
-                    
-                    # adjust neck
-                    if nx < 320:
-                        self.comm_expr.set_neck( (0.0, 0.0, neck_adj_fact_x * (-.5 + (nx/640.0))) )
-                        self.comm_expr.send_datablock("NECK_AJUST")
-                    if nx < 320:
-                        self.comm_expr.set_neck( (0.0, 0.0, neck_adj_fact_x * ( (nx-640)/640.0) ) )
-                        self.comm_expr.send_datablock("NECK_AJUST")
-                    
-
-        
-        
-    def set_gaze_to_target(self):
-        """ sets the gaze to target pulled from the vision queue
+        """ sets the gaze and or neck to target pulled from the vision queue
         """
         
         print "STATE: setting gaze and neck to target"
         
-        comm_send_tags = [None]
+        self.comm_send_tags = []
         
         while True:
             try:    # query the queue
@@ -167,52 +128,17 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     self.comm_expr.send_datablock("NECK_AJUST")
                 
                 elif item[0] == "face_gaze":
-                    (fx, fy, fw, fh) = item[1]
-                    face_dist = ((-88.5 * math.log(fw)) + 538.5)
-                    fx = fx + (fw/2.0)
-                    fy = fy + (fh/2.0)
                     if item[2]:
                         self.gaze_adjust_x = item[2][0]/200.0
                         self.gaze_adjust_y = item[2][1]/200.0
-                        
-                    x_dist = (((fx/960.0) *-2) +1)*self.gaze_adjust_x # mirror
-                    y_dist = (((fy/544.0) *-2) +1)*self.gaze_adjust_y
-    
-                    self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
-                    self.comm_expr.send_datablock("GAZE_AJUST")
-                    
+                    self.set_gaze(item[1])
                     
                 elif item[0] == "face_neck":
-                    (fx, fy, fw, fh) = item[1]
-                    nx = fx+(fw/2.0)
-                    ny = fy+(fh/2.0)
                     if item[2]:
                         self.neck_adjust_x = item[2][2]/250.0
                         self.neck_adjust_y = item[2][3]/250.0
-                    
-                    #nx:  148.0 z:  0.023125
-                    #nx:  279.0 z:  0.04359375
-                    
-                    
-                    if nx < 320:
-                        print "turn left"
-                        if self.comm_expr.tag in comm_send_tags:
-                            comm_send_tags.remove(self.comm_expr.tag)
-                            z_value = self.neck_adjust_x * (1 - (nx/320.0))
-                            print "nx: ", nx, "z: ", z_value
-                            self.comm_expr.set_neck((0.0, 0.0, z_value))
-                            comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
+                    self.set_neck(item[1])
                         
-                    if nx > 640:
-                        print "turn right"
-                        if self.comm_expr.tag in comm_send_tags:
-                            comm_send_tags.remove(self.comm_expr.tag)
-                            z_value = -self.neck_adjust_x * ( (nx-640)/320.0)
-                            print "nx: ", nx, "z: ", z_value
-                            self.comm_expr.set_neck((0.0, 0.0, z_value))
-                            comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
-                        
-                    
                 elif item[0] == "motion":  # motion detected
                     (fx,fy) = item[1]
                     x_dist = (((fx/960.0) *-2) +1)*-0.05 # mirror
@@ -221,6 +147,41 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                     self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
                     self.comm_expr.send_datablock("GAZE_AJUST")
 
+
+    def set_gaze(self, target_coors):
+        """ set gaze based on given target coordinates
+        """
+        (fx, fy, fw, fh) = target_coors
+        face_dist = ((-88.5 * math.log(fw)) + 538.5)
+        fx = fx + (fw/2.0)
+        fy = fy + (fh/2.0)
+            
+        x_dist = self.gaze_adjust_x * (((fx/960.0) *-2) +1)
+        y_dist = self.gaze_adjust_y * (((fy/544.0) *-2) +1)
+
+        self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
+        self.comm_expr.send_datablock("GAZE_AJUST")
+        
+        
+    def set_neck(self, target_coors):
+        """ set neck based on given target coordinates
+        """
+        (fx, fy, fw, fh) = target_coors
+        nx = fx+(fw/2.0)
+        ny = fy+(fh/2.0)
+
+        if (nx < 400 or nx > 560) or (ny < 232 or ny > 312):    # only move when detected face is a bit off centre
+        
+            if (self.comm_send_tags == []  or self.comm_expr.neck_adjust_tag in self.comm_send_tags): #only move when previous move is finished
+                if self.comm_expr.neck_adjust_tag in self.comm_send_tags:
+                    self.comm_send_tags.remove(self.comm_expr.neck_adjust_tag)
+                
+                x_value = self.neck_adjust_y * ((ny/544) - 0.5)
+                z_value = -self.neck_adjust_x * ((nx/960) - 0.5)
+                
+                self.comm_expr.set_neck((x_value, 0.0, z_value))
+                self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
+        
         
     def stopped(self, arg):
         print 'behaviour ended'

@@ -47,10 +47,13 @@ class expressionComm(ThreadedExpressionComm):
     
     def __init__(self, srv_addrPort, connection_succeded_function):
         super(expressionComm, self).__init__(srv_addrPort, connection_succeded_function)
+        self.neck_adjust_tag = None
         
     def cmd_ACK(self, argline):
         self.status = self.ST_ACK
         self.tag = argline.strip()
+        if "NECK_AJUST" in self.tag:
+            self.neck_adjust_tag = self.tag
         try: self.on_reply[self.tag]('ACK', self.tag)
         except KeyError: pass
         
