@@ -1,3 +1,7 @@
+* GENERAL: make client/server less obvious (confusing for some)
+** remove the check for class_Server, replace with check for : get_server()
+** move class_Handler after definition of main class.
+* face: use bones to drive eyes
 * vision: implement OpenCV calibration (to be saved in conf)
 * vision: under Windows, get cause of Exception at: pyvision_0.9.0\src\pyvision\types\img.py(608)OpenCVToNumpy() -> return np.asarray(cvmat,dtype=np.float64)
 * comm: test threading
