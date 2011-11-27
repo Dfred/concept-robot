@@ -56,7 +56,7 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = None
+INFO_PERIOD = 10
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
@@ -94,7 +94,7 @@ def shutdown(cont):
 
 def check_defects(owner, acts):
   """Check if actuators have their property set and are in proper mode ."""
-  keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
+  keys = [ act.name for act in acts]+['61.5L', '61.5R', '63.5' ] # add eyes
 
   for name in keys:
     if not owner.has_key('p'+name):
@@ -102,7 +102,7 @@ def check_defects(owner, acts):
   for act in acts :
     if act.mode != G.KX_ACTIONACT_PROPERTY:
       raise StandardError('Actuator %s shall use Shape Action Playback of'
-                          'type property' % act.name)
+                          'type: property' % act.name)
   return False
 
 def initialize(server):
@@ -127,8 +127,9 @@ def initialize(server):
   # BEWARE to not set props to these objects before, they'll be included here.
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
           pAU in obj.getPropertyNames() ]
-  if not server.set_available_AUs(AUs):
+  if server.check_invalid_AUs(zip(*AUs)[0]):
       return fatal('Check your .blend file for bad property names')
+  server.AUs.set_availables(*zip(*AUs))
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
@@ -149,7 +150,7 @@ def initialize(server):
   return cont
 
 
-def update():
+def update_BGE():
   """
   """
   global INFO_PERIOD
@@ -167,55 +168,50 @@ def update():
   eyes_done, spine_done = False, False
   time_diff = time.time() - G.last_update_time
 
-  # threaded server is thread-safe
-  face_map = srv.update(time_diff)
+  face_map = srv.AUs
+  face_map.update_time(time_diff)
 
+  #TODO: more generic system for updating blender objects
   for au, values in face_map.iteritems():
-    # XXX: yes, 6 is an eye prefix (do better ?)
+    if values[-1] < 0 or values[-1] > 1:
+        print 'wot?????????????????????????????????????????????????????:'
+        print '%s : %s (prev blender: %i)' % (au, values, cont.owner['p'+au])
+        break
     if au.startswith('6'):
-        if eyes_done:                   # all in one pass
+        if eyes_done:                                   # all in one pass
             continue
-        ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
+        ax  = -face_map['63.5'][3]                      # relative to character
         azR =  face_map['61.5R'][3]
         azL =  face_map['61.5L'][3]
         G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
         G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
         eyes_done = True
-
     elif au.startswith('T'):
         if au[-1] == '0':
-            cont.owner['p'+au] = SH_ACT_LEN * values[3]
+            cont.owner['p'+au] = SH_ACT_LEN * values[-1]
             cont.activate(cont.actuators[au])
         else:
             a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[3] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
-
-    # XXX: yes, 9 is a tongue prefix (do better ?)
+            a_bound = values[-1] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[-1])/a_bound +1) * SH_ACT_LEN/2
     elif au.startswith('9'):
-        G.tongue[au] = SH_ACT_LEN * values[3]
-
-    # XXX: yes, 5 is a head prefix (do better ?)
+        G.tongue[au] = SH_ACT_LEN * values[-1]
     elif au.startswith('5'):
-        if float(au) <= 55.5:   # pan, tilt, roll
+        if float(au) <= 55.5:                           # pan, tilt, roll
             a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[3] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
-
+            a_bound = values[-1] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[-1])/a_bound +1) * SH_ACT_LEN/2
     elif au == '26':
-        # TODO: try with G.setChannel ?
-        G.Skeleton['p26'] = SH_ACT_LEN * values[3]
-
+        G.Skeleton['p26'] = SH_ACT_LEN * values[-1]     #TODO: try G.setChannel?
     elif au[0].isdigit():
-        cont.owner['p'+au] = SH_ACT_LEN * values[3]
+        cont.owner['p'+au] = SH_ACT_LEN * values[-1]
         cont.activate(cont.actuators[au])
-
     else:
         a_min, a_max = G.Skeleton.limits[au]
-        if values[3] >= 0:
-            G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
-        if values[3] < 0:
-            G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+        if values[-1] >= 0:
+            G.Skeleton['p'+au] = (values[-1]/a_max + 1) * SH_ACT_LEN/2
+        if values[-1] < 0:
+            G.Skeleton['p'+au] = (-values[-1]/a_min +1) * SH_ACT_LEN/2
 
   G.last_update_time = time.time()
 
@@ -240,7 +236,7 @@ def main():
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)
-            G.server.set_listen_timeout(0.001)      # tune it !
+            G.server.set_listen_timeout(0.001)          # tune it !
             G.server.start()
         except StandardError:
             fatal("initialization error")
@@ -248,12 +244,10 @@ def main():
             print '--- initialization OK ---'
     else:
         if not THREADED_SERVER:
-            # server handles channels explicitly
             if not G.server.serve_once():
                 print 'server returned an error'
                 G.server.shutdown()
         try:
-            # update blender with fresh face data
-            update()
+            update_BGE()
         except Exception,e:
             fatal("runtime error")
