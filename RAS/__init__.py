@@ -210,3 +210,12 @@ def initialize(thread_info):
                                  server_mixin=LightHeadServer)
   server.create_protocol_handlers()       # inits face and all other subservers.
   return server
+
+def cleanUp(server):
+  """Cleans up and shuts down the system.
+  thread_info: tuple of booleans setting threaded_server and threaded_clients
+  """
+  server.cleanUp()
+  server.shutdown()
+  print "LIGHTHEAD terminated"
+

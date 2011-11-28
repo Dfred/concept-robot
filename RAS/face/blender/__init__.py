@@ -39,6 +39,19 @@ from math import cos, sin, pi
 
 import GameLogic as G
 
+from RAS.face import Face_Server
+
+
+class FaceHW(Face_Server):
+  """Blender is our entry point, so make it simple letting blender take over.
+  So this script fetches Face's data pool directly in update().
+  
+  No hardware implementation is actually needed in this case.
+  """
+  def cleanUp(self):
+    shutdown(G.getCurrentController())
+
+
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
 #  their own. With standard python VM, no threading is supposedly faster.
@@ -60,22 +73,6 @@ INFO_PERIOD = 10
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
-from RAS.face import Face_Server
-class FaceHW(Face_Server):
-    """Blender is our entry point, so make it simple letting blender take over.
-    So this script fetches Face's data pool directly in update().
-
-    No hardware implementation is actually needed in this case.
-    """
-    pass
-
-def exiting():
-  # server may not have been successfully created
-  if hasattr(G, "server") and G.server.is_started():
-    G.server.shutdown()
-
-atexit.register(exiting)
-
 def fatal(error):
   """Common function to gracefully quit."""
   print '   *** Fatal: %s ***' % error
@@ -87,10 +84,10 @@ def fatal(error):
 def shutdown(cont):
   """Finish animation and let atexit do the cleaning job"""
   try:
-    cont.activate(cont.actuators["- QUITTER"])
+      cont.activate(cont.actuators["- QUITTER"]) 
   except:
     pass
-  sys.exit( not hasattr(G, 'server') and 1 or 0)            # see exiting()
+  sys.exit(not hasattr(G, 'server') and 1 or 0)         # see exiting()
 
 def check_defects(owner, acts):
   """Check if actuators have their property set and are in proper mode ."""
@@ -141,7 +138,7 @@ def initialize(server):
   G.initialized = True
   G.info_duration = 0
   G.setLogicTicRate(MAX_FPS)
-  G.setMaxLogicFrame(1)       # relative to rendering
+  G.setMaxLogicFrame(1)                                 # relative to rendering
   import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
@@ -232,7 +229,9 @@ def main():
     if not hasattr(G, "initialized"):
         try:
             import RAS
+
             G.server = RAS.initialize(THREAD_INFO)
+            atexit.register(RAS.cleanUp, G.server)      #XXX:on sys.exit() only?
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)

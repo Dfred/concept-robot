@@ -209,6 +209,9 @@ class SpineHW(Spine_Server):
     except SpineError:
       raise SpineError("failed to reach pose '%s'" % pose_name)
 
+  def cleanUp(self):
+    """Calls switch_off"""
+    self.switch_off()
 
 
 if __name__ == "__main__":
