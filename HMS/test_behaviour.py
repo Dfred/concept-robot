@@ -15,40 +15,32 @@ from cogmod import graphic
 
 use_gui = 1
 
-########### Tuning params #################
-neck_adj_fact_x = 1.0
-gaze_adj_fact_x = 1.0
-gaze_adj_fact_y = 1.0
-
-
-
 
 class Behaviour_thread(threading.Thread):
-    """ class which creates a dedicated thread for a Follow_Behaviour
+    """ class which creates a dedicated thread for a Base_behaviour
     """
     
     def __init__(self, comm_queue):
         threading.Thread.__init__(self)
         self.comm_queue = comm_queue
-        self.player = Follow_Behaviour(self.comm_queue)
+        self.base_player = Base_behaviour(self.comm_queue)
     
     def run(self):
-        self.player.run()
-        self.player.cleanup()
-    
+        self.base_player.run()
+        self.base_player.cleanup()
 
 
-
-class Follow_Behaviour(ep.Behaviour_Builder):
-    """ FSM which tracks faces and adjust gaze accordingly
+class Base_behaviour(ep.Behaviour_Builder):
+    """ Base FSM which listens for state changes from gui and triggers behaviours accordingly
     """
     
     def __init__(self, comm_queue):
-        
         self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_neck_to_target), (SMFSM.STOPPED,self.stopped) )
-        machine_def = [ ('test', rules, None) ]
+        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started), ('AWAIT_COMMAND', self.wait_for_command),\
+                           ('FOLLOW_TARGET', self.set_gaze_neck_to_target), (SMFSM.STOPPED,self.stopped) )
+        machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
+        
         self.connected = False
         self.comm_send_tags = []
         # for snapshots, not used atm
@@ -61,23 +53,34 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         self.neck_adjust_y = 0.5
         
         
-    def on_connect(self):
-        self.connected = True
-    
-    
     def started(self):
         print 'STATE: test started'
-        return 'DETECT'
+        return 'AWAIT_COMMAND'
     
+    
+    def wait_for_command(self):
+        print 'STATE: awaiting command'
+        item = None
+        while not item:
+            try:    # query the queue
+                item = self.comm_queue.get()
+            except Queue.Empty:
+                item = None
+        return item
+
+
+    def on_connect(self):
+        self.connected = True
+
     
     def set_pose_default(self):
-        print 'STATE: set defaul pose'
+        print 'STATE: set default pose'
         
         #self.comm_expr.set_neck( rotation=(0.0, 0.0, -.01))
         #self.comm_expr.set_neck( orientation=(0.0, 0.0, .3))
         #self.comm_expr.set_neck( orientation=(0.0, 0.0, 0.0))
         
-        #self.comm_expr.send_datablock("Test")
+        #self.comm_expr.send_datablock("Test")x
         
         return SMFSM.STOPPED
     
@@ -114,8 +117,11 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                 item = None
                 
             if item:
-                if item == "quit_fsm":  # if receiving the stop command, move state
+                if item == "quit_fsm":  # if receiving the stop command, move to stop state
                     return SMFSM.STOPPED
+                
+                elif item == "AWAIT_COMMAND":  # move to AWAIT_COMMAND state
+                    return 'AWAIT_COMMAND'
                 
                 elif item[0] == "adjust_gaze":
                     gaze = item[1]
@@ -146,12 +152,13 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
                     self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
                     self.comm_expr.send_datablock("GAZE_AJUST")
+                    
 
 
     def set_gaze(self, target_coors):
         """ set gaze based on given target coordinates
         """
-        (fx, fy, fw, fh) = target_coors
+        (fx, fy, fw, fh) = [float(i) for i in target_coors]
         face_dist = ((-88.5 * math.log(fw)) + 538.5)
         fx = fx + (fw/2.0)
         fy = fy + (fh/2.0)
@@ -187,6 +194,14 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         print 'behaviour ended'
         return
       
+      
+      
+class Expression_Behaviour(ep.Behaviour_Builder):
+    """ FSM which displays different facial expressions
+    """
+    
+    def __init__(self, comm_queue):
+        pass
 
 
 if __name__ == '__main__':

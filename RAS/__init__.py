@@ -102,21 +102,7 @@ class AUPool(dict):
     self.origin = origin
     self.FP = FeaturePool()
     self.dynamics = dynamics
-    self.fct_mov, self.fct_spd = None, None             # movement and speed
-    self._dynamics_changed()
-    self.dynamics.register(self._dynamics_changed)
     self.event = threaded and threading.Event()
-
-  def _dynamics_changed(self):
-    # reset our update functions with the new profile dynamics:
-    # x: normalized remaining time, factorise by diff value, add current value
-    normalized_duration, adjust_value = '(1-x[3]/x[2])', '* x[1]+x[0]'
-    fct_expr, drv_expr = self.dynamics.get_profiles_expression()
-    mov_expr = '('+fct_expr.replace('x',normalized_duration)+')' + adjust_value
-    spd_expr = '('+drv_expr.replace('x',normalized_duration)+')' + adjust_value
-    LOG.debug("new lambdas:\n\tmovement x:%s\n\tspeed x:%s", mov_expr, spd_expr)
-    self.fct_mov = eval('lambda x:'+mov_expr)
-    self.fct_spd = eval('lambda x:'+spd_expr)
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -127,12 +113,12 @@ class AUPool(dict):
       assert len(AUs) == len(values), "AUs and values have different lengths"
     else:
       values = [0] * len(AUs)
-    #base value, value difference, target duration, duration left, current value
-    table = [values, [.0]*len(values),[.0]*len(values),[.0]*len(values), values]
+    # target value, target duration, time remaining, current value
+    table = [ values, [.0]*len(values), values, [.0]*len(values) ]
     self.FP[self.origin] = numpy.array(zip(*table))     # transpose
     LOG.info("Available AUs:\n")
     for i,au in enumerate(AUs):
-      self[au] = self.FP[self.origin][i]
+      dict.__setitem__(self, au, self.FP[self.origin][i])
       LOG.info("%5s : %s", au, self[au])
     return True
 
@@ -142,28 +128,30 @@ class AUPool(dict):
     """
     for AU, target, attack in iterable:
       try:
-        self[AU][0:4] = self[AU][4], target - self[AU][4], attack, attack, 
-      except StandardError:
+        self[AU][0:3]= target, attack, 0
+      except IndexError:
         LOG.warning("AU '%s' not found", AU)
     if self.event:
       self.event.set()                                  # unlock waiting thread
 
   # TODO: check algo
-  def update_time(self, time_interval, speed_instead=False):
+  def udpate_time(self, time_interval):
     """
     """
-    data = self.FP[self.origin]                         # numpy array
-    actives_idx = data[:,3] > 0                         # filter on time left
+    data = self.FP[self.origin][1]                      # numpy array
+    actives_idx = data[:,1] > 0                         # filter on time left
     if not any(actives_idx):
-      return
-    data[actives_idx,3] -= time_interval
+      return {}
+    # TODO: use the motion dynamics here (dynamics/__init__.py)
+    data[actives_idx,3] += data[actives_idx,2] * time_step
+    data[:,1] -= time_step
     # finish off shortest activations
-    overdue_idx = data[:,3] < 0
-    data[overdue_idx,-1] = data[overdue_idx, 0] + data[overdue_idx, 1]
-    data[overdue_idx, 3] = 0
-    # update values
-    fct = speed_instead and self.fct_spd or self.fct_mov
-    data[actives_idx,-1] = numpy.apply_along_axis(fct, 1, data[actives_idx,:])
+    overdue_idx = data[:,1] < self.MIN_ATTACK_TIME
+    data[overdue_idx, 1] = 0
+    data[overdue_idx, 3] = data[overdue_idx, 0]
+    if self.thread_id != thread.get_ident():
+      self.threadsafe_stop()
+    return self.AUs
 
   def wait(self, timeout=None):
     """Wait for an update of any AU in this pool.
@@ -210,12 +198,3 @@ def initialize(thread_info):
                                  server_mixin=LightHeadServer)
   server.create_protocol_handlers()       # inits face and all other subservers.
   return server
-
-def cleanUp(server):
-  """Cleans up and shuts down the system.
-  thread_info: tuple of booleans setting threaded_server and threaded_clients
-  """
-  server.cleanUp()
-  server.shutdown()
-  print "LIGHTHEAD terminated"
-
