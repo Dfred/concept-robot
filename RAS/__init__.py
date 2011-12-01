@@ -104,16 +104,18 @@ class AUPool(dict):
     self.dynamics = dynamics
     self.fct_mov, self.fct_spd = None, None             # movement and speed
     self._dynamics_changed()
+    self._tmp_data = None
     self.dynamics.register(self._dynamics_changed)
     self.event = threaded and threading.Event()
 
   def _dynamics_changed(self):
     # reset our update functions with the new profile dynamics:
     # x: normalized remaining time, factorise by diff value, add current value
-    normalized_duration, adjust_value = '(1-x[3]/x[2])', '* x[1]+x[0]'
+    normalized_duration = '(1-x[3]/x[2])'
+    adjust_mov, adjust_spd = '* x[1]+x[0]', ''
     fct_expr, drv_expr = self.dynamics.get_profiles_expression()
-    mov_expr = '('+fct_expr.replace('x',normalized_duration)+')' + adjust_value
-    spd_expr = '('+drv_expr.replace('x',normalized_duration)+')' + adjust_value
+    mov_expr = '('+fct_expr.replace('x',normalized_duration)+')' + adjust_mov
+    spd_expr = '('+drv_expr.replace('x',normalized_duration)+')' + adjust_spd
     LOG.debug("new lambdas:\n\tmovement x:%s\n\tspeed x:%s", mov_expr, spd_expr)
     self.fct_mov = eval('lambda x:'+mov_expr)
     self.fct_spd = eval('lambda x:'+spd_expr)
@@ -127,12 +129,12 @@ class AUPool(dict):
       assert len(AUs) == len(values), "AUs and values have different lengths"
     else:
       values = [0] * len(AUs)
-    #base value, value difference, target duration, duration left, current value
-    table = [values, [.0]*len(values),[.0]*len(values),[.0]*len(values), values]
+    #base value, value diff, target dur, dur left, curr speed, curr value
+    table = [values] + [[.0]*len(values)]*4 + [values]
     self.FP[self.origin] = numpy.array(zip(*table))     # transpose
     LOG.info("Available AUs:\n")
     for i,au in enumerate(AUs):
-      self[au] = self.FP[self.origin][i]
+      self[au] = self.FP[self.origin][i]                # view or shallow copy
       LOG.info("%5s : %s", au, self[au])
     return True
 
@@ -148,35 +150,55 @@ class AUPool(dict):
     if self.event:
       self.event.set()                                  # unlock waiting thread
 
-  # TODO: check algo
-  def update_time(self, time_interval, speed_instead=False):
+  #TODO: optimize returning { AU, updated value }
+  def update_time(self, time_interval, with_speed=False):
+    """Updates the AU pool. Returns False if nothing to update, None otherwise.
+
+    time_interval: elapsed time since last call to this function
+    with_speed: update speed value as well.
     """
-    """
-    data = self.FP[self.origin]                         # numpy array
-    actives_idx = data[:,3] > 0                         # filter on time left
-    if not any(actives_idx):
-      return
-    data[actives_idx,3] -= time_interval
+    if self._tmp_data != None:
+      data = self._tmp_data
+    else:
+      data = self.FP[self.origin]                       # numpy array
+    actives_flagList = data[:,3] > 0                    # filter on time left
+    if not any(actives_flagList):
+      return False
+    data[actives_flagList,3] -= time_interval
+    # update values
+    data[actives_flagList,-1] = numpy.apply_along_axis(self.fct_mov, 1,
+                                                  data[actives_flagList,:])
+    if with_speed:
+      data[actives_flagList,-2] = numpy.apply_along_axis(self.fct_spd, 1,
+                                                    data[actives_flagList,:])
     # finish off shortest activations
     overdue_idx = data[:,3] < 0
     data[overdue_idx,-1] = data[overdue_idx, 0] + data[overdue_idx, 1]
     data[overdue_idx, 3] = 0
-    # update values
-    fct = speed_instead and self.fct_spd or self.fct_mov
-    data[actives_idx,-1] = numpy.apply_along_axis(fct, 1, data[actives_idx,:])
+  
+  def predict(self, time_interval):
+    """Returns { AU : nvalues as computed by time_interval in the future }
+
+    time_interval: elapsed time since last call to this function
+    """
+    data = self.FP[self.origin]
+    ret = self._tmp_data = data.copy()
+    self.update_time(time_interval)
+    self._tmp_data = None
+    return ret
 
   def wait(self, timeout=None):
     """Wait for an update of any AU in this pool.
     Return: False if timeout elapsed, True otherwise
     """
     outtimed = True
-    if NEED_WAIT_PATCH:
+    if timeout and NEED_WAIT_PATCH:
       t = time.time()                                   # for python < 2.7
     if self.event:
       outtimed = self.event.wait(timeout)
       self.event.clear()
       if NEED_WAIT_PATCH:
-        outtimed = (time.time() - t) < timeout          # for python < 2.7
+        outtimed = timeout and (time.time()-t) < timeout or True
     return outtimed
 
 
