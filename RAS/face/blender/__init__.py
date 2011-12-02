@@ -48,9 +48,28 @@ class FaceHW(Face_Server):
   
   No hardware implementation is actually needed in this case.
   """
+  global G
+
   def cleanUp(self):
     shutdown(G.getCurrentController())
 
+  def cam_proj(self, *args):
+    m = G.getCurrentScene().active_camera.projection_matrix
+    col = int(args[0])
+    row = int(args[1])
+    inc = float(args[2])
+    m[row][col] += inc
+    print m
+    G.getCurrentScene().active_camera.setProjectionMatrix(m)
+
+  def cam_mview(self, *args):
+    m = G.getCurrentScene().active_camera.modelview_matrix
+    col = int(args[0])
+    row = int(args[1])
+    inc = float(args[2])
+    m[row][col] += inc
+    print m
+    G.getCurrentScene().active_camera.setModelViewMatrix(m)
 
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
@@ -69,7 +88,7 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = 10
+INFO_PERIOD = None
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
@@ -143,6 +162,11 @@ def initialize(server):
 #    Rasterizer.enableMotionBlur( 0.65)
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                            'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+  cam = G.getCurrentScene().active_camera
+  print """camera: lens %s
+view matrix: %s
+proj matrix: %s
+  """ % (cam.lens, cam.modelview_matrix, cam.projection_matrix)
   G.last_update_time = time.time()
   return cont
 
