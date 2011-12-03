@@ -81,8 +81,10 @@ class SpineHW(Spine_Server):
         if type(self.SW_limits[i][b]) == type(.1):      # normalized angle
           self.SW_limits[i] = list(self.SW_limits[i])
           self.SW_limits[i][b]= self.nval2enc(i+1,self.SW_limits[i][b],raw=True)
-      LOG.debug("axis %i HW:%s %se/pi - "
-                "SW:(%se{%.3f/pi}[%sencoders],%s,[%sencoders]%se{%.3f/pi})",i+1,
+      LOG.debug("AU %s - axis %i HW:%s %se/pi - "
+                "SW:(%se{%.3f/pi}[%senc],%s,[%senc]%se{%.3f/pi})",
+                SpineHW.Axis2AU[i+1] if SpineHW.Axis2AU.has_key(i+1) else None,
+                i+1,
                 self.HW_limits[i], self.EPCs[i], 
                 self.SW_limits[i][0],
                 self.enc2nval(i+1,self.SW_limits[i][0]),
@@ -217,15 +219,14 @@ Either:
         print 'update'
         st = time.time()
         try:
-          target = dict([(AU,self.AUs[AU][0]+self.AUs[AU][1]) for AU
-                         in self.enabled_AUs])
+          target = dict([(AU,self.AUs[AU][0]) for AU in self.enabled_AUs])
+          print target
           target_pose = self.get_pose(use=target)       # checks encoders
         except ValueError,e:
           LOG.error("cannot satisfy AU update: %s", e)
           continue
-        self.reach_pose(target_pose, wait=False, check_encoders=False)
-        target = dict([(AU,self.AUs[AU][0]+self.AUs[AU][1]) for AU
-                       in self.enabled_AUs])
+        self.reach_pose(target_pose, wait=False)#, check_encoders=False)
+        target = dict([(AU,self.AUs[AU][0]) for AU in self.enabled_AUs])
         controlling = True
         t = st
         while controlling and self.get_pose(use=target) == target_pose:
@@ -244,7 +245,7 @@ Either:
               # next_dist = p(ntime_next) * total_dist - curr_dist
               # err_dist  = p(ntime_curr) * total_dist - curr_dist
               axis = SpineHW.AU2Axis[AU]
-              curr = self.nval2enc(axis,self.AUs[AU][ 0]) - encs[axis-1]
+              curr = self.nval2enc(axis,self.AUs[AU][ 0]) #- encs[axis-1]
               err  = self.nval2enc(axis,self.AUs[AU][-1]) - encs[axis-1]
               next = self.nval2enc(axis,preds[AU][-1])
               speed = int(((next-curr+err)/t_diff)*.01)
@@ -304,18 +305,21 @@ Either:
     self._motors_on and self.KNI.allMotorsOn()
     self._motors_on = True
 
-  def reach_pose(self, pose_name, wait=True):
+  def reach_pose(self, pose, wait=True):
     """Set all the motors to a pose (an absolute position).
-    pose_name: identifier from Spine_Server.POSE_IDs
+    pose: list of encoders OR identifier from Spine_Server.POSE_IDs
     wait: wait for the pose to be reached before returning
     """
-    if pose_name not in self.poses.keys():
-      LOG.warning('pose %s does not exist', pose_name)
-      return
+    name = None
+    if type(pose) == type(''):
+      name = pose
+      if name not in self.poses.keys():
+        LOG.warning('pose %s does not exist', pose_name)
+        return
+      pose = self.poses[name]
     try:
-      LOG.debug('reaching pose %s : %s', pose_name, self.poses[pose_name])
-      self.KNI.moveToPosEnc(*list(self.poses[pose_name])+
-                             [50, ACCEL, TOLER, wait])
+      LOG.debug('reaching pose %s : %s', name, pose)
+      self.KNI.moveToPosEnc(*list(pose)+[50, ACCEL, TOLER, wait])
     except SpineError:
       raise SpineError("failed to reach pose '%s'" % pose_name)
 
@@ -358,7 +362,10 @@ Either:
     nvalue: normalized angle in [-1,1] (equivalent to [-pi,pi] or [-180,180])
     """
     axis -= 1
+    if nvalue>1:
+      import pdb; pdb.set_trace()
     enc = int(self.EPCs[axis]*nvalue) + self.poses['ready'][axis]
+    print 'nval2enc',nvalue,int(self.EPCs[axis]*nvalue), self.poses['ready'][axis]
     return raw and enc or self.check_encoder(axis+1, enc)
 
   def enc2nval(self, axis, encoder):
