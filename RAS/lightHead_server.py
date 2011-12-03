@@ -27,7 +27,7 @@ SERVER MODULE
   the current context.
 
  MODULES IO:
-============
+ -----------
  OUTPUT: All RAS modules
 
  INPUT: - learning (for context retrieval)
@@ -72,7 +72,8 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
           self.handlers[origin].cmd_commit(argline)
         self.transacting = []
 
-    def cmd_reload(self, argline):                      # TODO: implement
+    # TODO: implement a reload of modules ?
+    def cmd_reload(self, argline):
         """Reload subserver modules"""
         self.send_msg('Not yet implemented')
 
@@ -84,24 +85,20 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
         origins = ( argline.strip() and [ o.strip() for o in argline.split()
                                         if o in self.server.FP.keys() ]
                     ) or self.server.FP.keys()
-        for o in origins:                               #TODO: use pickle
-            self.send_msg('snapshot %s %s' % (o, self.server.FP[o].__repr__().replace('\n',' ')))
-
-    def cmd_shutdown(self, argline):
-        """
-        """
-        self.server.cleanUp()
+#        for k,v in self.server.FP.get_snapshot(origins).iteritems():
+#            self.send_msg(k+' '+' '.join(v))
+        for o in origins:
+            self.send_msg('snapshot %s %s' % (o, self.server.FP[o].__repr__().replace('\n', ' ')))
 
 
-class LightHeadServer(object):
+class LightHeadServer(object):#MetaServerMixin):
     """Sets and regroups subservers of the lightHead system."""
 
     def __init__(self):
         """All subServers will receive a reference to the Feature Pool"""
         super(LightHeadServer,self).__init__()
-        self.origins = {}               # { origin: (server, handler class) }
-        self.FP = FeaturePool()         # the feature pool for context queries
-        self._cleaning_up = False
+        self.origins = {}       # { origin: self.server and associed handler }
+        self.FP = FeaturePool() # the feature pool for context queries
 
     def __getitem__(self, protocol_keyword):
         return self.origins[protocol_keyword][0]
@@ -122,6 +119,8 @@ class LightHeadServer(object):
         LOG.debug("registering server %s & handler class %s for origin '%s'",
                   server, req_handler_class, origin)
         self.origins[origin] = server, req_handler_class
+        #self.origins[origin] = server, super(LightHeadServer,self).register(
+        #    server, req_handler_class)
 
     def create_protocol_handlers(self):
         """Bind individual servers and their handler to the meta server.
@@ -169,15 +168,3 @@ class LightHeadServer(object):
         missing = [ o for o in ORIGINS if o not in self.origins ]
         if missing:
             LOG.warning("Missing submodules: "+"%s, "*len(missing), *missing)
-
-    def cleanUp(self):
-        """Calls shutdown on all subservers if possible.
-        """
-        if self._cleaning_up:
-            return
-        self._cleaning_up = True
-        for subserver, handler in self.origins.values():
-            if hasattr(subserver, 'cleanUp'):
-                subserver.cleanUp()
-            else:
-                LOG.warning("no cleanUp for %s", subserver)

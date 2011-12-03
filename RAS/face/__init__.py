@@ -36,11 +36,10 @@ import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
-from RAS.dynamics import INSTANCE as DYNAMICS
-from RAS import AUPool
+import RAS
 
 LOG = get_logger(__package__)
-VALID_AUS = ("01L","01R",                               # obvious a/symetric AUs
+VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
              "04L","04R",
              "05L","05R",
@@ -113,7 +112,7 @@ class Face_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit buffered updates"""
-    self.server.AUs.update_targets(self.fifo)
+    self.server.set_AUs(self.fifo)
     self.fifo.clear()
 
   def cmd_sample(self, argline):
@@ -124,7 +123,7 @@ class Face_Handler(ASCIIRequestHandler):
       LOG.error("[AU] wrong number of arguments (%s)",e)
       return
     #XXX: we return the number of immediately following bytes to be ignored
-    return int(size)                                    # design limitation
+    return int(size)                                        # design limitation
 
   def cmd_raw(self, argline):
     """Call functions of server object (e.g: low-level access to backend)."""
@@ -152,23 +151,75 @@ class Face_Server(object):
   MIN_ATTACK_TIME = 0.001     # in seconds.
 
   def __init__(self):
-    """
-    """
-    super(Face_Server, self).__init__()
-    self.AUs = AUPool('face', DYNAMICS, threaded=False) # TODO: by blend
+      self.AUs = None
+      self.updates = []
+      self.thread_id = thread.get_ident()
+      self.FP = RAS.FeaturePool()         # dict of { origin : numpy.array }
 
-  def check_invalid_AUs(self, AUs):
-    """
-    """
-    invalids = [ au for au in AUs if au not in VALID_AUS ]
-    if invalids:
-      LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+  def set_available_AUs(self, available_AUs):
+      """Define list of AUs available for a specific face.
+       available_AUs: list of AUs (floats) OR list of tuples (AU, init_value)
+      """
+      available_AUs.sort()
+      a = numpy.zeros((len(available_AUs), 4), dtype=numpy.float32)
+      if type(available_AUs[0]) == tuple:
+          available_AUs, init_values = zip(*available_AUs)
+          a[:,0] = a[:,3] = numpy.array(init_values)
+      #TODO: support implemented AUs without L/R suffix
+      #invalids = [ au for au in available_AUs if au not in VALID_AUS ]
+      #if invalids:
+      #  LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+      #  return False
+      # { AU_name : numpy array [target, remaining, coeff, value] }
+      self.AUs = dict(zip(available_AUs,a))
+      # set region-based AUs
+#        for name in SUPPORTED_ORIGINS:
+#            self.FP.add_feature(name, self.subarray_from_origin(name))
+      self.FP['face'] = a
+      LOG.info("Available AUs:\n")
+      for key in sorted(self.AUs.keys()):
+          LOG.info("%5s : %s", key, self.AUs[key])
       return True
 
+  def set_AUs(self, iterable):
+      """Set targets for a specific AU, giving priority to specific inputs.
+      iterable: array of floats: AU, normalized target value, duration in sec.
+      """
+      if self.thread_id != thread.get_ident():
+          self.threadsafe_start()
+      for AU, target, attack in iterable:
+          try:
+              self.AUs[AU][:-1]= target,attack,(target-self.AUs[AU][3])/attack
+          except IndexError:
+              LOG.warning("AU '%s' not found", AU)
+      if self.thread_id != thread.get_ident():
+          self.threadsafe_stop()
+
+  def update(self, time_step):
+      """Update AU values. This function shall be called for each frame.
+       time_step: time in seconds elapsed since last call.
+      #TODO: motion dynamics
+      """
+      if self.thread_id != thread.get_ident():
+          self.threadsafe_start()
+      data = self.FP['face']
+      actives_idx = data[:,1] > 0  # AUs with remaining time
+      if not any(actives_idx):
+          return {}
+      data[actives_idx,3] += data[actives_idx,2] * time_step
+      data[:,1] -= time_step
+      # finish off shortest activations
+      overgone_idx = data[:,1]< self.MIN_ATTACK_TIME
+      data[overgone_idx, 1] = 0
+      data[overgone_idx, 3] = data[overgone_idx, 0]
+      if self.thread_id != thread.get_ident():
+          self.threadsafe_stop()
+      return self.AUs
+
   def solve(self):
-    """Here we can set additional checks (eg. AU1 vs AU4, ...)
-    """
-    pass
+      """Here we can set additional checks (eg. AU1 vs AU4, ...)
+      """
+      pass
 
 
 def get_server_class():
@@ -195,6 +246,6 @@ if __name__ == '__main__':
   except UserWarning, err:
       LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
       exit(-1)
-  server.set_available_AUs([1., 3., 12., 15.])          # dummy AUs
+  server.set_available_AUs([1., 3., 12., 15.])                      # dummy AUs
   server.serve_forever()
   LOG.debug("Face server done")

@@ -38,7 +38,7 @@ import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
-from RAS.dynamics import DYNAMICS
+from RAS.dynamics import INSTANCE as DYNAMICS
 
 import RAS
 
@@ -92,6 +92,11 @@ class Spine_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
+    try:
+      self.server.get_pose(use=dict([(AU, nval) for AU,nval,dur in self.fifo]))
+    except ValueError, e:
+      LOG.warning("update out of boundaries: %s", e)
+      return
     self.server.AUs.update_targets(self.fifo)
     self.fifo.clear()
 

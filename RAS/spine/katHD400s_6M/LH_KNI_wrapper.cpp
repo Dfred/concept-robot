@@ -927,6 +927,21 @@ getAllAxisMinMaxEPC(int dest_mins[MAX_MOTORS],
 }
 
 ////
+/* Set velocities for all motors at once.
+DLLEXPORT int 
+setMaxVelocity(int axis, int vel){
+  EXCEPT(
+    if (axis == 0)
+      for(int i = 0; i <= getNumberOfMotors()-1; i++)
+	katana->setMotorVelocityLimit(i, vel);
+    else
+      katana->setMotorVelocityLimit(axis-1, vel);
+    katana->setMaximumLinearVelocity((double)vel);
+	 )
+  return ERR_SUCCESS;
+  }*/
+
+////
 // XXX: limited to 7 motors (currently 6 are available).
 DLLEXPORT int
 is_moving(int axis)					// axis 0 => all axis

@@ -1,5 +1,5 @@
 
-import sys, threading, math, Queue, time
+import sys, threading, math, Queue, time, random
     
 from HMS import expression_player as ep
 from HMS.communication import ThreadedExpressionComm, ThreadedLightHeadComm
@@ -14,41 +14,39 @@ from cogmod import graphic
 
 
 use_gui = 1
-
-########### Tuning params #################
-neck_adj_fact_x = 1.0
-gaze_adj_fact_x = 1.0
-gaze_adj_fact_y = 1.0
-
-
+show_emo = 1
 
 
 class Behaviour_thread(threading.Thread):
-    """ class which creates a dedicated thread for a Follow_Behaviour
+    """ class which creates a dedicated thread for a Base_behaviour
     """
     
-    def __init__(self, comm_queue):
+    def __init__(self, from_gui_queue, from_behaviours_queue):
         threading.Thread.__init__(self)
-        self.comm_queue = comm_queue
-        self.player = Follow_Behaviour(self.comm_queue)
+        self.from_gui_q = from_gui_queue
+        self.from_beh_q = from_behaviours_queue
+        self.base_player = Base_behaviour(self.from_gui_q, self.from_beh_q)
     
     def run(self):
-        self.player.run()
-        self.player.cleanup()
-    
+        self.base_player.run()
+        self.base_player.cleanup()
 
 
-
-class Follow_Behaviour(ep.Behaviour_Builder):
-    """ FSM which tracks faces and adjust gaze accordingly
+class Base_behaviour(ep.Behaviour_Builder):
+    """ Base FSM which listens for state changes from gui and triggers behaviours accordingly
     """
     
-    def __init__(self, comm_queue):
-        
-        self.comm_queue = comm_queue
-        rules = ((SMFSM.STARTED,self.started), ('DETECT', self.set_gaze_neck_to_target), (SMFSM.STOPPED,self.stopped) )
-        machine_def = [ ('test', rules, None) ]
+    def __init__(self, from_gui_q, from_beh_q):
+        self.from_gui_q = from_gui_q
+        self.from_beh_q = from_beh_q
+        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started), ('AWAIT_COMMAND', self.wait_for_command),\
+                           ('FOLLOW_TARGET', self.set_gaze_neck_to_target), ('RUN_DEMO', self.run_demo_behaviour), \
+                           ('FACE_GROW', self.face_grow_behaviour),('FACE_SHRINK', self.face_shrink_behaviour), \
+                           ('WAVE', self.wave_behaviour), ('MOVE_LIMIT', self.move_limit_behaviour),
+                           (SMFSM.STOPPED,self.stopped) )
+        machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
         ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
+        
         self.connected = False
         self.comm_send_tags = []
         # for snapshots, not used atm
@@ -60,44 +58,37 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         self.neck_adjust_x = 0.5
         self.neck_adjust_y = 0.5
         
+        self.last_emo_change = time.time()
+        self.last_emotion = "neutral"
         
     def on_connect(self):
         self.connected = True
-    
-    
+        
+        
+################# Behaviours ##################################
+        
+        
     def started(self):
         print 'STATE: test started'
-        return 'DETECT'
+        self.from_beh_q.put(('STATE: test started'), None)
+        return 'AWAIT_COMMAND'
     
     
-    def set_pose_default(self):
-        print 'STATE: set defaul pose'
-        
-        #self.comm_expr.set_neck( rotation=(0.0, 0.0, -.01))
-        #self.comm_expr.set_neck( orientation=(0.0, 0.0, .3))
-        #self.comm_expr.set_neck( orientation=(0.0, 0.0, 0.0))
-        
-        #self.comm_expr.send_datablock("Test")
-        
-        return SMFSM.STOPPED
-    
-    
-    def get_features(self):
-        print "STATE: getting features"
-
-        while True:
-            try:
-                item = self.comm_queue.get()
+    def wait_for_command(self):
+        print 'STATE: awaiting command'
+        self.from_beh_q.put(('AWAIT_COMMAND'), None)
+        item = None
+        while not item:
+            try:    # query the queue
+                item = self.from_gui_q.get()
             except Queue.Empty:
                 item = None
-            if item == "quit_fsm":
-                return SMFSM.STOPPED
-            else:
-                self.comm_lighthead.get_snapshot()
-                print self.comm_lighthead.snapshot
-                time.sleep(1)
-                
-   
+        if item == "quit_fsm":  # if receiving the stop command, move to stop state
+            return SMFSM.STOPPED
+        else:
+            self.from_beh_q.put((item), None)
+            return item
+
         
     def set_gaze_neck_to_target(self):
         """ sets the gaze and or neck to target pulled from the vision queue
@@ -109,29 +100,51 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         
         while True:
             try:    # query the queue
-                item = self.comm_queue.get()
+                item = self.from_gui_q.get()
             except Queue.Empty:
                 item = None
                 
             if item:
-                if item == "quit_fsm":  # if receiving the stop command, move state
+                if item == "quit_fsm":  # if receiving the stop command, move to stop state
                     return SMFSM.STOPPED
+                
+                elif item == "AWAIT_COMMAND":  # move to AWAIT_COMMAND state
+                    return 'AWAIT_COMMAND'
                 
                 elif item[0] == "adjust_gaze":
                     gaze = item[1]
                     self.comm_expr.set_gaze(gaze)
-                    self.comm_expr.send_datablock("GAZE_AJUST")
+                    self.comm_expr.send_datablock("GAZE_ADJUST")
                 
                 elif item[0] == "adjust_neck":
                     rotation = item[1]
                     self.comm_expr.set_neck(rotation)
-                    self.comm_expr.send_datablock("NECK_AJUST")
+                    self.comm_expr.send_datablock("NECK_ADJUST")
                 
                 elif item[0] == "face_gaze":
                     if item[2]:
                         self.gaze_adjust_x = item[2][0]/200.0
                         self.gaze_adjust_y = item[2][1]/200.0
                     self.set_gaze(item[1])
+                    if show_emo:
+
+                        emo = ["happy", "neutral"]
+                        if (time.time() - 5) > self.last_emo_change:
+                            self.comm_expr.set_fExpression(emo[random.randint(0,1)])
+                            self.comm_expr.send_datablock("EXPRESSION_ADJUST")
+                            self.last_emo_change = time.time()
+#                        if (time.time() - 5) > self.last_emo_change:
+#                            if self.last_emotion == "happy":
+#                                self.comm_expr.set_fExpression("neutral")
+#                                self.last_emotion = "neutral"
+#                                self.comm_expr.send_datablock("EXPRESSION_ADJUST")
+#                                self.last_emo_change = time.time()
+#                            if self.last_emotion == "neutral":
+#                                self.comm_expr.set_fExpression("happy")
+#                                self.last_emotion = "happy"
+#                                self.comm_expr.send_datablock("EXPRESSION_ADJUST")
+#                                self.last_emo_change = time.time()
+                    
                     
                 elif item[0] == "face_neck":
                     if item[2]:
@@ -146,12 +159,74 @@ class Follow_Behaviour(ep.Behaviour_Builder):
     
                     self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
                     self.comm_expr.send_datablock("GAZE_AJUST")
+                    
+                    
+    def run_demo_behaviour(self):
+        """ behaviour to run a responsive demo
+        """
+        
+        print 'STATE: run_demo_behaviour'
+        self.from_beh_q.put(('run_demo_behaviour'), None)
+        
+        item = None
+        while not item:
+            try:    # query the queue
+                item = self.from_gui_q.get()
+            except Queue.Empty:
+                item = None
+        if item == "quit_fsm":  # if receiving the stop command, move to stop state
+            return SMFSM.STOPPED
+        else:
+            self.from_beh_q.put((item), None)
+            return item
+        
+        
 
+    def face_grow_behaviour(self):
+        """ behaviour executed when detected face is growing
+        """
+        
+        print 'STATE: face_grow_behaviour'
+        self.from_beh_q.put(('face_grow_behaviour'), None)
+        
+        
+    def face_shrink_behaviour(self):
+        """ behaviour executed when detected face is shrinking
+        """
+        
+        print 'STATE: face_shrink_behaviour'
+        self.from_beh_q.put(('face_shrink_behaviour'), None)
+        
+        
+    def wave_behaviour(self):
+        """ behaviour executed when handwave is detected
+        """
+        
+        print 'STATE: wave_behaviour'
+        self.from_beh_q.put(('wave_behaviour'), None)
+        
+        
+    def move_limit_behaviour(self):
+        """ behaviour executed robot body limits are reached
+        """
+        
+        print 'STATE: move_limit_behaviour'
+        self.from_beh_q.put(('move_limit_behaviour'), None)
+        
+        return 
+        
+        
+    def stopped(self, arg):
+        print 'behaviour ended'
+        return
+
+
+################# robot comm ##################################
 
     def set_gaze(self, target_coors):
         """ set gaze based on given target coordinates
         """
-        (fx, fy, fw, fh) = target_coors
+        (fx, fy, fw, fh) = [float(i) for i in target_coors]
         face_dist = ((-88.5 * math.log(fw)) + 538.5)
         fx = fx + (fw/2.0)
         fy = fy + (fh/2.0)
@@ -160,7 +235,7 @@ class Follow_Behaviour(ep.Behaviour_Builder):
         y_dist = self.gaze_adjust_y * (((fy/544.0) *-2) +1)
 
         self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
-        self.comm_expr.send_datablock("GAZE_AJUST")
+        self.comm_expr.send_datablock("GAZE_ADJUST")
         
         
     def set_neck(self, target_coors):
@@ -180,32 +255,58 @@ class Follow_Behaviour(ep.Behaviour_Builder):
                 z_value = -self.neck_adjust_x * ((nx/960) - 0.5)
                 
                 self.comm_expr.set_neck((x_value, 0.0, z_value))
-                self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_AJUST"))
+                self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
         
-        
-    def stopped(self, arg):
-        print 'behaviour ended'
-        return
+
+#    def get_features(self):
+#        print "STATE: getting features"
+#
+#        while True:
+#            try:
+#                item = self.from_gui_q.get()
+#            except Queue.Empty:
+#                item = None
+#            if item == "quit_fsm":
+#                return SMFSM.STOPPED
+#            else:
+#                self.comm_lighthead.get_snapshot()
+#                print self.comm_lighthead.snapshot
+#                time.sleep(1)
+                
+                
       
+#    def set_pose_default(self):
+#        print 'STATE: set default pose'
+#        
+#        #self.comm_expr.set_neck( rotation=(0.0, 0.0, -.01))
+#        #self.comm_expr.set_neck( orientation=(0.0, 0.0, .3))
+#        #self.comm_expr.set_neck( orientation=(0.0, 0.0, 0.0))
+#        
+#        #self.comm_expr.send_datablock("Test")x
+#        
+#        return SMFSM.STOPPED
+
 
 
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
     
-    comm_queue = Queue.Queue()
-    bt = Behaviour_thread(comm_queue)
+    from_gui_queue = Queue.Queue()
+    from_behaviours_queue = Queue.Queue()
+    bt = Behaviour_thread(from_gui_queue, from_behaviours_queue)
     bt.start()
     
     if use_gui:
         app = QApplication(sys.argv)
-        mainwindow = graphic.GUI(comm_queue)
+        mainwindow = graphic.GUI(from_gui_queue, from_behaviours_queue)
         ui = Ui_MainWindow()
         ui.setupUi(mainwindow)
         mainwindow.layout = ui
         mainwindow.set_defaults()
         mainwindow.show()
         app.exec_()
-        comm_queue.join()
+        from_gui_queue.join()
+        from_behaviours_queue.join()
     
     

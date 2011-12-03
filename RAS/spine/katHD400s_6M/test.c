@@ -81,6 +81,8 @@ int get_speed(float total_dist, float total_dur,
   // KNI defines speed in enc/10ms, so we need to convert time
   float speed = tr < 1 ? (dist_next_ideal-curr_dist+dist_curr_err)/step_dur*.01\
     : MAX_SPEED;
+  printf("dist_next %f - dist_curr %f + err %i / %fs. => %f\n", 
+	 dist_next_ideal, curr_dist, dist_curr_err, step_dur, speed);
   if (speed > MAX_SPEED)
     {
       printf("SPEED TICKET! %.2f > %i\n", speed, MAX_SPEED);

@@ -27,7 +27,7 @@
   a Shape Action actuator which provides the relative basic facial animation.
 
  MODULES IO:
-===========
+ -----------
  INPUT: - face
 
  A few things to remember for integration with Blender (2.49):
@@ -92,6 +92,13 @@ INFO_PERIOD = None
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
+def exiting():
+  # server may not have been successfully created
+  if hasattr(G, "server") and G.server.is_started():
+    G.server.shutdown()
+
+atexit.register(exiting)
+
 def fatal(error):
   """Common function to gracefully quit."""
   print '   *** Fatal: %s ***' % error
@@ -103,14 +110,14 @@ def fatal(error):
 def shutdown(cont):
   """Finish animation and let atexit do the cleaning job"""
   try:
-      cont.activate(cont.actuators["- QUITTER"]) 
+    cont.activate(cont.actuators["- QUITTER"])
   except:
     pass
-  sys.exit(not hasattr(G, 'server') and 1 or 0)         # see exiting()
+  sys.exit( not hasattr(G, 'server') and 1 or 0)            # see exiting()
 
 def check_defects(owner, acts):
   """Check if actuators have their property set and are in proper mode ."""
-  keys = [ act.name for act in acts]+['61.5L', '61.5R', '63.5' ] # add eyes
+  keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
 
   for name in keys:
     if not owner.has_key('p'+name):
@@ -118,7 +125,7 @@ def check_defects(owner, acts):
   for act in acts :
     if act.mode != G.KX_ACTIONACT_PROPERTY:
       raise StandardError('Actuator %s shall use Shape Action Playback of'
-                          'type: property' % act.name)
+                          'type property' % act.name)
   return False
 
 def initialize(server):
@@ -143,9 +150,8 @@ def initialize(server):
   # BEWARE to not set props to these objects before, they'll be included here.
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
           pAU in obj.getPropertyNames() ]
-  if server.check_invalid_AUs(zip(*AUs)[0]):
+  if not server.set_available_AUs(AUs):
       return fatal('Check your .blend file for bad property names')
-  server.AUs.set_availables(*zip(*AUs))
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
@@ -157,7 +163,7 @@ def initialize(server):
   G.initialized = True
   G.info_duration = 0
   G.setLogicTicRate(MAX_FPS)
-  G.setMaxLogicFrame(1)                                 # relative to rendering
+  G.setMaxLogicFrame(1)       # relative to rendering
   import Rasterizer
 #    Rasterizer.enableMotionBlur( 0.65)
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
@@ -171,7 +177,7 @@ proj matrix: %s
   return cont
 
 
-def update_BGE():
+def update():
   """
   """
   global INFO_PERIOD
@@ -189,50 +195,55 @@ def update_BGE():
   eyes_done, spine_done = False, False
   time_diff = time.time() - G.last_update_time
 
-  face_map = srv.AUs
-  face_map.update_time(time_diff)
+  # threaded server is thread-safe
+  face_map = srv.update(time_diff)
 
-  #TODO: more generic system for updating blender objects
   for au, values in face_map.iteritems():
-    if values[-1] < 0 or values[-1] > 1:
-        print 'wot?????????????????????????????????????????????????????:'
-        print '%s : %s (prev blender: %i)' % (au, values, cont.owner['p'+au])
-        break
+    # XXX: yes, 6 is an eye prefix (do better ?)
     if au.startswith('6'):
-        if eyes_done:                                   # all in one pass
+        if eyes_done:                   # all in one pass
             continue
-        ax  = -face_map['63.5'][3]                      # relative to character
+        ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
         azR =  face_map['61.5R'][3]
         azL =  face_map['61.5L'][3]
         G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
         G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
         eyes_done = True
+
     elif au.startswith('T'):
         if au[-1] == '0':
-            cont.owner['p'+au] = SH_ACT_LEN * values[-1]
+            cont.owner['p'+au] = SH_ACT_LEN * values[3]
             cont.activate(cont.actuators[au])
         else:
             a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[-1] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[-1])/a_bound +1) * SH_ACT_LEN/2
+            a_bound = values[3] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+
+    # XXX: yes, 9 is a tongue prefix (do better ?)
     elif au.startswith('9'):
-        G.tongue[au] = SH_ACT_LEN * values[-1]
+        G.tongue[au] = SH_ACT_LEN * values[3]
+
+    # XXX: yes, 5 is a head prefix (do better ?)
     elif au.startswith('5'):
-        if float(au) <= 55.5:                           # pan, tilt, roll
+        if float(au) <= 55.5:   # pan, tilt, roll
             a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[-1] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[-1])/a_bound +1) * SH_ACT_LEN/2
+            a_bound = values[3] < 0 and a_min or a_max
+            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+
     elif au == '26':
-        G.Skeleton['p26'] = SH_ACT_LEN * values[-1]     #TODO: try G.setChannel?
+        # TODO: try with G.setChannel ?
+        G.Skeleton['p26'] = SH_ACT_LEN * values[3]
+
     elif au[0].isdigit():
-        cont.owner['p'+au] = SH_ACT_LEN * values[-1]
+        cont.owner['p'+au] = SH_ACT_LEN * values[3]
         cont.activate(cont.actuators[au])
+
     else:
         a_min, a_max = G.Skeleton.limits[au]
-        if values[-1] >= 0:
-            G.Skeleton['p'+au] = (values[-1]/a_max + 1) * SH_ACT_LEN/2
-        if values[-1] < 0:
-            G.Skeleton['p'+au] = (-values[-1]/a_min +1) * SH_ACT_LEN/2
+        if values[3] >= 0:
+            G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
+        if values[3] < 0:
+            G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
 
   G.last_update_time = time.time()
 
@@ -253,13 +264,11 @@ def main():
     if not hasattr(G, "initialized"):
         try:
             import RAS
-
             G.server = RAS.initialize(THREAD_INFO)
-            atexit.register(RAS.cleanUp, G.server)      #XXX:on sys.exit() only?
             G.face_server = G.server['face']
 
             cont = initialize(G.face_server)
-            G.server.set_listen_timeout(0.001)          # tune it !
+            G.server.set_listen_timeout(0.001)      # tune it !
             G.server.start()
         except StandardError:
             fatal("initialization error")
@@ -267,10 +276,12 @@ def main():
             print '--- initialization OK ---'
     else:
         if not THREADED_SERVER:
+            # server handles channels explicitly
             if not G.server.serve_once():
                 print 'server returned an error'
                 G.server.shutdown()
         try:
-            update_BGE()
+            # update blender with fresh face data
+            update()
         except Exception,e:
             fatal("runtime error")
