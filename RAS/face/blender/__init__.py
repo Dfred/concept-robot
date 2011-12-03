@@ -92,6 +92,7 @@ INFO_PERIOD = None
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
+
 def exiting():
   # server may not have been successfully created
   if hasattr(G, "server") and G.server.is_started():
