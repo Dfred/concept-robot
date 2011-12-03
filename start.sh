@@ -71,6 +71,7 @@ case "$OPT" in
 esac
 done
 
+
 if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
     exit 2
