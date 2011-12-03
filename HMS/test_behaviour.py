@@ -11,11 +11,10 @@ from PyQt4.QtGui import *
 from HMS import cogmod
 from cogmod.layout import Ui_MainWindow
 from cogmod import graphic_dev
-<<<<<<< Updated upstream
-=======
+
 from cogmod_dev import graphic_vision
 from cogmod_dev import graphic_cfg as gc
->>>>>>> Stashed changes
+
 
 
 use_gui = 1
@@ -344,15 +343,15 @@ if __name__ == '__main__':
     
     if use_gui:
         app = QApplication(sys.argv)
-        mainwindow = graphic_dev.GUI(from_gui_queue, from_behaviours_queue)
+        mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
         ui = Ui_MainWindow()
         ui.setupUi(mainwindow)
         mainwindow.layout = ui
         mainwindow.set_defaults()
         mainwindow.show()
         app.exec_()
-        from_gui_queue.join()
-        from_behaviours_queue.join()
+        from_gui_q.join()
+        from_behaviours_q.join()
 
 #    vis = graphic_vision.Vision(gc.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
 #    vis.start_camera()
