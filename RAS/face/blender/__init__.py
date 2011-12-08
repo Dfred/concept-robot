@@ -62,12 +62,24 @@ REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
 from RAS.face import Face_Server
 class FaceHW(Face_Server):
-    """Blender is our entry point, so make it simple letting blender take over.
-    So this script fetches Face's data pool directly in update().
+  """Blender is our entry point, so make it simple letting blender take over.
+  So this script fetches Face's data pool directly in update().
 
-    No hardware implementation is actually needed in this case.
-    """
-    pass
+  No hardware implementation is actually needed in this case.
+  """
+  global G
+
+  def cleanUp(self):
+    shutdown(G.getCurrentController())
+
+  def cam_proj(self, *args):
+    m = G.getCurrentScene().active_camera.projection_matrix
+    col = int(args[0])
+    row = int(args[1])
+    inc = float(args[2])
+    m[row][col] += inc
+    print m
+    G.getCurrentScene().active_camera.setProjectionMatrix(m)
 
 def exiting():
   # server may not have been successfully created
