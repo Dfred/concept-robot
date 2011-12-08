@@ -10,7 +10,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from HMS import cogmod
 from cogmod.layout import Ui_MainWindow
-from cogmod import graphic
+from cogmod import graphic_dev
 
 
 use_gui = 1
@@ -39,7 +39,7 @@ class Base_behaviour(ep.Behaviour_Builder):
     def __init__(self, from_gui_q, from_beh_q):
         self.from_gui_q = from_gui_q
         self.from_beh_q = from_beh_q
-        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started), ('AWAIT_COMMAND', self.wait_for_command),\
+        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started),\
                            ('FOLLOW_TARGET', self.set_gaze_neck_to_target), ('RUN_DEMO', self.run_demo_behaviour), \
                            ('FACE_GROW', self.face_grow_behaviour),('FACE_SHRINK', self.face_shrink_behaviour), \
                            ('WAVE', self.wave_behaviour), ('MOVE_LIMIT', self.move_limit_behaviour),
@@ -71,7 +71,7 @@ class Base_behaviour(ep.Behaviour_Builder):
     def started(self):
         print 'STATE: test started'
         self.from_beh_q.put(('STATE: test started'), None)
-        return 'AWAIT_COMMAND'
+        return 'FOLLOW_TARGET'
     
     
     def wait_for_command(self):
@@ -119,7 +119,12 @@ class Base_behaviour(ep.Behaviour_Builder):
                 elif item[0] == "adjust_neck":
                     rotation = item[1]
                     self.comm_expr.set_neck(rotation)
-                    self.comm_expr.send_datablock("NECK_ADJUST")
+                    self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
+                    
+                    
+                elif item[0] == "adjust_neck_zero":
+                    self.comm_expr.set_neck(orientation=(0, 0, 0))
+                    self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
                 
                 elif item[0] == "face_gaze":
                     if item[2]:
@@ -159,6 +164,16 @@ class Base_behaviour(ep.Behaviour_Builder):
     
                     self.comm_expr.set_gaze((x_dist, 1.0, y_dist))
                     self.comm_expr.send_datablock("GAZE_AJUST")
+                    
+                elif item[0] == "set_expression":
+                    expression = item[1]
+                    self.comm_expr.set_fExpression(str(expression))
+                    self.comm_expr.send_datablock("EXPRESSION_ADJUST")
+                    
+                elif item[0] == "send_expr_message":
+                    self.comm_expr.send_msg(item[1])
+                    self.comm_expr.send_datablock("EXPRESSION_MESSAGE")
+                    
                     
                     
     def run_demo_behaviour(self):
@@ -241,21 +256,32 @@ class Base_behaviour(ep.Behaviour_Builder):
     def set_neck(self, target_coors):
         """ set neck based on given target coordinates
         """
+        
         (fx, fy, fw, fh) = target_coors
         nx = fx+(fw/2.0)
         ny = fy+(fh/2.0)
 
         if (nx < 400 or nx > 560) or (ny < 232 or ny > 312):    # only move when detected face is a bit off centre
         
-            if (self.comm_send_tags == []  or self.comm_expr.neck_adjust_tag in self.comm_send_tags): #only move when previous move is finished
-                if self.comm_expr.neck_adjust_tag in self.comm_send_tags:
-                    self.comm_send_tags.remove(self.comm_expr.neck_adjust_tag)
+            if (self.comm_send_tags == []  or self.check_send_expressions()): #only move when previous move is finished
+
+#                if self.comm_expr.neck_adjust_tag in self.comm_send_tags:
+#                    self.comm_send_tags.remove(self.comm_expr.neck_adjust_tag)
                 
                 x_value = self.neck_adjust_y * ((ny/544) - 0.5)
                 z_value = -self.neck_adjust_x * ((nx/960) - 0.5)
                 
                 self.comm_expr.set_neck((x_value, 0.0, z_value))
                 self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
+        
+        
+    def check_send_expressions(self):
+        response = False
+        for i in self.comm_expr.neck_adjust_tags:
+            if i in self.comm_send_tags:
+                response = True
+                self.comm_send_tags.remove(i)
+        return response
         
 
 #    def get_features(self):
@@ -299,7 +325,7 @@ if __name__ == '__main__':
     
     if use_gui:
         app = QApplication(sys.argv)
-        mainwindow = graphic.GUI(from_gui_queue, from_behaviours_queue)
+        mainwindow = graphic_dev.GUI(from_gui_queue, from_behaviours_queue)
         ui = Ui_MainWindow()
         ui.setupUi(mainwindow)
         mainwindow.layout = ui
