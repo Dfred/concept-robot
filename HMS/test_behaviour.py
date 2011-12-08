@@ -280,12 +280,6 @@ class Base_behaviour(ep.Behaviour_Builder):
         
     def check_send_expressions(self):
         response = False
-<<<<<<< HEAD
-        for i in self.comm_expr.neck_adjust_tags:
-            if i in self.comm_send_tags:
-                response = True
-                self.comm_send_tags.remove(i)
-=======
         print " adjust tags received: ", self.comm_expr.neck_adjust_tags
         print "adjust tags send: ", self.comm_send_tags
         
@@ -303,8 +297,6 @@ class Base_behaviour(ep.Behaviour_Builder):
 #            if i in self.comm_send_tags:
 #                response = True
 #                self.comm_send_tags.remove(i)
-
->>>>>>> d72f9f7e6f4a8b5d851089a863c0a329a2d9e5c5
         return response
         
 
@@ -349,11 +341,7 @@ if __name__ == '__main__':
     
     if use_gui:
         app = QApplication(sys.argv)
-<<<<<<< HEAD
-        mainwindow = graphic_dev.GUI(from_gui_queue, from_behaviours_queue)
-=======
         mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
->>>>>>> d72f9f7e6f4a8b5d851089a863c0a329a2d9e5c5
         ui = Ui_MainWindow()
         ui.setupUi(mainwindow)
         mainwindow.layout = ui
