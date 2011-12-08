@@ -12,6 +12,9 @@ from HMS import cogmod
 from cogmod.layout import Ui_MainWindow
 from cogmod import graphic_dev
 
+from cogmod_dev import graphic_vision
+from cogmod_dev import graphic_cfg as gc
+
 
 use_gui = 1
 show_emo = 1
@@ -277,10 +280,31 @@ class Base_behaviour(ep.Behaviour_Builder):
         
     def check_send_expressions(self):
         response = False
+<<<<<<< HEAD
         for i in self.comm_expr.neck_adjust_tags:
             if i in self.comm_send_tags:
                 response = True
                 self.comm_send_tags.remove(i)
+=======
+        print " adjust tags received: ", self.comm_expr.neck_adjust_tags
+        print "adjust tags send: ", self.comm_send_tags
+        
+        tags_to_remove =[]
+        
+        for i in self.comm_send_tags:
+            if i in self.comm_expr.neck_adjust_tags:
+                tags_to_remove.append(i)
+                response = True
+        for i in tags_to_remove:
+            self.comm_send_tags.remove(i)
+            self.comm_expr.neck_adjust_tags.remove(i)
+                
+#        for i in self.comm_expr.neck_adjust_tags:
+#            if i in self.comm_send_tags:
+#                response = True
+#                self.comm_send_tags.remove(i)
+
+>>>>>>> d72f9f7e6f4a8b5d851089a863c0a329a2d9e5c5
         return response
         
 
@@ -318,21 +342,29 @@ if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
     
-    from_gui_queue = Queue.Queue()
-    from_behaviours_queue = Queue.Queue()
-    bt = Behaviour_thread(from_gui_queue, from_behaviours_queue)
+    from_gui_q = Queue.Queue()
+    from_behaviours_q = Queue.Queue()
+    bt = Behaviour_thread(from_gui_q, from_behaviours_q)
     bt.start()
     
     if use_gui:
         app = QApplication(sys.argv)
+<<<<<<< HEAD
         mainwindow = graphic_dev.GUI(from_gui_queue, from_behaviours_queue)
+=======
+        mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
+>>>>>>> d72f9f7e6f4a8b5d851089a863c0a329a2d9e5c5
         ui = Ui_MainWindow()
         ui.setupUi(mainwindow)
         mainwindow.layout = ui
         mainwindow.set_defaults()
         mainwindow.show()
         app.exec_()
-        from_gui_queue.join()
-        from_behaviours_queue.join()
+        from_gui_q.join()
+        from_behaviours_q.join()
+
+#    vis = graphic_vision.Vision(gc.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
+#    vis.start_camera()
     
+
     
