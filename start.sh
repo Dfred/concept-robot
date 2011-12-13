@@ -71,19 +71,19 @@ case "$OPT" in
 esac
 done
 
-
 if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
     exit 2
 fi
 
 if test -z "$CONF_FILE"; then
+    echo "Missing config file."
     exit 3
 fi
 
 # Now launch
 
-echo -n "--- launching face --- $PREFIX$PROJECT_NAME$BIN_SUFFIX $@"
+echo -n "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX $@"
 if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
 fi
 

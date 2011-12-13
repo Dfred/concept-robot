@@ -16,7 +16,6 @@ from cogmod_dev import graphic_vision
 from cogmod_dev import graphic_cfg as gc
 
 
-
 use_gui = 1
 show_emo = 1
 use_new_vision = 0
@@ -349,7 +348,6 @@ class Base_behaviour(ep.Behaviour_Builder):
 #            if i in self.comm_send_tags:
 #                response = True
 #                self.comm_send_tags.remove(i)
-
         return response
         
 

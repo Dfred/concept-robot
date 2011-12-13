@@ -59,7 +59,7 @@ class FaceHW(Face_Server):
     row = int(args[1])
     inc = float(args[2])
     m[row][col] += inc
-    print m
+    print "new projection matrix:", m
     G.getCurrentScene().active_camera.setProjectionMatrix(m)
 
   def cam_mview(self, *args):
@@ -68,8 +68,9 @@ class FaceHW(Face_Server):
     row = int(args[1])
     inc = float(args[2])
     m[row][col] += inc
-    print m
+    print "new modelview matrix:", m
     G.getCurrentScene().active_camera.setModelViewMatrix(m)
+
 
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
