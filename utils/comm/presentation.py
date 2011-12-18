@@ -234,7 +234,7 @@ class RequestHandlerCmdsMixIn(object):
     """
     if self.server is None:
       raise CmdError("cannot shutdown server")
-    self.running = False
+    self.abort()
     self.server.shutdown()
 
   def cmd_clients(self, args):
