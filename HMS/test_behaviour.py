@@ -16,9 +16,9 @@ from cogmod_dev import graphic_vision
 from cogmod_dev import graphic_cfg as gc
 
 
-
 use_gui = 1
 show_emo = 1
+use_new_vision = 0
 
 
 class Behaviour_thread(threading.Thread):
@@ -64,6 +64,8 @@ class Base_behaviour(ep.Behaviour_Builder):
         
         self.last_emo_change = time.time()
         self.last_emotion = "neutral"
+        
+        self.last_neck_move = None
         
     def on_connect(self):
         self.connected = True
@@ -134,11 +136,13 @@ class Base_behaviour(ep.Behaviour_Builder):
                     if item[2]:
                         self.gaze_adjust_x = item[2][0]/200.0
                         self.gaze_adjust_y = item[2][1]/200.0
+                        
                     self.set_gaze(item[1])
+                    #self.set_gaze_640(item[1])
                     if show_emo:
 
                         emo = ["happy", "neutral"]
-                        if (time.time() - 5) > self.last_emo_change:
+                        if (time.time() - 30) > self.last_emo_change:
                             self.comm_expr.set_fExpression(emo[random.randint(0,1)])
                             self.comm_expr.send_datablock("EXPRESSION_ADJUST")
                             self.last_emo_change = time.time()
@@ -160,6 +164,7 @@ class Base_behaviour(ep.Behaviour_Builder):
                         self.neck_adjust_x = item[2][2]/250.0
                         self.neck_adjust_y = item[2][3]/250.0
                     self.set_neck(item[1])
+                    #self.set_neck_640(item[1])
                         
                 elif item[0] == "motion":  # motion detected
                     (fx,fy) = item[1]
@@ -257,6 +262,21 @@ class Base_behaviour(ep.Behaviour_Builder):
         self.comm_expr.send_datablock("GAZE_ADJUST")
         
         
+    def set_gaze_640(self, target_coors):
+        """ set gaze based on given target coordinates
+        """
+        (fx, fy, fw, fh) = [float(i) for i in target_coors]
+        face_dist = ((-88.5 * math.log(fw)) + 538.5)
+        fx = fx + (fw/2.0)
+        fy = fy + (fh/2.0)
+            
+        x_dist = self.gaze_adjust_x * (((fx/640.0) *-2) +1)
+        y_dist = self.gaze_adjust_y * (((fy/360.0) *-2) +1)
+
+        self.comm_expr.set_gaze((x_dist, face_dist/100.0, y_dist))
+        self.comm_expr.send_datablock("GAZE_ADJUST")
+        
+        
     def set_neck(self, target_coors):
         """ set neck based on given target coordinates
         """
@@ -264,6 +284,7 @@ class Base_behaviour(ep.Behaviour_Builder):
         (fx, fy, fw, fh) = target_coors
         nx = fx+(fw/2.0)
         ny = fy+(fh/2.0)
+
 
         if (nx < 400 or nx > 560) or (ny < 232 or ny > 312):    # only move when detected face is a bit off centre
         
@@ -277,12 +298,41 @@ class Base_behaviour(ep.Behaviour_Builder):
                 
                 self.comm_expr.set_neck((x_value, 0.0, z_value))
                 self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
+                self.last_neck_move = time.time()
+                
+                
+    def set_neck_640(self, target_coors):
+        """ set neck based on given target coordinates
+        """
+        
+        (fx, fy, fw, fh) = target_coors
+        nx = fx+(fw/2.0)
+        ny = fy+(fh/2.0)
+
+        #640,360
+        if (nx < 200 or nx > 440) or (ny < 120 or ny > 240):    # only move when detected face is a bit off centre
+        
+            if (self.comm_send_tags == []  or self.check_send_expressions()): #only move when previous move is finished
+
+#                if self.comm_expr.neck_adjust_tag in self.comm_send_tags:
+#                    self.comm_send_tags.remove(self.comm_expr.neck_adjust_tag)
+                
+                x_value = self.neck_adjust_y * ((ny/360) - 0.5)
+                z_value = -self.neck_adjust_x * ((nx/640) - 0.5)
+                
+                self.comm_expr.set_neck((x_value, 0.0, z_value))
+                self.comm_send_tags.append(self.comm_expr.send_datablock("NECK_ADJUST"))
+                self.last_neck_move = time.time()
         
         
     def check_send_expressions(self):
         response = False
         print " adjust tags received: ", self.comm_expr.neck_adjust_tags
         print "adjust tags send: ", self.comm_send_tags
+        
+        if time.time() - 10 > self.last_neck_move:   #clear tags send list if robot has not moved for 5 seconds
+            self.comm_send_tags = []
+            print "send tags cleared"
         
         tags_to_remove =[]
         
@@ -298,7 +348,6 @@ class Base_behaviour(ep.Behaviour_Builder):
 #            if i in self.comm_send_tags:
 #                response = True
 #                self.comm_send_tags.remove(i)
-
         return response
         
 
@@ -341,20 +390,24 @@ if __name__ == '__main__':
     bt = Behaviour_thread(from_gui_q, from_behaviours_q)
     bt.start()
     
-    if use_gui:
-        app = QApplication(sys.argv)
-        mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
-        ui = Ui_MainWindow()
-        ui.setupUi(mainwindow)
-        mainwindow.layout = ui
-        mainwindow.set_defaults()
-        mainwindow.show()
-        app.exec_()
-        from_gui_q.join()
-        from_behaviours_q.join()
+    if use_new_vision:
+        vis = graphic_vision.Vision(gc.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
+        vis.start_camera()
+        
+    else:
+        if use_gui:
+            app = QApplication(sys.argv)
+            mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
+            ui = Ui_MainWindow()
+            ui.setupUi(mainwindow)
+            mainwindow.layout = ui
+            mainwindow.set_defaults()
+            mainwindow.show()
+            app.exec_()
+            from_gui_q.join()
+            from_behaviours_q.join()
 
-#    vis = graphic_vision.Vision(gc.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
-#    vis.start_camera()
+
     
 
     
