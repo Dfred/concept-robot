@@ -712,10 +712,10 @@ class BaseRequestHandler(BasePeer):
 #        if not self.server.handler_looping:
 #            return
     try:
-      connID = str(self.socket.fileno())
+      connID = self.socket.fileno()
     except Exception, e:
       connID = '(closed)'
-    LOG.info("%s> socket %i: connection terminating : %s on %s", id(self),
+    LOG.info("%s> socket %s: connection terminating : %s on %s", id(self),
              connID, self.addr_port[0], self.addr_port[1])
 
 
