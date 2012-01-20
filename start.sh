@@ -83,9 +83,9 @@ fi
 
 # Now launch
 
-echo -n "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX $@"
-if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
-fi
+echo -n "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX " #$@"
+#if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
+#fi
 
-$PREFIX$PROJECT_NAME$BIN_SUFFIX $@
+$PREFIX$PROJECT_NAME$BIN_SUFFIX
 
