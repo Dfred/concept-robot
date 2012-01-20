@@ -534,6 +534,7 @@ class BasePeer(object):
     self._running = False                               # bail out flag
     self._unprocessed = ''                              # socket data buffer
     self._th_save = {}                                  # see set_threading
+    self.each_loop = None                               # see read_while_running
 
   @property
   def running(self):
@@ -636,17 +637,18 @@ class BasePeer(object):
     return self.read_socket_and_process()
 
   def read_while_running(self, timeout=0.01):
-    """Process client commands until self._running is False. See also
-     self.each_loop().
+    """Process client commands until self._running is False.
+
+    If self.each_loop evaluate to False, the function calls self.each_loop()
+    every step of the loop.
     timeout: delay (in seconds) see doc for read_once().
     Return: True if stopped running, False on error.
     """
     self._running = True
-    each_loop = getattr(self,'each_loop',None)
     while self._running:
       if not self.read_once(timeout):
         return False
-      each_loop and each_loop()
+      self.each_loop and self.each_loop()
     return True
 
   # TODO: test
