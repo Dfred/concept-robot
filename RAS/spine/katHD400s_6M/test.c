@@ -9,6 +9,7 @@
 
 #include "LH_KNI_wrapper.h"
 
+#define KATANA_IP	"192.168.168.232"
 #define ERR_FAILED -1
 #define MAX_SPEED 180	// in encoders per 10 ms => 18 000 encoders/s.
 #define ACCEL	2	// 1: long accel (~sqrt) / 2: short accel (~linear)
@@ -119,8 +120,8 @@ int main(int ac, char *argv[])
   if (ac < 2)
     { printf("config file argument required.\n"); exit(1); }
 
-  printf("Initializing Katana..."); fflush(stdin);
-  if (initKatana(argv[1], "192.168.168.232") == -1)
+  printf("Initializing Katana (on %s)...\n", KATANA_IP); fflush(stdin);
+  if (initKatana(argv[1], KATANA_IP) == -1)
     { printf("initKatana failed\n"); exit(1); }
   printf("done.\n");
   if (calibrate_if_needed() == -1)
