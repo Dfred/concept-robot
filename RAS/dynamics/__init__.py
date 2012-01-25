@@ -45,8 +45,10 @@ __all__ = ['Dynamics']
 LOG = get_logger(__package__)
 INSTANCE = None
 
+
 class DynamicsError(StandardError):
   pass
+
 
 class Dynamics_Server(object):
   """
