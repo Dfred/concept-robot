@@ -72,6 +72,7 @@ class SpineHW(Spine_Server):
                             self.pose2values(self.poses['ready']))
     self.switch_on()
 
+
   def check_SWlimits(self):
     """
     """
@@ -216,49 +217,37 @@ Either:
     while self.running:
       print 'waiting'
       if self.AUs.wait():
-        print 'update'
-        st = time.time()
-        try:
-          target = dict([(AU,self.AUs[AU][0]) for AU in self.enabled_AUs])
-          print target
-          target_pose = self.get_pose(use=target)       # checks encoders
-        except ValueError,e:
-          LOG.error("cannot satisfy AU update: %s", e)
-          continue
-        self.reach_pose(target_pose, wait=False)#, check_encoders=False)
-        target = dict([(AU,self.AUs[AU][0]) for AU in self.enabled_AUs])
+        print 'updated:', self.AUs
+        start_time = time.time()
+        #XXX: we need to set the AUPool's Base Value properly
+        self.AUs[
+        #XXX: pose has been verified by server
+        self.reach_pose(self.pose_manager.get_poseFromPool(self.AUs),
+                        wait=False)
         controlling = True
-        t = st
-        while controlling and self.get_pose(use=target) == target_pose:
-          encs = self.KNI.getEncoders()
+        t = start_time
+        while controlling:                      #TODO: break loop for pose reset
+          curr_Hpose = self.pose_manager.get_poseFromHardware()
           tmp = time.time()
           t_diff = tmp - t
           t = tmp
-          if self.AUs.update_time(t_diff) == False:
+          #XXX: update returns False when all values reached their targets
+          if self.AUs.update(t_diff, with_speed=True) == False:
             controlling = False
             continue
-          # suppose same timestep
-          preds = dict(zip(self.enabled_AUs,self.AUs.predict(t_diff)))
           for AU,infos in self.AUs.iteritems():
-            if infos[1]:
-              # speed = (next_dist+err_dist)/t_diff
-              # next_dist = p(ntime_next) * total_dist - curr_dist
-              # err_dist  = p(ntime_curr) * total_dist - curr_dist
-              axis = SpineHW.AU2Axis[AU]
-              curr = self.nval2enc(axis,self.AUs[AU][ 0]) #- encs[axis-1]
-              err  = self.nval2enc(axis,self.AUs[AU][-1]) - encs[axis-1]
-              next = self.nval2enc(axis,preds[AU][-1])
-              speed = int(((next-curr+err)/t_diff)*.01)
-              print "axis %s, step_dur %s, " \
-                "curr %s - ideal %s = err %s, pred %s => speed %s" % (
-                axis, t_diff,
-                encs[axis-1], self.nval2enc(axis,self.AUs[AU][-1]), err,
-                next, speed)
-#              print "dist_next %i - dist_curr %i + err %i / %ss. => %i\n" % (
- #               next, curr, 
-              self.KNI.setMaxVelocity(axis, speed)
+            base_Hnval, curr_ideal = infos[0], infos[-1]
+            if not infos[1]:                                    # actives only
+              continue
+            next_ideal = self.AUs.predict(t_diff, curr_Hpose[AU])
+            curr_dist  = curr_Hpose[AU] - base_nval
+            curr_err   = curr_nval - curr_Hpose[AU] 
+            d = self.nval2enc(self.AU2Axis[AU], next_ideal-curr_dist+curr_err)
+            speed = int(d/t_diff * .01)              # encoders/0.01s
+            print 'speed = dist/time_step*.01: ', speed, dist, t_diff
+            self.KNI.setMaxVelocity(SpineHW.AU2Axis[AU], speed)
           print 'diff', [ tp - encs[i] for i,tp in enumerate(target_pose) ]
-        print 'done in %ss' % (time.time() - st)
+        print 'done in %ss' % (time.time() - start_time)
     print 'update_loop done!'
 
   def start_speed_control(self):
@@ -321,9 +310,34 @@ Either:
       LOG.debug('reaching pose %s : %s', name, pose)
       self.KNI.moveToPosEnc(*list(pose)+[50, ACCEL, TOLER, wait])
     except SpineError:
-      raise SpineError("failed to reach pose '%s'" % pose_name)
+      raise SpineError("failed to reach pose '%s'" % name)
 
-  def get_pose(self, use=None, no_check=False):
+  def get_poseFromEncs(self, use=None):
+    """Returns the pose for the current (or target) encoder values from the arm.
+
+    use: iterable of encoders as returned from KNI.getEncoders()
+    """
+    pose = []
+    if not use:
+      use = self.KNI.getEncoders()
+    for i, enc in enumerate(use):
+      try:
+        AU = SpineHW.Axis2AU[i+1]                       # has only enabled AUs
+      except KeyError:
+        pose.append(enc)
+      else:
+        try:
+          nval = use[AU] if use else self.AUs[AU][-1]
+        except KeyError:
+          pose.append(enc)
+          continue
+        try:
+          pose.append(self.nval2enc(i+1, nval, no_check))
+        except ValueError, e:
+          raise
+    return pose
+
+  def get_poseFromPool(self, use=None, no_check=False):
     """Returns the pose for the current (or target) nvalues in AU pool.
     An axis not bound to an AU get its value from pose 'ready'.
     use: {AU:nvalue} to be used instead.
@@ -344,6 +358,7 @@ Either:
           pose.append(self.nval2enc(i+1, nval, no_check))
         except ValueError, e:
           raise ValueError('%s %s : %s' % (AU, self.AUs[AU], e))
+#    LOG.debug( 'returning pose: %s', pose)
     return pose
 
   def pose2values(self, pose):
@@ -365,7 +380,7 @@ Either:
     if nvalue>1:
       import pdb; pdb.set_trace()
     enc = int(self.EPCs[axis]*nvalue) + self.poses['ready'][axis]
-    print 'nval2enc',nvalue,int(self.EPCs[axis]*nvalue), self.poses['ready'][axis]
+    #print 'nval2enc',nvalue,int(self.EPCs[axis]*nvalue), self.poses['ready'][axis]
     return raw and enc or self.check_encoder(axis+1, enc)
 
   def enc2nval(self, axis, encoder):
@@ -392,6 +407,9 @@ Either:
 
 
 if __name__ == "__main__":
+  import logging
+  from utils import comm, conf, LOGFORMATINFO
+  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   import time
   # just set the arm in manual mode and print motors' values upon key input.
   s = SpineHW(with_ready_pose=False)
@@ -399,6 +417,7 @@ if __name__ == "__main__":
   while s.is_moving():
     print '.'
     time.sleep(.2)
+  print "this scripts shows you a snapshot of all axis' encoder values"
   print "\nencoders:", s.KNI.getEncoders(), "velocities:", s.KNI.getVelocities()
   s.switch_off()
   while not raw_input('press any key then Enter to finish > '):

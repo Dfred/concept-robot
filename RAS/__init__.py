@@ -39,12 +39,20 @@ import time
 import logging
 import threading
 
-import numpy
+from numpy import array, ndarray, apply_along_axis
 
 LOG = logging.getLogger(__package__)                  # updated in initialize()
-REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
-                         'ROBOT', 'lib_vision', 'lib_spine')
-NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
+
+_NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
+_REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
+                          'ROBOT', 'lib_vision', 'lib_spine')
+_BVAL = 0
+_RDIST = 1
+_TDUR = 2
+_DDUR = 3
+_DVT  = 4
+_VAL  = 5
+
 
 class FeaturePool(dict):
   """This singleton class serves as an efficient working memory (numpy arrays) 
@@ -71,7 +79,7 @@ class FeaturePool(dict):
     """
     # load non-standard module only now
     LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
-    assert np_array is not None and isinstance(np_array, numpy.ndarray) , \
+    assert np_array is not None and isinstance(np_array, ndarray) , \
            'Not a numpy ndarray instance'
     dict.__setitem__(self, name, np_array)
 
@@ -80,10 +88,8 @@ class FeaturePool(dict):
     features: iterable of strings identifying features to be returned.
     Returns: all context (default) or subset from specified features.
     """
-    # load non-standard module only now
-    import numpy
     features = features or features.iterkeys()
-    return dict( (f, isinstance(self[f],numpy.ndarray) and self[f] or
+    return dict( (f, isinstance(self[f],ndarray) and self[f] or
                   self[f].get_feature()) for f in features )
 
 
@@ -104,21 +110,27 @@ class AUPool(dict):
     self.dynamics = dynamics
     self.fct_mov, self.fct_spd = None, None             # movement and speed
     self._dynamics_changed()
-    self._tmp_data = None
+    self._tmp_data = None                               # used for predict()
     self.dynamics.register(self._dynamics_changed)
     self.event = threaded and threading.Event()
 
   def _dynamics_changed(self):
     # reset our update functions with the new profile dynamics:
     # x: normalized remaining time, factorise by diff value, add current value
-    normalized_duration = '(1-x[3]/x[2])'
-    adjust_mov, adjust_spd = '* x[1]+x[0]', ''
+    normalized_duration = '(1-x[_DDUR]/x[_TDUR])'
+    adjust_mov = '(x[_RDIST]+x[_BVAL])'
+    adjust_spd =  adjust_mov   +     '/' + normalized_duration
     fct_expr, drv_expr = self.dynamics.get_profiles_expression()
-    mov_expr = '('+fct_expr.replace('x',normalized_duration)+')' + adjust_mov
-    spd_expr = '('+drv_expr.replace('x',normalized_duration)+')' + adjust_spd
+    mov_expr = '('+fct_expr.replace('x',normalized_duration)+') * ' + adjust_mov
+    spd_expr = '('+drv_expr.replace('x',normalized_duration)+') * ' + adjust_spd
     LOG.debug("new lambdas:\n\tmovement x:%s\n\tspeed x:%s", mov_expr, spd_expr)
     self.fct_mov = eval('lambda x:'+mov_expr)
     self.fct_spd = eval('lambda x:'+spd_expr)
+
+  def Log_AUs(self, AUs):
+    for i,au in enumerate(AUs):
+      self[au] = self.FP[self.origin][i]                # view or shallow copy
+      LOG.info("%5s : %s", au, self[au])  
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -129,13 +141,12 @@ class AUPool(dict):
       assert len(AUs) == len(values), "AUs and values have different lengths"
     else:
       values = [0] * len(AUs)
-    #base value, value diff, target dur, dur left, curr speed, curr value
+    # base value, value diff, target dur, dur left, curr speed, curr value
+    # _BVAL     , _RDIST     , _TDUR     , _DDUR   , _DVT      , _VAL
     table = [values] + [[.0]*len(values)]*4 + [values]
-    self.FP[self.origin] = numpy.array(zip(*table))     # transpose
+    self.FP[self.origin] = array(zip(*table))           # transpose
     LOG.info("Available AUs:\n")
-    for i,au in enumerate(AUs):
-      self[au] = self.FP[self.origin][i]                # view or shallow copy
-      LOG.info("%5s : %s", au, self[au])
+    self.Log_AUs(AUs)
     return True
 
   def update_targets(self, iterable):
@@ -144,7 +155,7 @@ class AUPool(dict):
     """
     for AU, target, attack in iterable:
       try:
-        self[AU][0:3]= target, attack, 0
+        self[AU][0:-2] = self[AU][_VAL], target - self[AU][_VAL], attack, attack
       except IndexError:
         LOG.warning("AU '%s' not found", AU)
     if self.event:
@@ -157,24 +168,25 @@ class AUPool(dict):
     time_interval: elapsed time since last call to this function
     with_speed: update speed value as well.
     """
-    if self._tmp_data != None:
-      data = self._tmp_data
-    else:
-      data = self.FP[self.origin]                       # numpy array
-    actives_flagList = data[:,3] > 0                    # filter on time left
+    data = self._tmp_data if self._tmp_data != None else self.FP[self.origin]
+    actives_flagList = data[:,_DDUR] > 0                # filter on time left
     if not any(actives_flagList):
       return False
-    data[actives_flagList,3] -= time_interval
+    data[actives_flagList,_DDUR] -= time_interval
     # update values
-    data[actives_flagList,-1] = numpy.apply_along_axis(self.fct_mov, 1,
-                                                  data[actives_flagList,:])
+    data[actives_flagList,_VAL] = apply_along_axis(self.fct_mov, _RDIST,
+                                                   data[actives_flagList,:])
     if with_speed:
-      data[actives_flagList,-2] = numpy.apply_along_axis(self.fct_spd, 1,
-                                                    data[actives_flagList,:])
+      data[actives_flagList,_DVT] = apply_along_axis(self.fct_spd, _RDIST,
+                                                     data[actives_flagList,:])
     # finish off shortest activations
-    overdue_idx = data[:,3] < 0
-    data[overdue_idx,-1] = data[overdue_idx, 0] + data[overdue_idx, 1]
-    data[overdue_idx, 3] = 0
+    overdue_idx = data[:,_DDUR] < 0
+    data[overdue_idx,_VAL] = data[overdue_idx, _BVAL] + data[overdue_idx, _RDIST]
+    if with_speed:
+      data[overdue_idx,_DVT] = 0
+    data[overdue_idx,_DDUR] = 0
+    if not any(data[:,_DDUR]):
+      return False
   
   def predict(self, time_interval):
     """Returns { AU : nvalues as computed by time_interval in the future }
@@ -182,7 +194,7 @@ class AUPool(dict):
     time_interval: elapsed time since last call to this function
     """
     data = self.FP[self.origin]
-    ret = self._tmp_data = data.copy()
+    ret = self._tmp_data = data.copy()          #XXX: predict => use deep copy
     self.update_time(time_interval)
     self._tmp_data = None
     return ret
@@ -192,12 +204,12 @@ class AUPool(dict):
     Return: False if timeout elapsed, True otherwise
     """
     outtimed = True
-    if timeout and NEED_WAIT_PATCH:
+    if timeout and _NEED_WAIT_PATCH:
       t = time.time()                                   # for python < 2.7
     if self.event:
       outtimed = self.event.wait(timeout)
       self.event.clear()
-      if NEED_WAIT_PATCH:
+      if _NEED_WAIT_PATCH:
         outtimed = timeout and (time.time()-t) < timeout or True
     return outtimed
 
@@ -211,7 +223,7 @@ def initialize(thread_info):
   try:
     from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
     conf.set_name('lightHead')
-    missing = conf.load(required_entries=REQUIRED_CONF_ENTRIES)
+    missing = conf.load(required_entries=_REQUIRED_CONF_ENTRIES)
     if missing:
       print '\nmissing configuration entries: %s' % missing
       sys.exit(1)
@@ -232,3 +244,36 @@ def initialize(thread_info):
                                  server_mixin=LightHeadServer)
   server.create_protocol_handlers()       # inits face and all other subservers.
   return server
+
+def cleanUp(server):
+  """Cleans up and shuts down the system.
+  thread_info: tuple of booleans setting threaded_server and threaded_clients
+  """
+  server.cleanUp()
+  server.shutdown()
+  print "LIGHTHEAD terminated"
+
+
+if __name__ == "__main__":
+  """performs AUPool tests.
+  """
+  import logging
+  from utils import comm, conf, LOGFORMATINFO
+  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+
+  AUS = ('t1','t2')
+  from RAS.dynamics import INSTANCE as DYNAMICS
+  pool = AUPool('test', DYNAMICS, threaded=False)
+  pool.set_availables(AUS)
+
+  def test(triplets, t_diff):
+    pool.update_targets(triplets)
+    print '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updated targets:' ; pool.Log_AUs(AUS)
+    while pool.update_time(t_diff, with_speed=True) != False:
+      print 'update time (+%ss):'%t_diff
+      pool.Log_AUs(AUS)
+    print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> final state:' ; pool.Log_AUs(AUS)
+
+  # various targets in 2s
+  test( (('t1',1,2), ('t2',.5,2)), .3)
+  test( (('t1',.5,1), ('t2',.5,1)), .5)

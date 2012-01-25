@@ -53,6 +53,76 @@ class SpineError(StandardError):
   pass
 
 
+
+class PoseManager(object):
+  """Represents a pose in normalized values."""
+
+  class Pose(dict):
+    def __init__(self, map_or_iterable, pose_manager):
+      """
+      map_or_iterable: (AU,value) pairs defining the pose
+      pose_manager: instance of PoseManager associated to that pose.
+      """
+      assert isinstance(map_or_iterable[0][0], basestring), "keys must be str"
+      super(dict,self).__init__(mapping_or_iterable)
+      self.manager = pose_manager
+
+    def to_native(self, check_limits=True):
+      """Returns the pose dict converted in native units: { AU : native }
+      """
+      #if not self.manager:
+      #  raise SpineError("Pose has no manager yet")
+      ret = {}
+      for AU,nv in self.iteritems():
+        hard = self.manager.HWinfos[AU][0]*nvalue + self.manager.HWinfos[AU][1]
+        if check_limits and not self.manager.check_HWlimits(AU, hard):
+          raise SpineError("AU %s native value %s is off limits" % (AU, hard))
+        ret[AU] = hard
+      return ret
+
+    def is_in_limits(self):
+      """Returns False: off hardware limits, None: off software limits, or True.
+      """
+      raise NotImplementedError
+      
+
+  def __init__(self, hardware_infos):
+    """Initializes a PoseManager with hardware infos.
+
+    hardware_infos: { AU_name : (factor, offset, HWmin, HWmax, SWmin, SWmax) }
+    factor = normalized value / native value
+    """
+    self.infos = hardware_infos
+
+  def get_fromNValues(self, dict_of_nvalues):
+    """Returns a pose initialized with normalized values and bound to self.
+    """
+    return Pose(dict_of_nvalues, self)
+
+  def get_fromPool(self, AUpool):
+    """Returns a Pose instance from the AUpool target values.
+
+    Raises SpineError if values lead to out-of-bounds hardware pose.
+    """
+    assert hasattr('__getitem__',AUpool), "argument isn't an AUpool."
+    return Pose(dict([(AU,infos[0]+infos[1]) for AU,infos in AUpool]), self)
+
+  def get_fromHardware(self):
+    """Returns a pose from Hardware
+    """
+    raise NotImplementedError("Create a child class and define this function.")
+
+  def check_HWlimits(self, AU, hvalue):
+    """hvalue: hardware value
+    """
+    return self.infos[AU][2] < value < self.infos[AU][3]
+
+  def check_SWlimits(self, AU, nvalue):
+    """nvalue: normalized value
+    """
+    return self.infos[AU][4] < value < self.infos[AU][5]
+
+
 class SpineElementInfo(object):
   """Information about a spine's element. An element is not a direct
   representation of the skeleton (eg: the thorax can be physically made of many
@@ -92,8 +162,9 @@ class Spine_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
+    d = dict([(AU, nval) for AU,nval,dur in self.fifo])
     try:
-      self.server.get_pose(use=dict([(AU, nval) for AU,nval,dur in self.fifo]))
+      self.server.pmanager.get_fromNValues(d)
     except ValueError, e:
       LOG.warning("update out of boundaries: %s", e)
       return
@@ -225,6 +296,8 @@ def get_server_class():
 
 
 if __name__ == '__main__':
+  """starts the arm in standalone server mode.
+  """
   import logging
   from utils import comm, conf, LOGFORMATINFO
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
