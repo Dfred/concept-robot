@@ -3,6 +3,7 @@
 Currently, derivatives of functions are also required.
 """
 
+
 class Profile(object):
   """
   """
@@ -13,8 +14,9 @@ class Profile(object):
     self.fct_expr = function
     self.drv_expr = derivate
 
+
 ENTRIES = {
-  'smooth_step1' : Profile("x*x(-2*x+3)","-6*x*(x-1)"),
+  'smooth_step1' : Profile("x*x*(-2*x+3)","-6*x*(x-1)"),
   'cos_slow' : Profile("x-(sin(2*PI*x)/(2*PI))","-cosf(2*x*PI)+1"),
   'linear' : Profile("x","1")
 }
