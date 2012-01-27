@@ -36,6 +36,7 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 import site
 import time
+import math
 import logging
 import threading
 
@@ -95,8 +96,10 @@ class FeaturePool(dict):
 
 class AUPool(dict):
   """This class facilitates the use of Action Units within the Feature Pool.
+
+  All values in this Pool are ideal using Motion dynamics, but predict_dist()
+  allows to take error into account. 
   Threads can call wait() to avoid polling all the time.
-  Also, it uses motion dynamics.
   """
   def __init__(self, origin, dynamics, threaded=False):
     """Initialize an AU pool for a specific origin, using a Dynamics instance.
@@ -110,7 +113,6 @@ class AUPool(dict):
     self.dynamics = dynamics
     self.fct_mov, self.fct_spd = None, None             # movement and speed
     self._dynamics_changed()
-    self._tmp_data = None                               # used for predict()
     self.dynamics.register(self._dynamics_changed)
     self.event = threaded and threading.Event()
 
@@ -127,10 +129,10 @@ class AUPool(dict):
     self.fct_mov = eval('lambda x:'+mov_expr)
     self.fct_spd = eval('lambda x:'+spd_expr)
 
-  def Log_AUs(self, AUs):
-    for i,au in enumerate(AUs):
-      self[au] = self.FP[self.origin][i]                # view or shallow copy
-      LOG.info("%5s : %s", au, self[au])  
+  def Log_AUs(self, AUpool=None):
+    AP = AUpool or self
+    for au,nval in AP.iteritems():
+      LOG.info("%5s : %s", au, nval)
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -146,7 +148,9 @@ class AUPool(dict):
     table = [values] + [[.0]*len(values)]*4 + [values]
     self.FP[self.origin] = array(zip(*table))           # transpose
     LOG.info("Available AUs:\n")
-    self.Log_AUs(AUs)
+    for i,au in enumerate(AUs):
+      self[au] = self.FP[self.origin][i]                # view or shallow copy
+    self.Log_AUs()
     return True
 
   def update_targets(self, iterable):
@@ -168,7 +172,7 @@ class AUPool(dict):
     time_interval: elapsed time since last call to this function
     with_speed: update speed value as well.
     """
-    data = self._tmp_data if self._tmp_data != None else self.FP[self.origin]
+    data = self.FP[self.origin]
     actives_flagList = data[:,_DDUR] > 0                # filter on time left
     if not any(actives_flagList):
       return False
@@ -188,15 +192,31 @@ class AUPool(dict):
     if not any(data[:,_DDUR]):
       return False
   
-  def predict(self, time_interval):
-    """Returns { AU : nvalues as computed by time_interval in the future }
+  def predict_dist(self, time_interval, curr_Hpose):
+    """Returns the distance covered in time_interval seconds (normalized value).
 
-    time_interval: elapsed time since last call to this function
+     This uses the dynamics profile and uses curr_Hpose to compensate for error.
+    time_interval: estimated next call time to update_time.
+    curr_Hpose: current hardware pose
     """
-    data = self.FP[self.origin]
-    ret = self._tmp_data = data.copy()          #XXX: predict => use deep copy
-    self.update_time(time_interval)
-    self._tmp_data = None
+    ret = {}
+    self.Log_AUs()
+    for AU,nHval in curr_Hpose.iteritems():
+      if self[AU][_DDUR] <= 0:
+        continue
+      curr_dist = abs(nHval - self[AU][_BVAL])
+      curr_err = self[AU][_VAL] - nHval
+      info_row = self[AU].copy()
+      info_row[_DDUR] -= time_interval
+      ret[AU] = self.fct_mov(info_row) - curr_dist + curr_err
+      if math.isnan(ret[AU]):
+        ret[AU] = 0
+      print (AU,
+             'predict in +%.3fs' % (self[AU][_DDUR] - info_row[_DDUR]),
+             'ideal next:', self.fct_mov(info_row),
+             'curr_dist:', curr_dist,
+             'curr_err:', curr_err,
+             'pred_dist:', ret[AU])
     return ret
 
   def wait(self, timeout=None):
@@ -268,11 +288,11 @@ if __name__ == "__main__":
 
   def test(triplets, t_diff):
     pool.update_targets(triplets)
-    print '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updated targets:' ; pool.Log_AUs(AUS)
+    print '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updated targets:' ; pool.Log_AUs()
     while pool.update_time(t_diff, with_speed=True) != False:
       print 'update time (+%ss):'%t_diff
-      pool.Log_AUs(AUS)
-    print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> final state:' ; pool.Log_AUs(AUS)
+      pool.Log_AUs()
+    print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> final state:' ; pool.Log_AUs()
 
   # various targets in 2s
   test( (('t1',1,2), ('t2',.5,2)), .3)
