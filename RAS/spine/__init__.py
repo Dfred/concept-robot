@@ -53,85 +53,87 @@ class SpineError(StandardError):
   pass
 
 
+class Pose(dict):
+  def __init__(self, map_or_iterable, pose_manager, check_SWlimits=True):
+    """
+    map_or_iterable: {AU:normalized_value,} or ((AU,nvalue),) defining the pose
+    pose_manager: instance of PoseManager associated to that pose.
+    """
+    super(Pose,self).__init__(map_or_iterable)
+    assert isinstance(self.keys()[0], basestring), "AUs must be strings"
+    self.manager = pose_manager
+    if check_SWlimits:
+      for AU,nval in self.iteritems():
+        if not pose_manager.check_SWlimits(AU, nval):
+          raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, nval))
+
+  def to_raw(self, check_SWlimits=True):
+    return self.manager.get_rawFromPose(self)
+
 
 class PoseManager(object):
   """Represents a pose in normalized values."""
 
-  class Pose(dict):
-    def __init__(self, map_or_iterable, pose_manager):
-      """
-      map_or_iterable: (AU,value) pairs defining the pose
-      pose_manager: instance of PoseManager associated to that pose.
-      """
-      assert isinstance(map_or_iterable[0][0], basestring), "keys must be str"
-      super(dict,self).__init__(mapping_or_iterable)
-      self.manager = pose_manager
-
-    def to_native(self, check_limits=True):
-      """Returns the pose dict converted in native units: { AU : native }
-      """
-      #if not self.manager:
-      #  raise SpineError("Pose has no manager yet")
-      ret = {}
-      for AU,nv in self.iteritems():
-        hard = self.manager.HWinfos[AU][0]*nvalue + self.manager.HWinfos[AU][1]
-        if check_limits and not self.manager.check_HWlimits(AU, hard):
-          raise SpineError("AU %s native value %s is off limits" % (AU, hard))
-        ret[AU] = hard
-      return ret
-
-    def is_in_limits(self):
-      """Returns False: off hardware limits, None: off software limits, or True.
-      """
-      raise NotImplementedError
-      
-
   def __init__(self, hardware_infos):
     """Initializes a PoseManager with hardware infos.
 
-    hardware_infos: { AU_name : (factor, offset, HWmin, HWmax, SWmin, SWmax) }
-    factor = normalized value / native value
+    hardware_infos: {AU_name : (pi_factor, offset, HWmin, HWmax, SWmin, SWmax)}
+    raw_value_for_pi = pi_factor * pi
     """
+    LOG.debug("Hardware infos:\n%s",
+              '\n'.join([str(i) for i in hardware_infos.items()]) )
     self.infos = hardware_infos
 
-  def get_fromNValues(self, dict_of_nvalues):
+  def get_poseFromNValues(self, dict_of_nvalues):
     """Returns a pose initialized with normalized values and bound to self.
     """
     return Pose(dict_of_nvalues, self)
 
-  def get_fromPool(self, AUpool):
+  def get_poseFromPool(self, AUpool, check_SWlimits=True):
     """Returns a Pose instance from the AUpool target values.
 
     Raises SpineError if values lead to out-of-bounds hardware pose.
     """
-    assert hasattr('__getitem__',AUpool), "argument isn't an AUpool."
-    return Pose(dict([(AU,infos[0]+infos[1]) for AU,infos in AUpool]), self)
+    assert hasattr(AUpool,'__getitem__'), "argument isn't an AUpool."
+    # normalized target value = base normalized value + normalized distance
+    return Pose([(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()], self,
+                check_SWlimits)
 
-  def get_fromHardware(self):
-    """Returns a pose from Hardware
+  def get_poseFromHardware(self):
+    """Returns a pose from Hardware.
     """
-    raise NotImplementedError("Create a child class and define this function.")
+    raise NotImplementedError("Override this function (assign or inherit).")
 
-  def check_HWlimits(self, AU, hvalue):
-    """hvalue: hardware value
+  def get_rawFromPose(self, pose, check_SWlimits=True):
+    """Returns the pose converted in raw units: { AU : raw_value }
+
+    Raises SpineError if check_SWlimits is True and value is off soft limits.
     """
-    return self.infos[AU][2] < value < self.infos[AU][3]
+    ret = {}
+    for AU,norm_val in pose.iteritems():
+      if check_SWlimits and not self.check_SWlimits(AU, norm_val):
+        raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, norm_val))
+      ret[AU] = self.infos[AU][0]*norm_val + self.infos[AU][1]
+    return ret
+
+  def get_rawFromNval(self, AU, norm_val):
+    """Returns raw (hardware) value from normalized value."""
+    return self.infos[AU][0]*norm_val + self.infos[AU][1]
+
+  def check_HWlimits(self, AU, rvalue):
+    """rvalue: raw (hardware) value
+    """
+    return self.infos[AU][2] < rvalue < self.infos[AU][3]
 
   def check_SWlimits(self, AU, nvalue):
     """nvalue: normalized value
     """
-    return self.infos[AU][4] < value < self.infos[AU][5]
+    return self.infos[AU][4] < nvalue < self.infos[AU][5]
 
-
-class SpineElementInfo(object):
-  """Information about a spine's element. An element is not a direct
-  representation of the skeleton (eg: the thorax can be physically made of many
-  sections).
-  """
-  def __init__(self):
-    self.limits_rot = []                                # orientation
-    self.limits_pos = []                                # position
-    self.pivot_coords = [.0,]*3                         # in world coordinates
+  def is_withinLimits(self):
+    """Returns False: off hardware limits, None: off software limits, or True.
+    """
+    raise NotImplementedError
 
 
 class Spine_Handler(ASCIIRequestHandler):
@@ -163,12 +165,13 @@ class Spine_Handler(ASCIIRequestHandler):
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
     d = dict([(AU, nval) for AU,nval,dur in self.fifo])
-    try:
-      self.server.pmanager.get_fromNValues(d)
-    except ValueError, e:
-      LOG.warning("update out of boundaries: %s", e)
-      return
-    self.server.AUs.update_targets(self.fifo)
+    if d:
+      try:
+        self.server.pmanager.get_poseFromNValues(d)
+      except ValueError, e:
+        LOG.warning("update out of boundaries: %s", e)
+        return
+      self.server.AUs.update_targets(self.fifo)
     self.fifo.clear()
 
   def cmd_switch(self, argline):
@@ -180,7 +183,6 @@ class Spine_Handler(ASCIIRequestHandler):
     except AttributeError :
       LOG.debug('no switch_%s function available', args[0])
       return
-
 #    #TODO: implement and use the 'with' statement for threaded servers
 #    self.server.threaded and self.server.threadsafe_start()
 #    try:
@@ -204,6 +206,7 @@ class Spine_Server(object):
     self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
     self.poses = {}
     self.configure()
+    self.pmanager = None                                # to be set by backend
 
   def configure(self):
     """
@@ -230,6 +233,7 @@ class Spine_Server(object):
     try:
       self.poses['rest'] = list(hardware['POSE_REST'])
       self.poses['ready'] = list(hardware['POSE_READY_NEUTRAL'])
+      self.ready = self.poses['ready']
     except:
       raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
                                "'POSE_READY_NEUTRAL'" % self.hardware_name)

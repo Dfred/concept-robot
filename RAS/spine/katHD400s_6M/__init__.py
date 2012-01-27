@@ -25,7 +25,6 @@
 #
 # Axis are independant: an axis can be controlled (rigid) while others not.
 #
-import math
 import time
 import threading
 
@@ -49,8 +48,22 @@ LOG = get_logger(__package__)
 if __name__ == '__main__':
   from utils import conf
   conf.load(name='lightHead')
-from RAS.spine import SpineError, Spine_Server
+from RAS.spine import SpineError, Spine_Server, PoseManager, Pose
 
+
+def LH_KNI_get_poseFromHardware(self):
+  """Implementation of PoseManager.get_poseFromHardware"""
+  assert SpineHW.KNI_instance, "call before hardware initialization is complete"
+  pose = []
+  for i, enc in enumerate(SpineHW.KNI_instance.getEncoders()):
+    try:
+      AU = SpineHW.Axis2AU[i+1]                         # has only enabled AUs
+    except KeyError:
+      continue
+    pi_factor, offset = self.infos[AU][0:2]
+    print 'AU %s (axis %i) from HW %iencs => %s' % (AU, i+1, enc, (enc-offset)/pi_factor)
+    pose.append((AU,(enc-offset)/pi_factor))
+  return Pose(pose, self)
 
 class SpineHW(Spine_Server):
   """Spine implementation for the Katana400s-6m"""
@@ -58,9 +71,11 @@ class SpineHW(Spine_Server):
   AU2Axis = {'51.5': 6,
              '53.5': 4,
              '55.5': 5,
-             '57.5': None,
+#             '57.5': None,
              'TZ':   1}
   Axis2AU = dict([ (axis,AU) for AU,axis in AU2Axis.items() if axis ])
+  AUs_sorted = [ Axis2AU.has_key(a) and Axis2AU[a] for a in range(1,7) ]
+  KNI_instance = None
 
   def __init__(self, with_ready_pose=True):
     Spine_Server.__init__(self)
@@ -68,10 +83,28 @@ class SpineHW(Spine_Server):
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
     self.init_hardware()
     self.check_SWlimits()
-    self.AUs.set_availables(self.enabled_AUs,
-                            self.pose2values(self.poses['ready']))
+    self.pmanager = PoseManager( dict([ 
+          (AU,
+           (self.EPPs[axis-1], self.ready[axis-1],
+            self.HW_limits[axis-1][0], self.HW_limits[axis-1][1],
+            (self.SW_limits[axis-1][0]-self.ready[axis-1]) / self.EPPs[axis-1],
+            (self.SW_limits[axis-1][1]-self.ready[axis-1]) / self.EPPs[axis-1]
+            )
+           ) for AU,axis in self.AU2Axis.iteritems() if axis != None ]) )
+    self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
+      self.pmanager, PoseManager)
+    self.AUs.set_availables(self.pmanager.get_poseFromHardware())
     self.switch_on()
 
+  def configure(self):
+    """
+    """
+    super(SpineHW, self).configure()
+    from os.path import dirname, sep
+    if dirname(__file__):
+      self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
+    else:
+      self.KNI_cfg_file = "katana6M90T.cfg"
 
   def check_SWlimits(self):
     """
@@ -86,7 +119,7 @@ class SpineHW(Spine_Server):
                 "SW:(%se{%.3f/pi}[%senc],%s,[%senc]%se{%.3f/pi})",
                 SpineHW.Axis2AU[i+1] if SpineHW.Axis2AU.has_key(i+1) else None,
                 i+1,
-                self.HW_limits[i], self.EPCs[i], 
+                self.HW_limits[i], self.EPPs[i], 
                 self.SW_limits[i][0],
                 self.enc2nval(i+1,self.SW_limits[i][0]),
                 self.poses['ready'][i]-self.SW_limits[i][0],
@@ -118,16 +151,6 @@ Either:
       raise ValueError("%senc. beyond axis %i Software limits." % (enc, axis+1))
     return SWenc
 
-  def configure(self):
-    """
-    """
-    super(SpineHW, self).configure()
-    from os.path import dirname, sep
-    if dirname(__file__):
-      self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
-    else:
-      self.KNI_cfg_file = "katana6M90T.cfg"
-
   def init_hardware(self):
     """
     """
@@ -139,18 +162,20 @@ Either:
       raw_input("Press Enter key when ready to use the arm (axis centered)")
       encoders_at_init = self.KNI.getEncoders()
       self.reach_pose('rest')
-      self.reach_pose('ready')
+#      self.reach_pose('ready')
+      self.reach_Pose('ready')
       return encoders_at_init
 
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
+    SpineHW.KNI_instance = self.KNI
 
     encoders_at_init = self.KNI.getEncoders()
     for axis in range(6):
       try:
         self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
       except SpineError, e:
-        if self.unblock_if_needed() == None:                       #TODO: set a policy ?
+        if self.unblock_if_needed() == None:            #TODO: set a policy ?
           try:
             LOG.info("Calibration needed.")
             LOG.debug("Got this pose: %s", encoders_at_init)
@@ -162,8 +187,8 @@ Either:
         else:
           encoders_at_init = self.KNI.getEncoders()
 
-    self.HW_limits, self.EPCs = self.KNI.getMinMaxEPC()
-    self.EPCs = [ epc/2 for epc in self.EPCs ]
+    self.HW_limits, EPCs = self.KNI.getMinMaxEPC()
+    self.EPPs = [ float(epc)/2 for epc in EPCs ]
 
     # Check for generated poses values from config
     for name, pose in self.poses.iteritems():
@@ -210,43 +235,54 @@ Either:
     except SpineError:
       raise SpineError("failed to reach pose '%s'" % pose)
 
+  def reach_Pose(self, pose, wait=True):
+    """Set all the motors to a pose (an absolute position).
+    pose: a Pose instance
+    wait: wait for the pose to be reached before returning
+    """
+    for AU, raw_val in pose.to_raw().items():
+      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))
+
+  def update_from_HW(self):
+    """Updates the AU pool current values with one read from the hardware.
+    """
+    for AU,nval in self.pmanager.get_poseFromHardware().iteritems():
+      print 'AU %s: reaching %s (%se)' % (AU, nval, self.pmanager.get_rawFromNval(AU,nval))
+      self.AUs[AU][-1] = nval
+
   def update_loop(self):
     """Moves the arm using dynamics (speed control) upon new AU update.
     """
-    AU_seq = [AU for AU,ax in sorted(SpineHW.AU2Axis.items(),key=lambda x:x[1])]
+#   AU_seq = [AU for AU,ax in sorted(SpineHW.AU2Axis.items(),key=lambda x:x[1])]
     while self.running:
       print 'waiting'
       if self.AUs.wait():
         print 'updated:', self.AUs
         start_time = time.time()
         #XXX: we need to set the AUPool's Base Value properly
-        self.AUs[
+        self.update_from_HW()
         #XXX: pose has been verified by server
-        self.reach_pose(self.pose_manager.get_poseFromPool(self.AUs),
-                        wait=False)
+        self.reach_Pose(self.pmanager.get_poseFromPool(self.AUs), wait=False)
         controlling = True
         t = start_time
         while controlling:                      #TODO: break loop for pose reset
-          curr_Hpose = self.pose_manager.get_poseFromHardware()
+          curr_Hpose = self.pmanager.get_poseFromHardware()
+          print 'Hardware:', curr_Hpose, curr_Hpose.to_raw()
           tmp = time.time()
           t_diff = tmp - t
           t = tmp
           #XXX: update returns False when all values reached their targets
-          if self.AUs.update(t_diff, with_speed=True) == False:
+          if self.AUs.update_time(t_diff, with_speed=True) == False:
             controlling = False
             continue
-          for AU,infos in self.AUs.iteritems():
-            base_Hnval, curr_ideal = infos[0], infos[-1]
-            if not infos[1]:                                    # actives only
+          for AU,ndist in self.AUs.predict_dist(t_diff, curr_Hpose).items():
+            if not ndist:                                       # actives only
               continue
-            next_ideal = self.AUs.predict(t_diff, curr_Hpose[AU])
-            curr_dist  = curr_Hpose[AU] - base_nval
-            curr_err   = curr_nval - curr_Hpose[AU] 
-            d = self.nval2enc(self.AU2Axis[AU], next_ideal-curr_dist+curr_err)
-            speed = int(d/t_diff * .01)              # encoders/0.01s
-            print 'speed = dist/time_step*.01: ', speed, dist, t_diff
-            self.KNI.setMaxVelocity(SpineHW.AU2Axis[AU], speed)
-          print 'diff', [ tp - encs[i] for i,tp in enumerate(target_pose) ]
+            axis = SpineHW.AU2Axis[AU]
+            # KNI speed is in encoders/0.01s
+            speed = int(self.EPPs[axis]*ndist/t_diff *.01)
+            LOG.debug('dist %.5f (%senc) speed: %s', ndist, int(self.EPPs[axis]*ndist),speed)
+            self.KNI.setMaxVelocity(axis, speed)
         print 'done in %ss' % (time.time() - start_time)
     print 'update_loop done!'
 
@@ -294,73 +330,6 @@ Either:
     self._motors_on and self.KNI.allMotorsOn()
     self._motors_on = True
 
-  def reach_pose(self, pose, wait=True):
-    """Set all the motors to a pose (an absolute position).
-    pose: list of encoders OR identifier from Spine_Server.POSE_IDs
-    wait: wait for the pose to be reached before returning
-    """
-    name = None
-    if type(pose) == type(''):
-      name = pose
-      if name not in self.poses.keys():
-        LOG.warning('pose %s does not exist', pose_name)
-        return
-      pose = self.poses[name]
-    try:
-      LOG.debug('reaching pose %s : %s', name, pose)
-      self.KNI.moveToPosEnc(*list(pose)+[50, ACCEL, TOLER, wait])
-    except SpineError:
-      raise SpineError("failed to reach pose '%s'" % name)
-
-  def get_poseFromEncs(self, use=None):
-    """Returns the pose for the current (or target) encoder values from the arm.
-
-    use: iterable of encoders as returned from KNI.getEncoders()
-    """
-    pose = []
-    if not use:
-      use = self.KNI.getEncoders()
-    for i, enc in enumerate(use):
-      try:
-        AU = SpineHW.Axis2AU[i+1]                       # has only enabled AUs
-      except KeyError:
-        pose.append(enc)
-      else:
-        try:
-          nval = use[AU] if use else self.AUs[AU][-1]
-        except KeyError:
-          pose.append(enc)
-          continue
-        try:
-          pose.append(self.nval2enc(i+1, nval, no_check))
-        except ValueError, e:
-          raise
-    return pose
-
-  def get_poseFromPool(self, use=None, no_check=False):
-    """Returns the pose for the current (or target) nvalues in AU pool.
-    An axis not bound to an AU get its value from pose 'ready'.
-    use: {AU:nvalue} to be used instead.
-    """
-    pose = []
-    for i,enc in enumerate(self.poses['ready']):
-      try:
-        AU = SpineHW.Axis2AU[i+1]                       # has only enabled AUs
-      except KeyError:
-        pose.append(enc)
-      else:
-        try:
-          nval = use[AU] if use else self.AUs[AU][-1]
-        except KeyError:
-          pose.append(enc)
-          continue
-        try:
-          pose.append(self.nval2enc(i+1, nval, no_check))
-        except ValueError, e:
-          raise ValueError('%s %s : %s' % (AU, self.AUs[AU], e))
-#    LOG.debug( 'returning pose: %s', pose)
-    return pose
-
   def pose2values(self, pose):
     """Returns AU values for the given pose, skipping disabled axis in AU2Axis.
 
@@ -379,8 +348,8 @@ Either:
     axis -= 1
     if nvalue>1:
       import pdb; pdb.set_trace()
-    enc = int(self.EPCs[axis]*nvalue) + self.poses['ready'][axis]
-    #print 'nval2enc',nvalue,int(self.EPCs[axis]*nvalue), self.poses['ready'][axis]
+    enc = int(self.EPPs[axis]*nvalue) + self.poses['ready'][axis]
+    #print 'nval2enc',nvalue,int(self.EPPs[axis]*nvalue), self.poses['ready'][axis]
     return raw and enc or self.check_encoder(axis+1, enc)
 
   def enc2nval(self, axis, encoder):
@@ -390,7 +359,7 @@ Either:
     encoder: encoder value
     """
     axis -= 1
-    value = float(encoder - self.poses['ready'][axis])/self.EPCs[axis]
+    value = float(encoder - self.poses['ready'][axis])/self.EPPs[axis]
 #    LOG.debug("Axis %i: got %i encoder -> %s nvalue", axis+1, encoder, value)
     return value
 
