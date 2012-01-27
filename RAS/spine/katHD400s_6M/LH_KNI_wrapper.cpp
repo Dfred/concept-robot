@@ -942,6 +942,15 @@ setMaxVelocity(int axis, int vel){
   }*/
 
 ////
+// faster version of moveMot (doesn't set speed nor acceleration)
+DLLEXPORT int
+moveMotFaster(int axis, int enc_value)
+{
+  EXCEPT( katana->moveMotorToEnc(axis-1, enc_value); );
+  return ERR_SUCCESS;
+}
+
+////
 // XXX: limited to 7 motors (currently 6 are available).
 DLLEXPORT int
 is_moving(int axis)					// axis 0 => all axis
