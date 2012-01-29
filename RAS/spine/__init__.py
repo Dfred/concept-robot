@@ -171,7 +171,7 @@ class Spine_Handler(ASCIIRequestHandler):
       except ValueError, e:
         LOG.warning("update out of boundaries: %s", e)
         return
-      self.server.AUs.update_targets(self.fifo)
+      self.server.set_targetTriplets(self.fifo.__copy__())
     self.fifo.clear()
 
   def cmd_switch(self, argline):
@@ -203,8 +203,10 @@ class Spine_Server(object):
     super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
+    self._target_triplets = None
     self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
-    self.poses = {}
+    self.HWready  = None                                # Hardware action ready
+    self.HWrest   = None                                # Hardware switch-off ok
     self.configure()
     self.pmanager = None                                # to be set by backend
 
@@ -231,14 +233,11 @@ class Spine_Server(object):
       raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                 self.hardware_name)
     try:
-      self.poses['rest'] = list(hardware['POSE_REST'])
-      self.poses['ready'] = list(hardware['POSE_READY_NEUTRAL'])
-      self.ready = self.poses['ready']
+      self.HWrest = list(hardware['POSE_REST'])
+      self.HWready = list(hardware['POSE_READY_NEUTRAL'])
     except:
       raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
                                "'POSE_READY_NEUTRAL'" % self.hardware_name)
-    self.poses['SW_zero'] = [0]*len(self.SW_limits)
-    self.poses['SW_avrg'] = [int((mn+mx)/2) for mn,mx in self.SW_limits]
 
   def is_moving(self):
     """Returns True if moving"""
@@ -262,9 +261,19 @@ class Spine_Server(object):
     """In rad/s"""
     self._speedLimit = value
 
-  def set_lock_handler(self, handler):
+  def set_lockHandler(self, handler):
     """function to call upon collision detection locking"""
     self._lock_handler = handler
+
+  def unlock(self):
+    """Unlock spine after collision detection cause locking"""
+    raise NotImplementedError()
+
+  def set_targetTriplets(self, triplets):
+    """Sets the targets. Also logs if target_triplets is updated before use."""
+    if self._target_triplets != None:
+      LOG.info("target triplets apparently weren't yet processed, overwriting.")
+    self._target_triplets = triplets
 
   def reach_pose(self, pose):
     """
@@ -279,10 +288,6 @@ class Spine_Server(object):
 
   def switch_off(self):
     """Set the robot's pose for safe hardware switch off."""
-    raise NotImplementedError()
-
-  def unlock(self):
-    """Unlock spine after collision detection cause locking"""
     raise NotImplementedError()
 
 
