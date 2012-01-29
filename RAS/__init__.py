@@ -154,7 +154,8 @@ class AUPool(dict):
     return True
 
   def update_targets(self, iterable):
-    """Set targets for a set of AUs.
+    """Set targets for a set of AUs. self[:][_VAL] should reflect reality.
+
     iterable: list of (AU, normalized target value, target duration in sec).
     """
     for AU, target, attack in iterable:
@@ -162,8 +163,6 @@ class AUPool(dict):
         self[AU][0:-2] = self[AU][_VAL], target - self[AU][_VAL], attack, attack
       except IndexError:
         LOG.warning("AU '%s' not found", AU)
-    if self.event:
-      self.event.set()                                  # unlock waiting thread
 
   #TODO: optimize returning { AU, updated value }
   def update_time(self, time_interval, with_speed=False):
@@ -192,7 +191,8 @@ class AUPool(dict):
     if not any(data[:,_DDUR]):
       return False
   
-  def predict_dist(self, time_interval, curr_Hpose):
+  def predict_dist(self, time_interval, curr_Hpose,
+                   coeff, offset):
     """Returns the distance covered in time_interval seconds (normalized value).
 
      This uses the dynamics profile and uses curr_Hpose to compensate for error.
@@ -200,24 +200,36 @@ class AUPool(dict):
     curr_Hpose: current hardware pose
     """
     ret = {}
-    self.Log_AUs()
     for AU,nHval in curr_Hpose.iteritems():
       if self[AU][_DDUR] <= 0:
         continue
       curr_dist = abs(nHval - self[AU][_BVAL])
-      curr_err = self[AU][_VAL] - nHval
+      curr_err = abs(self[AU][_VAL] - nHval)
       info_row = self[AU].copy()
       info_row[_DDUR] -= time_interval
       ret[AU] = self.fct_mov(info_row) - curr_dist + curr_err
       if math.isnan(ret[AU]):
         ret[AU] = 0
-      print (AU,
-             'predict in +%.3fs' % (self[AU][_DDUR] - info_row[_DDUR]),
-             'ideal next:', self.fct_mov(info_row),
-             'curr_dist:', curr_dist,
-             'curr_err:', curr_err,
-             'pred_dist:', ret[AU])
+      print '%.2f%%e (%.3fs +%.3fs %.2f%%) : dist_next %.6s - dist_curr %.6s + err %.6s (%s - %s)/ %.2fs => %.5s' % (
+        nHval/self[AU][_RDIST]*100,
+        self[AU][_TDUR]-self[AU][_DDUR],  time_interval,
+        (1-self[AU][_DDUR]/self[AU][_TDUR]) *100,
+        coeff*self.fct_mov(info_row), coeff*curr_dist, coeff*curr_err,
+        coeff*self[AU][_VAL]+offset, coeff*nHval+offset,
+        time_interval,
+        ret[AU]/time_interval * .01)
+#      print ('predict in +%.3fs' % (self[AU][_DDUR] - info_row[_DDUR]),
+#             'ideal next:', self.fct_mov(info_row),
+#             'curr_dist:', curr_dist,
+#             'curr_err:', curr_err,
+#             'pred_dist:', ret[AU])
     return ret
+
+  def unblock_wait(self):
+    """Unblock threads blocked in self.wait().
+    """
+    if self.event:
+      self.event.set()                                  # unlock waiting thread
 
   def wait(self, timeout=None):
     """Wait for an update of any AU in this pool.
