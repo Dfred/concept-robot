@@ -192,40 +192,6 @@ class AUPool(dict):
     if not any(data[:,DDUR]):
       return False
   
-  def predict_dist(self, time_interval, curr_Hpose,
-                   coeff, offset):
-    """Returns the distance covered in time_interval seconds (normalized value).
-
-     This uses the dynamics profile and uses curr_Hpose to compensate for error.
-    time_interval: estimated next call time to update_time.
-    curr_Hpose: current hardware pose
-    """
-    ret = {}
-    for AU,nHval in curr_Hpose.iteritems():
-      if self[AU][DDUR] <= 0:
-        continue
-      curr_dist = abs(nHval - self[AU][BVAL])
-      curr_err = abs(self[AU][VAL] - nHval)
-      info_row = self[AU].copy()
-      info_row[DDUR] -= time_interval
-      ret[AU] = self.fct_mov(info_row) - curr_dist + curr_err
-      if math.isnan(ret[AU]):
-        ret[AU] = 0
-      print '%.2f%%e (%.3fs +%.3fs %.2f%%) : dist_next %.6s - dist_curr %.6s + err %.6s (%s - %s)/ %.2fs => %.5s' % (
-        nHval/self[AU][RDIST]*100,
-        self[AU][TDUR]-self[AU][DDUR],  time_interval,
-        (1-self[AU][DDUR]/self[AU][TDUR]) *100,
-        coeff*self.fct_mov(info_row), coeff*curr_dist, coeff*curr_err,
-        coeff*self[AU][VAL]+offset, coeff*nHval+offset,
-        time_interval,
-        ret[AU]/time_interval * .01)
-#      print ('predict in +%.3fs' % (self[AU][DDUR] - info_row[DDUR]),
-#             'ideal next:', self.fct_mov(info_row),
-#             'curr_dist:', curr_dist,
-#             'curr_err:', curr_err,
-#             'pred_dist:', ret[AU])
-    return ret
-
   def unblock_wait(self):
     """Unblock threads blocked in self.wait().
     """
