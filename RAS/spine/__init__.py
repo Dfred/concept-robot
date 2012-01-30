@@ -89,15 +89,16 @@ class PoseManager(object):
     """
     return Pose(dict_of_nvalues, self)
 
-  def get_poseFromPool(self, AUpool, check_SWlimits=True):
+  def get_poseFromPool(self, AUpool,
+                       check_SWlimits=True, filter_fct=lambda x: True):
     """Returns a Pose instance from the AUpool target values.
 
     Raises SpineError if values lead to out-of-bounds hardware pose.
     """
     assert hasattr(AUpool,'__getitem__'), "argument isn't an AUpool."
     # normalized target value = base normalized value + normalized distance
-    return Pose([(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()], self,
-                check_SWlimits)
+    return Pose( [(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()
+                  if filter_fct(infs)], self, check_SWlimits )
 
   def get_poseFromHardware(self):
     """Returns a pose from Hardware.
@@ -323,5 +324,9 @@ if __name__ == '__main__':
     LOG.fatal("%s", e)
     exit(2)
   print 'Initialization OK'
-  server.serve_forever()
+  try:
+    server.serve_forever()
+  except KeyboardInterrupt:
+    server.shutdown()
+    server.stop_speedControl() # server.cleanUp()
   LOG.debug("Spine server done")
