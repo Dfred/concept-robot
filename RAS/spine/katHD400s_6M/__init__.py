@@ -34,6 +34,8 @@ except ImportError, e:
   print e, "Make sure you have run 'source_me_to_set_env.sh'"
   exit(1)
 import LH_KNI_wrapper
+from RAS import BVAL, RDIST, TDUR, DDUR, DVT, VAL
+from RAS.spine import SpineError, Spine_Server, PoseManager, Pose
 
 __all__ = ['SpineHW']
 
@@ -44,16 +46,13 @@ Either:
 * Use another value for that axis in 'ready' definition.
 * In manual mode, try turning that axis by ±180 degrees, and restart.
 """
-
 ACCEL = 1
 SPEED = 20
-TOLER = 10
+TOLER = 30
 VELOC = 50
 MAX_VELOCITY = 180      # HW limit
 LOG = get_logger(__package__)
 
-from RAS import VAL, DVT, TDUR
-from RAS.spine import SpineError, Spine_Server, PoseManager, Pose
 
 def LH_KNI_get_poseFromHardware(self):
   """Implementation of PoseManager.get_poseFromHardware"""
@@ -133,7 +132,7 @@ class SpineHW(Spine_Server):
       if ( self.SW_limits[i][0] < self.HW_limits[i][0] or
            self.SW_limits[i][1] > self.HW_limits[i][1] ):
         LOG.critical(_MSG_ERR_CFG_SW, i+1, self.SW_limits[i], self.HW_limits[i])
-        exit(2)                                         # crude but safe
+#        exit(2)                                         # crude but safe
 
   def check_encoder(self, axis, enc):
     """
@@ -253,26 +252,52 @@ class SpineHW(Spine_Server):
   def set_speeds(self, curr_Hpose):
     """
     """
-    for AU,infos in self.AUs.iteritems():
-      if infos[TDUR]:
-        print AU, infos,
-        axis = SpineHW.AU2Axis[AU]
-        spd = int(infos[DVT]*self.EPPs[axis-1]*.01)
-        print 'speed: %i (%.5f * %.5f)' % (spd, infos[DVT], self.EPPs[axis-1])
-        self.KNI.setMaxVelocity(axis, abs(spd))
-    return
+    # theoretical speed method
+    # for AU,infos in self.AUs.iteritems():
+    #   if infos[TDUR]:
+    #     print AU, infos,
+    #     axis = SpineHW.AU2Axis[AU]
+    #     spd = int(infos[DVT]*self.EPPs[axis-1]*.01)
+    #     print 'speed: %i (%.5f * %.5f)' % (spd, infos[DVT], self.EPPs[axis-1])
+    #     self.KNI.setMaxVelocity(axis, abs(spd))
+    # return
 
-    # .04s for setMaxVelocity + get_Encoders
-    for AU,ndist in self.AUs.predict_dist(.04, curr_Hpose,
-                                           self.EPPs[0],
-                                           self.HWready[0]).items():
-      if not ndist:                                             # actives only
+    # simplest method 
+    STEP = 0.04
+    for AU,nHval in curr_Hpose.iteritems():
+      if self.AUs[AU][DDUR] <= 0:
         continue
-      axis = SpineHW.AU2Axis[AU]
+      row, axis = self.AUs[AU].copy(), SpineHW.AU2Axis[AU]
+      next_ideal = self.AUs.fct_mov(row)
+      next_dist = next_ideal - nHval
+
+      epp,offset = self.EPPs[axis-1], self.HWready[axis-1]
+
       # KNI speed is in encoders/0.01s
-      speed = max(int(self.EPPs[axis-1]*ndist/.04 *.01), 0);
-      LOG.debug('dist %.5f (%senc) speed: %s',
-                ndist, int(self.EPPs[axis-1]*ndist),speed)
+      spd =  int(epp*abs(next_dist)/STEP *.01)
+      ispd = int(abs(epp*row[DVT] *.01))
+      # ideal next speed
+      tmp = self.AUs[AU].copy()
+      tmp[DDUR] -= STEP
+      nspd = abs(self.AUs.fct_spd(tmp) * epp * .01)
+      
+#      speed = int(float(ispd+spd)/2)
+      speed = spd
+
+      self.merdier = axis, int(epp * (row[BVAL]+row[RDIST]) + offset)
+      pet_diff = ispd-speed
+
+      if pet_diff < self.pet[0]:
+        self.pet[0] = pet_diff
+      if pet_diff > self.pet[1]:
+        self.pet[1] = pet_diff
+      if pet_diff:
+        if abs(pet_diff)/pet_diff != self.pet[-1]:
+          self.pet[2] += 1
+        self.pet[-1] = abs(pet_diff)/pet_diff
+      
+      if speed > MAX_VELOCITY:
+        LOG.warning("speed %i > MAX_VELOCITY (%i)", speed, MAX_VELOCITY) 
       self.KNI.setMaxVelocity(axis, speed)
 
   def update_loop(self):
@@ -280,13 +305,16 @@ class SpineHW(Spine_Server):
     """
     while self.running:
       if self.AUs.wait() and self.running:
+
+        self.pet = [0,0,0,0] # min, max, sign changes, tmp
+
         self.update_poolFromNewTriplets()
         start_time = time.time()
+        self.KNI.setMaxVelocity(4, 0) # AU 53.5
         #XXX: pose has been verified by handler but we filter non-moving AUs
         self.reach_pose(
           self.pmanager.get_poseFromPool(self.AUs,filter_fct=lambda x:x[TDUR]),
-          wait=False )
-        print time.time() - start_time
+          wait=False )                  # takes about .02 
         last_t = start_time
         updates = 0
         while True:                      #TODO: break loop for pose reset
@@ -298,8 +326,14 @@ class SpineHW(Spine_Server):
           self.set_speeds(curr_Hpose)
           last_t = curr_t
           updates += 1
-        elapsed = time.time() - start_time
-        print 'done in %ss : %.2f updates/s' % (elapsed, updates/elapsed)
+        t = time.time()
+        elapsed = t - start_time
+        self.KNI.waitForMot(self.merdier[0], self.merdier[1],10)
+        t2 = time.time()
+        print 'done in %.5fs [+%.5fs] (%i updates): %.2f updates/s' % (
+          elapsed, t2-t, updates, updates/elapsed)
+        #XXX: Warning! the arm may still be moving at this point. 
+        print 'speed stats: min %s, max %s, sign changes %s' % tuple(self.pet[:3])
     print 'update_loop done!'
 
   def start_speedControl(self):
@@ -315,7 +349,7 @@ class SpineHW(Spine_Server):
       self.AUs.unblock_wait()
       self.SC_thread.join()
 
-  def switch_on(self, with_ready_pose=True):
+  def switch_on(self):
     """Mandatory 1st call after hardware is switched on.
     """
     self.unblock_if_needed()
@@ -324,9 +358,8 @@ class SpineHW(Spine_Server):
                                                 self.HWready) ]
     if max(pose_diff) > TOLER:
       LOG.debug("moving (current pose far from 'ready' pose %s)", pose_diff)
-      self.reach_raw(self.HWrest)                           # we may have moved
-      if with_ready_pose:
-        self.reach_raw(self.HWready)
+#      self.reach_raw(self.HWrest)                           # we may have moved
+      self.reach_raw(self.HWready)
     self.start_speedControl()
 
   def switch_off(self):
