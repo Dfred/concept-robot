@@ -47,12 +47,12 @@ LOG = logging.getLogger(__package__)                  # updated in initialize()
 _NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
 _REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
                           'ROBOT', 'lib_vision', 'lib_spine')
-_BVAL = 0
-_RDIST = 1
-_TDUR = 2
-_DDUR = 3
-_DVT  = 4
-_VAL  = 5
+BVAL = 0
+RDIST = 1
+TDUR = 2
+DDUR = 3
+DVT  = 4
+VAL  = 5
 
 
 class FeaturePool(dict):
@@ -119,9 +119,9 @@ class AUPool(dict):
   def _dynamics_changed(self):
     # reset our update functions with the new profile dynamics:
     # x: normalized remaining time, factorise by diff value, add current value
-    normalized_duration = '(1-x[_DDUR]/x[_TDUR])'
-    adjust_mov = '(x[_RDIST]+x[_BVAL])'
-    adjust_spd =  adjust_mov   +     '/' + normalized_duration
+    normalized_duration = '(1-x[DDUR]/x[TDUR])'
+    adjust_mov = 'x[RDIST] + x[BVAL]'
+    adjust_spd = 'x[RDIST]/x[TDUR]'
     fct_expr, drv_expr = self.dynamics.get_profiles_expression()
     mov_expr = '('+fct_expr.replace('x',normalized_duration)+') * ' + adjust_mov
     spd_expr = '('+drv_expr.replace('x',normalized_duration)+') * ' + adjust_spd
@@ -131,8 +131,8 @@ class AUPool(dict):
 
   def Log_AUs(self, AUpool=None):
     AP = AUpool or self
-    for au,nval in AP.iteritems():
-      LOG.info("%5s : %s", au, nval)
+    for au,nval_row in AP.iteritems():
+      LOG.info("%5s :"+" %.5f"*len(nval_row), au, *nval_row)
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -144,7 +144,7 @@ class AUPool(dict):
     else:
       values = [0] * len(AUs)
     # base value, value diff, target dur, dur left, curr speed, curr value
-    # _BVAL     , _RDIST     , _TDUR     , _DDUR   , _DVT      , _VAL
+    # BVAL      , RDIST     , TDUR      , DDUR    , DVT       , VAL
     table = [values] + [[.0]*len(values)]*4 + [values]
     self.FP[self.origin] = array(zip(*table))           # transpose
     LOG.info("Available AUs:\n")
@@ -154,13 +154,14 @@ class AUPool(dict):
     return True
 
   def update_targets(self, iterable):
-    """Set targets for a set of AUs. self[:][_VAL] should reflect reality.
+    """Set targets for a set of AUs. self[:][VAL] should reflect reality.
 
     iterable: list of (AU, normalized target value, target duration in sec).
     """
     for AU, target, attack in iterable:
+      curr_val = self[AU][VAL]
       try:
-        self[AU][0:-2] = self[AU][_VAL], target - self[AU][_VAL], attack, attack
+        self[AU][0:DVT] = curr_val, target-curr_val, attack, attack
       except IndexError:
         LOG.warning("AU '%s' not found", AU)
 
@@ -172,23 +173,23 @@ class AUPool(dict):
     with_speed: update speed value as well.
     """
     data = self.FP[self.origin]
-    actives_flagList = data[:,_DDUR] > 0                # filter on time left
+    actives_flagList = data[:,DDUR] > 0                 # filter on time left
     if not any(actives_flagList):
       return False
-    data[actives_flagList,_DDUR] -= time_interval
+    data[actives_flagList,DDUR] -= time_interval
     # update values
-    data[actives_flagList,_VAL] = apply_along_axis(self.fct_mov, _RDIST,
+    data[actives_flagList,VAL] = apply_along_axis(self.fct_mov, RDIST,
                                                    data[actives_flagList,:])
     if with_speed:
-      data[actives_flagList,_DVT] = apply_along_axis(self.fct_spd, _RDIST,
+      data[actives_flagList,DVT] = apply_along_axis(self.fct_spd, RDIST,
                                                      data[actives_flagList,:])
     # finish off shortest activations
-    overdue_idx = data[:,_DDUR] < 0
-    data[overdue_idx,_VAL] = data[overdue_idx, _BVAL] + data[overdue_idx, _RDIST]
+    overdue_idx = data[:,DDUR] < 0
+    data[overdue_idx,VAL] = data[overdue_idx, BVAL] + data[overdue_idx, RDIST]
     if with_speed:
-      data[overdue_idx,_DVT] = 0
-    data[overdue_idx,_DDUR] = 0
-    if not any(data[:,_DDUR]):
+      data[overdue_idx,DVT] = 0
+    data[overdue_idx,DDUR] = 0
+    if not any(data[:,DDUR]):
       return False
   
   def predict_dist(self, time_interval, curr_Hpose,
@@ -201,24 +202,24 @@ class AUPool(dict):
     """
     ret = {}
     for AU,nHval in curr_Hpose.iteritems():
-      if self[AU][_DDUR] <= 0:
+      if self[AU][DDUR] <= 0:
         continue
-      curr_dist = abs(nHval - self[AU][_BVAL])
-      curr_err = abs(self[AU][_VAL] - nHval)
+      curr_dist = abs(nHval - self[AU][BVAL])
+      curr_err = abs(self[AU][VAL] - nHval)
       info_row = self[AU].copy()
-      info_row[_DDUR] -= time_interval
+      info_row[DDUR] -= time_interval
       ret[AU] = self.fct_mov(info_row) - curr_dist + curr_err
       if math.isnan(ret[AU]):
         ret[AU] = 0
       print '%.2f%%e (%.3fs +%.3fs %.2f%%) : dist_next %.6s - dist_curr %.6s + err %.6s (%s - %s)/ %.2fs => %.5s' % (
-        nHval/self[AU][_RDIST]*100,
-        self[AU][_TDUR]-self[AU][_DDUR],  time_interval,
-        (1-self[AU][_DDUR]/self[AU][_TDUR]) *100,
+        nHval/self[AU][RDIST]*100,
+        self[AU][TDUR]-self[AU][DDUR],  time_interval,
+        (1-self[AU][DDUR]/self[AU][TDUR]) *100,
         coeff*self.fct_mov(info_row), coeff*curr_dist, coeff*curr_err,
-        coeff*self[AU][_VAL]+offset, coeff*nHval+offset,
+        coeff*self[AU][VAL]+offset, coeff*nHval+offset,
         time_interval,
         ret[AU]/time_interval * .01)
-#      print ('predict in +%.3fs' % (self[AU][_DDUR] - info_row[_DDUR]),
+#      print ('predict in +%.3fs' % (self[AU][DDUR] - info_row[DDUR]),
 #             'ideal next:', self.fct_mov(info_row),
 #             'curr_dist:', curr_dist,
 #             'curr_err:', curr_err,
@@ -301,11 +302,14 @@ if __name__ == "__main__":
   def test(triplets, t_diff):
     pool.update_targets(triplets)
     print '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updated targets:' ; pool.Log_AUs()
+    integral_t1 = 0
     while pool.update_time(t_diff, with_speed=True) != False:
-      print 'update time (+%ss):'%t_diff
+      print '--- update time (+%ss) ---'%t_diff
+      integral_t1 += pool['t1'][DVT] * t_diff
       pool.Log_AUs()
     print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> final state:' ; pool.Log_AUs()
+    print 'speed error: ', pool['t1'][RDIST] - integral_t1
 
   # various targets in 2s
   test( (('t1',1,2), ('t2',.5,2)), .3)
-  test( (('t1',.5,1), ('t2',.5,1)), .5)
+  test( (('t1',0,1), ('t2',.5,1)), .1)
