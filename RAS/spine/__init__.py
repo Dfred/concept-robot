@@ -65,7 +65,8 @@ class Pose(dict):
     if check_SWlimits:
       for AU,nval in self.iteritems():
         if not pose_manager.check_SWlimits(AU, nval):
-          raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, nval))
+          raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
+              AU, nval, pose_manager.infos[AU][-2:]))
 
   def to_raw(self, check_SWlimits=True):
     return self.manager.get_rawFromPose(self)
@@ -165,14 +166,10 @@ class Spine_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
-    d = dict([(AU, nval) for AU,nval,dur in self.fifo])
-    if d:
-      try:
-        self.server.pmanager.get_poseFromNValues(d)
-      except ValueError, e:
-        LOG.warning("update out of boundaries: %s", e)
-        return
+    try:
       self.server.set_targetTriplets(self.fifo.__copy__())
+    except StandardError, e:                                  #TODO:SpineError
+      LOG.warning("can't set pose %s (%s)", list(self.fifo), e)
     self.fifo.clear()
 
   def cmd_switch(self, argline):
@@ -274,7 +271,12 @@ class Spine_Server(object):
     """Sets the targets. Also logs if target_triplets is updated before use."""
     if self._target_triplets != None:
       LOG.info("target triplets apparently weren't yet processed, overwriting.")
-    self._target_triplets = triplets
+    d = dict([ (AU, nval) for AU,nval,att_dur in triplets ])
+    if d:
+      self.pmanager.get_poseFromNValues(d)                      # checks values
+      if [ attack_dur for AU,nval,attack_dur in triplets if attack_dur <= 0]:
+        raise SpineError("attack duration can't be <= 0")
+      self._target_triplets = triplets
 
   def reach_pose(self, pose):
     """
