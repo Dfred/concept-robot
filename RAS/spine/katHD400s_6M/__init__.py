@@ -52,11 +52,8 @@ VELOC = 50
 MAX_VELOCITY = 180      # HW limit
 LOG = get_logger(__package__)
 
-if __name__ == '__main__':
-  from utils import conf
-  conf.load(name='lightHead')
+from RAS import VAL, DVT, TDUR
 from RAS.spine import SpineError, Spine_Server, PoseManager, Pose
-
 
 def LH_KNI_get_poseFromHardware(self):
   """Implementation of PoseManager.get_poseFromHardware"""
@@ -67,8 +64,7 @@ def LH_KNI_get_poseFromHardware(self):
       AU = SpineHW.Axis2AU[i+1]                         # has only enabled AUs
     except KeyError:
       continue
-    pi_factor, offset = self.infos[AU][0:2]
-#    print 'AU %s (axis %i) from HW %iencs => %s' % (AU, i+1, enc, (enc-offset)/pi_factor)
+    pi_factor, offset = self.infos[AU][0:2]             # self is a pose_manager
     pose.append((AU,(enc-offset)/pi_factor))
   return Pose(pose, self)
 
@@ -230,7 +226,8 @@ class SpineHW(Spine_Server):
     """
     for AU, raw_val in pose.to_raw().items():
       print 'AU %s: reaching %se' % (AU, raw_val)
-      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))
+      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))  # about 0.02s
+    #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])      # about 0.46s
 
   def set_targetTriplets(self, triplets):
     """Unlocks the speed control loop, so it can update the AUpool with
@@ -246,10 +243,8 @@ class SpineHW(Spine_Server):
     for triplet in self._target_triplets:
       AU = triplet[0]
       print 'setting AU %s target to %s (HW update %s [%se]) in %ss.' % (
-        triplet[0],
-        triplet[1],
-        HW_p[triplet[0]],
-        self.pmanager.get_rawFromNval(triplet[0],HW_p[triplet[0]]),
+        AU, triplet[1],
+        HW_p[AU], self.pmanager.get_rawFromNval(AU,HW_p[AU]),
         triplet[2])
       self.AUs[AU][-1] = HW_p[AU]
     self.AUs.update_targets(self._target_triplets)              #XXX: ok now
@@ -258,6 +253,15 @@ class SpineHW(Spine_Server):
   def set_speeds(self, curr_Hpose):
     """
     """
+    for AU,infos in self.AUs.iteritems():
+      if infos[TDUR]:
+        print AU, infos,
+        axis = SpineHW.AU2Axis[AU]
+        spd = int(infos[DVT]*self.EPPs[axis-1]*.01)
+        print 'speed: %i (%.5f * %.5f)' % (spd, infos[DVT], self.EPPs[axis-1])
+        self.KNI.setMaxVelocity(axis, abs(spd))
+    return
+
     # .04s for setMaxVelocity + get_Encoders
     for AU,ndist in self.AUs.predict_dist(.04, curr_Hpose,
                                            self.EPPs[0],
@@ -278,8 +282,11 @@ class SpineHW(Spine_Server):
       if self.AUs.wait() and self.running:
         self.update_poolFromNewTriplets()
         start_time = time.time()
-        #XXX: pose has been verified by handler
-        self.reach_pose(self.pmanager.get_poseFromPool(self.AUs), wait=False)
+        #XXX: pose has been verified by handler but we filter non-moving AUs
+        self.reach_pose(
+          self.pmanager.get_poseFromPool(self.AUs,filter_fct=lambda x:x[TDUR]),
+          wait=False )
+        print time.time() - start_time
         last_t = start_time
         updates = 0
         while True:                      #TODO: break loop for pose reset
@@ -295,14 +302,14 @@ class SpineHW(Spine_Server):
         print 'done in %ss : %.2f updates/s' % (elapsed, updates/elapsed)
     print 'update_loop done!'
 
-  def start_speed_control(self):
+  def start_speedControl(self):
     if not self.running:
       self.SC_thread = threading.Thread(name='LHKNISpeedControl',
                                         target=self.update_loop)
       self.running = True
       self.SC_thread.start()
 
-  def stop_speed_control(self):
+  def stop_speedControl(self):
     if self.running:
       self.running = False
       self.AUs.unblock_wait()
@@ -320,11 +327,11 @@ class SpineHW(Spine_Server):
       self.reach_raw(self.HWrest)                           # we may have moved
       if with_ready_pose:
         self.reach_raw(self.HWready)
-    self.start_speed_control()
+    self.start_speedControl()
 
   def switch_off(self):
     """Set the robot for safe hardware switch off."""
-    self.stop_speed_control()
+    self.stop_speedControl()
     self.reach_raw(self.HWrest)
     self.switch_manual()
 
@@ -368,6 +375,7 @@ class SpineHW(Spine_Server):
 
   def cleanUp(self):
     """Calls switch_off"""
+    self.stop_speedControl()
     self.switch_off()
 
 
@@ -376,14 +384,24 @@ if __name__ == "__main__":
   from utils import comm, conf, LOGFORMATINFO
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   import time
+
+  from utils import conf
+  conf.load(name='lightHead')
+
   # just set the arm in manual mode and print motors' values upon key input.
   s = SpineHW(with_ready_pose=False)
 
   while s.is_moving():
     print '.'
     time.sleep(.2)
-  print "this scripts shows you a snapshot of all axis' encoder values"
-  print "\nencoders:", s.KNI.getEncoders(), "velocities:", s.KNI.getVelocities()
+  encs = s.KNI.getEncoders()
+  print "this scripts shows you a snapshot of all axis' values"
+  print "\nencoders:", encs, "normalized:", [ s.enc2nval(i+1,e) for i,e
+                                              in enumerate(encs) ],
+  print "velocities:", s.KNI.getVelocities()
   s.switch_off()
   while not raw_input('press any key then Enter to finish > '):
-    print "encoders:", s.KNI.getEncoders(), "velocities:", s.KNI.getVelocities()
+    encs = s.KNI.getEncoders()
+    print "encoders:", s.KNI.getEncoders(),
+    print "/ normalized:", [ s.enc2nval(i+1,e) for i,e in enumerate(encs) ],
+    print "velocities:", s.KNI.getVelocities()
