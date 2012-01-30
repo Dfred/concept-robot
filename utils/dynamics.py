@@ -1,5 +1,5 @@
 
-"""Bijective functions only.
+"""Monotonically increasing functions only with f(0)=0 and f(1)=1.
 Currently, derivatives of functions are also required.
 """
 
