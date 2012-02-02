@@ -428,6 +428,13 @@ extern "C" {
   DLLEXPORT int
   getEncoders(int dest_encs[MAX_MOTORS]);
 
+  //!Gets a motors velocity
+  //!@param axis index of the motor to use.
+  //!@param dest_vels An array of int
+  //!@return returns -1 on failure, 1 if successful
+  DLLEXPORT int  
+  getVelocity(int axis, short int *dest_vel);
+
   //!Gets all motors velocity at once
   //!@param dest_vels An array of int
   //!@return returns -1 on failure, 1 if successful
@@ -451,10 +458,13 @@ extern "C" {
   DLLEXPORT int
   moveMotFaster(int axis, int enc_value);
 
-  //!Checks if a particular axis is blocked.
+  //!Checks without moving if a particular (or all) axis is/are Hard blocked.
+  //!Notice that soft blocking can happen when playing with PID (see
+  //! setControllerParameters) and moving the motor.
+  //!@param axis index of the motor to use. If 0, consider all.
   //!@return returns -1 on failure, 0 if not blocked, 1 if axis is blocked.
   DLLEXPORT int
-  is_blocked();
+  is_blocked(int axis);
 
   //!Gets the moving status of one or all axis
   //!@param axis index of the motor to use. If 0, use all.
