@@ -33,6 +33,7 @@ backend provides required functions, the end-result should be similar.
 
 #TODO: from abc import ABCMeta, abstractmethod
 from collections import deque
+import time
 
 import numpy
 
@@ -84,11 +85,6 @@ class PoseManager(object):
     LOG.debug("Hardware infos:\n%s",
               '\n'.join([str(i) for i in hardware_infos.items()]) )
     self.infos = hardware_infos
-
-  def get_poseFromNValues(self, dict_of_nvalues):
-    """Returns a pose initialized with normalized values and bound to self.
-    """
-    return Pose(dict_of_nvalues, self)
 
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
@@ -167,8 +163,8 @@ class Spine_Handler(ASCIIRequestHandler):
   def cmd_commit(self, argline):
     """Commit valid buffered updates"""
     try:
-      self.server.set_targetTriplets(self.fifo.__copy__())
-    except StandardError, e:                                  #TODO:SpineError
+      self.server.set_targetTriplets(self.fifo.__copy__())      # thread safe
+    except StandardError, e:                                    #TODO:SpineError
       LOG.warning("can't set pose %s (%s)", list(self.fifo), e)
     self.fifo.clear()
 
@@ -201,7 +197,7 @@ class Spine_Server(object):
     super(Spine_Server, self).__init__()
     self._motors_on = False
     self._lock_handler = None
-    self._target_triplets = None
+    self._new_pt = None                                 # pose and triplets
     self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
     self.HWready  = None                                # Hardware action ready
     self.HWrest   = None                                # Hardware switch-off ok
@@ -268,15 +264,15 @@ class Spine_Server(object):
     raise NotImplementedError()
 
   def set_targetTriplets(self, triplets):
-    """Sets the targets. Also logs if target_triplets is updated before use."""
-    if self._target_triplets != None:
-      LOG.info("target triplets apparently weren't yet processed, overwriting.")
-    d = dict([ (AU, nval) for AU,nval,att_dur in triplets ])
-    if d:
-      self.pmanager.get_poseFromNValues(d)                      # checks values
-      if [ attack_dur for AU,nval,attack_dur in triplets if attack_dur <= 0]:
-        raise SpineError("attack duration can't be <= 0")
-      self._target_triplets = triplets
+    """Sets the targets, waiting until the previous are processed by backend."""
+    while self._new_pt != None:
+      time.sleep(.05)
+    AU_nval = [ (AU,nval) for AU,nval,att_dur in triplets if att_dur >= 0 ]
+    # check attacks
+    if len(AU_nval) != len(triplets):
+      raise SpineError("attack duration can't be <= 0")
+    # check values
+    self._new_pt = Pose(AU_nval,self.pmanager) , triplets
 
   def reach_pose(self, pose):
     """

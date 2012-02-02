@@ -80,7 +80,7 @@ class SpineHW(Spine_Server):
   AUs_sorted = [ Axis2AU.has_key(a) and Axis2AU[a] for a in range(1,7) ]
   KNI_instance = None
 
-  def __init__(self, with_ready_pose=True):
+  def __init__(self):
     Spine_Server.__init__(self)
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
@@ -134,20 +134,6 @@ class SpineHW(Spine_Server):
         LOG.critical(_MSG_ERR_CFG_SW, i+1, self.SW_limits[i], self.HW_limits[i])
 #        exit(2)                                         # crude but safe
 
-  def check_encoder(self, axis, enc):
-    """
-    axis: KNI axis
-    enc: encoder value for that axis
-    """
-    axis -= 1
-    HWenc = min( max(enc,   self.HW_limits[axis][0]), self.HW_limits[axis][1])
-    if HWenc != enc:
-      raise ValueError("%senc. beyond axis %i Hardware limits." % (enc, axis+1))
-    SWenc = min( max(HWenc, self.SW_limits[axis][0]), self.SW_limits[axis][1])
-    if SWenc != enc:
-      raise ValueError("%senc. beyond axis %i Software limits." % (enc, axis+1))
-    return SWenc
-
   def init_hardware(self):
     """
     """
@@ -174,7 +160,7 @@ class SpineHW(Spine_Server):
         if self.unblock_if_needed() == None:            #TODO: set a policy ?
           try:
             LOG.info("Calibration needed.")
-            LOG.debug("Got this pose: %s", encoders_at_init)
+            LOG.debug("Got these encoders: %s", encoders_at_init)
             encoders_at_init = calibrate()
             break
           except SpineError, e:
@@ -195,11 +181,11 @@ class SpineHW(Spine_Server):
   def unblock_if_needed(self):
     """Returns True if unblocked, None if not blocked, exits if still blocked.
     """
-    if self.KNI.is_blocked():
+    if self.KNI.is_blocked(0):
       LOG.critical("---- The arm is blocked! -----")
       LOG.critical('GET READY TO HOLD THE ARM - ALL MOTORS WILL BE SHUT OFF!')
       self.KNI.unblock()
-      if self.KNI.is_blocked():
+      if self.KNI.is_blocked(0):
         LOG.fatal("Failed to unblock the arm! Bailing out!")
         exit(2)                                         # crude but safer
       raw_input('PRESS ENTER TO ENTER MANUAL MODE')
@@ -224,9 +210,8 @@ class SpineHW(Spine_Server):
     wait: if True, waits for the pose to be reached before returning
     """
     for AU, raw_val in pose.to_raw().items():
-      print 'AU %s: reaching %se' % (AU, raw_val)
-      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))  # about 0.02s
-    #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])      # about 0.46s
+      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))          # ~ 20ms
+    #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])              # ~460ms
 
   def set_targetTriplets(self, triplets):
     """Unlocks the speed control loop, so it can update the AUpool with
@@ -235,105 +220,50 @@ class SpineHW(Spine_Server):
     super(SpineHW, self).set_targetTriplets(triplets)
     self.AUs.unblock_wait()
 
-  def update_poolFromNewTriplets(self):
-    """Also updates the AU pool current values with those read from hardware.
+  def set_speeds(self, curr_Hpose, step_dur):
+    """Computes and sets the arm's speed from current hardware pose and ideal
+    speed.
     """
-    HW_p = self.pmanager.get_poseFromHardware()
-    for triplet in self._target_triplets:
-      AU = triplet[0]
-      print 'setting AU %s target to %s (HW update %s [%se]) in %ss.' % (
-        AU, triplet[1],
-        HW_p[AU], self.pmanager.get_rawFromNval(AU,HW_p[AU]),
-        triplet[2])
-      self.AUs[AU][-1] = HW_p[AU]
-    self.AUs.update_targets(self._target_triplets)              #XXX: ok now
-    self._target_triplets = None
-
-  def set_speeds(self, curr_Hpose):
-    """
-    """
-    # theoretical speed method
-    # for AU,infos in self.AUs.iteritems():
-    #   if infos[TDUR]:
-    #     print AU, infos,
-    #     axis = SpineHW.AU2Axis[AU]
-    #     spd = int(infos[DVT]*self.EPPs[axis-1]*.01)
-    #     print 'speed: %i (%.5f * %.5f)' % (spd, infos[DVT], self.EPPs[axis-1])
-    #     self.KNI.setMaxVelocity(axis, abs(spd))
-    # return
-
-    # simplest method 
-    STEP = 0.04
+    # The problem: arm's acceleration profile is unknown which generates
+    # prediction errors. Hence the use of weighted average between ideal speed
+    # and estimated speed to reach our next target.
+    # Also notice that KNI.getVelocity(axis) is ~ 0.019s but too inaccurate.
     for AU,nHval in curr_Hpose.iteritems():
       if self.AUs[AU][DDUR] <= 0:
         continue
-      row, axis = self.AUs[AU].copy(), SpineHW.AU2Axis[AU]
-      next_ideal = self.AUs.fct_mov(row)
-      next_dist = next_ideal - nHval
-
-      epp,offset = self.EPPs[axis-1], self.HWready[axis-1]
-
-      # KNI speed is in encoders/0.01s
-      spd =  int(epp*abs(next_dist)/STEP *.01)
-      ispd = int(abs(epp*row[DVT] *.01))
-      # ideal next speed
-      tmp = self.AUs[AU].copy()
-      tmp[DDUR] -= STEP
-      nspd = abs(self.AUs.fct_spd(tmp) * epp * .01)
-      
-#      speed = int(float(ispd+spd)/2)
-      speed = spd
-
-      self.merdier = axis, int(epp * (row[BVAL]+row[RDIST]) + offset)
-      pet_diff = ispd-speed
-
-      if pet_diff < self.pet[0]:
-        self.pet[0] = pet_diff
-      if pet_diff > self.pet[1]:
-        self.pet[1] = pet_diff
-      if pet_diff:
-        if abs(pet_diff)/pet_diff != self.pet[-1]:
-          self.pet[2] += 1
-        self.pet[-1] = abs(pet_diff)/pet_diff
-      
-      if speed > MAX_VELOCITY:
-        LOG.warning("speed %i > MAX_VELOCITY (%i)", speed, MAX_VELOCITY) 
+      row, axis = self.AUs[AU], SpineHW.AU2Axis[AU]
+      next_distance = self.AUs.fct_mov(row) - nHval
+      epp = self.EPPs[axis-1]                   # KNI speed is in encoders/0.01s
+      needed_spd =  int(abs(epp * next_distance/step_dur *.01))
+      ideal_spd =   int(abs(epp * row[DVT]               *.01))
+      speed = int((4*ideal_spd+needed_spd)/5)
+      if speed > MAX_VELOCITY:                          #TODO: broadcast/report
+        LOG.warning("speed %i > MAX_VELOCITY (%i)", speed, MAX_VELOCITY)
       self.KNI.setMaxVelocity(axis, speed)
 
   def update_loop(self):
     """Moves the arm using dynamics (speed control) upon new AU update.
     """
+    f = lambda x:x[TDUR]                                        #keep active AUs
     while self.running:
       if self.AUs.wait() and self.running:
-
-        self.pet = [0,0,0,0] # min, max, sign changes, tmp
-
-        self.update_poolFromNewTriplets()
-        start_time = time.time()
-        self.KNI.setMaxVelocity(4, 0) # AU 53.5
-        #XXX: pose has been verified by handler but we filter non-moving AUs
-        self.reach_pose(
-          self.pmanager.get_poseFromPool(self.AUs,filter_fct=lambda x:x[TDUR]),
-          wait=False )                  # takes about .02 
-        last_t = start_time
-        updates = 0
-        while True:                      #TODO: break loop for pose reset
+        last_t = time.time()
+        while True:
           curr_Hpose = self.pmanager.get_poseFromHardware()
+          if self._new_pt:
+            pose, triplets = self._new_pt
+            for AU, nval in pose.iteritems():
+              self.AUs[AU][VAL] = curr_Hpose[AU]
+            self.AUs.update_targets(triplets)
+            self.reach_pose(pose, wait=False)
+            self._new_pt = None
           curr_t = time.time()
           #XXX: update returns False when all values reached their targets
           if self.AUs.update_time(curr_t-last_t, with_speed=True) == False:
             break
-          self.set_speeds(curr_Hpose)
+          self.set_speeds(curr_Hpose, curr_t-last_t)
           last_t = curr_t
-          updates += 1
-        t = time.time()
-        elapsed = t - start_time
-        self.KNI.waitForMot(self.merdier[0], self.merdier[1],10)
-        t2 = time.time()
-        print 'done in %.5fs [+%.5fs] (%i updates): %.2f updates/s' % (
-          elapsed, t2-t, updates, updates/elapsed)
         #XXX: Warning! the arm may still be moving at this point. 
-        print 'speed stats: min %s, max %s, sign changes %s' % tuple(self.pet[:3])
     print 'update_loop done!'
 
   def start_speedControl(self):
@@ -378,6 +308,20 @@ class SpineHW(Spine_Server):
     self._motors_on and self.KNI.allMotorsOn()
     self._motors_on = True
 
+  def check_encoder(self, axis, enc):
+    """
+    axis: KNI axis
+    enc: encoder value for that axis
+    """
+    axis -= 1
+    HWenc = min( max(enc,   self.HW_limits[axis][0]), self.HW_limits[axis][1])
+    if HWenc != enc:
+      raise ValueError("%senc. beyond axis %i Hardware limits." % (enc, axis+1))
+    SWenc = min( max(HWenc, self.SW_limits[axis][0]), self.SW_limits[axis][1])
+    if SWenc != enc:
+      raise ValueError("%senc. beyond axis %i Software limits." % (enc, axis+1))
+    return SWenc
+
   def nval2enc(self, axis, nvalue):
     """Computes encoder value for given axis.
 
@@ -421,9 +365,7 @@ if __name__ == "__main__":
   from utils import conf
   conf.load(name='lightHead')
 
-  # just set the arm in manual mode and print motors' values upon key input.
-  s = SpineHW(with_ready_pose=False)
-
+  s = SpineHW()
   while s.is_moving():
     print '.'
     time.sleep(.2)
