@@ -77,6 +77,11 @@ class LHKNI_wrapper(object):
         self.KNI.getEncoders(encs)
         return [ e for e in encs ]
 
+    def getVelocity(self, axis):
+        vel = c_short()
+        self.KNI.getVelocity(axis, byref(vel))
+        return int(vel.value)
+
     def getVelocities(self):
         vels = (c_int * 6)()
         self.KNI.getVelocities(vels)
