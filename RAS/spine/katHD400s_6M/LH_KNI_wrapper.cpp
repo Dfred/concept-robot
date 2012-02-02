@@ -886,7 +886,20 @@ getEncoders(int dest_encs[MAX_MOTORS])			// handle only 6 axis
     katana->getRobotEncoders(encoders.begin(), encoders.end());
     for (int i = 0; i < motors->cnt; i++)
       dest_encs[i] = encoders[i];
-	 )
+	 );
+  return ERR_SUCCESS;
+}
+
+
+
+///
+DLLEXPORT int 
+getVelocity(int axis, short int *dest_vel)
+{
+  EXCEPT(
+	 katana->GetBase()->GetMOT()->arr[axis-1].recvPVP();
+	 *dest_vel = katana->GetBase()->GetMOT()->arr[axis-1].GetPVP()->vel;
+	 );
   return ERR_SUCCESS;
 }
 
@@ -902,7 +915,7 @@ getVelocities(int dest_vels[MAX_MOTORS])
 	motors->arr[i].recvPVP();
 	dest_vels[i] = (int) motors->arr[i].GetPVP()->vel;
       }
-	 )
+	 );
   return ERR_SUCCESS;
 }
 
@@ -922,31 +935,18 @@ getAllAxisMinMaxEPC(int dest_mins[MAX_MOTORS],
 	dest_maxs[i] = motors->arr[i].GetEncoderMaxPos();
 	dest_EPCs[i] = motors->arr[i].GetInitialParameters()->encodersPerCycle;
       }
-	 )
+	 );
   return ERR_SUCCESS;
 }
-
-////
-/* Set velocities for all motors at once.
-DLLEXPORT int 
-setMaxVelocity(int axis, int vel){
-  EXCEPT(
-    if (axis == 0)
-      for(int i = 0; i <= getNumberOfMotors()-1; i++)
-	katana->setMotorVelocityLimit(i, vel);
-    else
-      katana->setMotorVelocityLimit(axis-1, vel);
-    katana->setMaximumLinearVelocity((double)vel);
-	 )
-  return ERR_SUCCESS;
-  }*/
 
 ////
 // faster version of moveMot (doesn't set speed nor acceleration)
 DLLEXPORT int
 moveMotFaster(int axis, int enc_value)
 {
-  EXCEPT( katana->moveMotorToEnc(axis-1, enc_value); );
+  EXCEPT(
+	 katana->moveMotorToEnc(axis-1, enc_value); 
+	 );
   return ERR_SUCCESS;
 }
 
@@ -965,18 +965,20 @@ is_moving(int axis)					// axis 0 => all axis
       status += motors->arr[i].GetPVP()->msf == MSF_NORMOPSTAT;
       status <<= 1;
     }
-	 )
+	 );
   return status > 0;					// can't be negative
 }
 
 ////
-//
 DLLEXPORT int
-is_blocked()
+is_blocked(int axis)
 {
-  for (int axis = 1; axis < 6; axis++)
+  int s = (axis == 0) ? 1 : axis;
+  int e = (axis == 0) ? MAX_MOTORS+1 : axis+1;
+    
+  for (int axis = s; axis < e; axis++)
     {
-      try { katana->setMotorVelocityLimit(axis,1); }
+      try { katana->setMotorVelocityLimit(axis-1,1); }
       catch (FirmwareException &e) { return 1; }
       catch (Exception &e) { ERROR(e); return ERR_FAILED; }
     }
