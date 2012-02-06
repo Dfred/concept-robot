@@ -65,12 +65,12 @@ class Pose(dict):
     self.manager = pose_manager
     if check_SWlimits:
       for AU,nval in self.iteritems():
-        if not pose_manager.check_SWlimits(AU, nval):
+        if not pose_manager.is_inSWlimits(AU, nval):
           raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
               AU, nval, pose_manager.infos[AU][-2:]))
 
   def to_raw(self, check_SWlimits=True):
-    return self.manager.get_rawFromPose(self)
+    return self.manager.get_rawFromPose(self, check_SWlimits)
 
 
 class PoseManager(object):
@@ -79,12 +79,22 @@ class PoseManager(object):
   def __init__(self, hardware_infos):
     """Initializes a PoseManager with hardware infos.
 
-    hardware_infos: {AU_name : (pi_factor, offset, HWmin, HWmax, SWmin, SWmax)}
-    raw_value_for_pi = pi_factor * pi
+    hardware_infos: {AU_name : (
+                        pi_factor,      # pi_factor * nval + offset = raw value 
+                        offset,         # ready pose hardware value
+                        HWmin, HWmax,   # RAW VALUES: foolproof for weird values
+                        SWmin, SWmax    # normalized values
+                                )}
     """
-    LOG.debug("Hardware infos:\n%s",
-              '\n'.join([str(i) for i in hardware_infos.items()]) )
     self.infos = hardware_infos
+    LOG.debug("Hardware infos:")
+    for AU, infos in hardware_infos.iteritems():
+      LOG.debug("AU %4s factor %8s offset %6s Hard[%6s %6s] Soft[%+.5f %+.5f]",
+                AU,*infos)
+      if ( not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[4])) or
+           not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[5])) ):
+        raise SpineError("AU %s: Software limits %s out of Hardware limits %s."%
+                         (AU, infos[4:6], infos[2:4]))
 
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
@@ -97,7 +107,7 @@ class PoseManager(object):
     return Pose( [(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()
                   if filter_fct(infs)], self, check_SWlimits )
 
-  def get_poseFromHardware(self):
+  def get_poseFromHardware(self, check_SWlimits=False):
     """Returns a pose from Hardware.
     """
     raise NotImplementedError("Override this function (assign or inherit).")
@@ -109,7 +119,7 @@ class PoseManager(object):
     """
     ret = {}
     for AU,norm_val in pose.iteritems():
-      if check_SWlimits and not self.check_SWlimits(AU, norm_val):
+      if check_SWlimits and not self.is_inSWlimits(AU, norm_val):
         raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, norm_val))
       ret[AU] = self.infos[AU][0]*norm_val + self.infos[AU][1]
     return ret
@@ -118,20 +128,16 @@ class PoseManager(object):
     """Returns raw (hardware) value from normalized value."""
     return self.infos[AU][0]*norm_val + self.infos[AU][1]
 
-  def check_HWlimits(self, AU, rvalue):
+  def is_inHWlimits(self, AU, rvalue):
     """rvalue: raw (hardware) value
     """
-    return self.infos[AU][2] < rvalue < self.infos[AU][3]
+    LOG.debug("checking raw %s against %s", rvalue, self.infos[AU][2:4])
+    return self.infos[AU][2] <= rvalue <= self.infos[AU][3]
 
-  def check_SWlimits(self, AU, nvalue):
+  def is_inSWlimits(self, AU, nvalue):
     """nvalue: normalized value
     """
-    return self.infos[AU][4] < nvalue < self.infos[AU][5]
-
-  def is_withinLimits(self):
-    """Returns False: off hardware limits, None: off software limits, or True.
-    """
-    raise NotImplementedError
+    return self.infos[AU][4] <= nvalue <= self.infos[AU][5]
 
 
 class Spine_Handler(ASCIIRequestHandler):
@@ -204,38 +210,6 @@ class Spine_Server(object):
     self.configure()
     self.pmanager = None                                # to be set by backend
 
-  def configure(self):
-    """
-    """
-    spine_conf = conf.ROBOT['mod_spine']
-    try:
-      self.hardware_name = spine_conf['backend']
-    except:
-      raise conf.LoadException("mod_spine has no 'backend' key")
-    try:
-      self.KNI_address = spine_conf['hardware_addr']
-    except:
-      raise conf.LoadException("mod_spine has no 'hardware_addr' key")
-
-    try:
-      hardware = conf.lib_spine[self.hardware_name]
-    except:
-      raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
-    try:
-      self.SW_limits = list(hardware['AXIS_LIMITS'])    # may contain angles
-    except:
-      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
-                                self.hardware_name)
-    try:
-      self.HWrest = list(hardware['POSE_REST'])
-      self.HWready = list(hardware['POSE_READY_NEUTRAL'])
-    except:
-      raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
-                               "'POSE_READY_NEUTRAL'" % self.hardware_name)
-
-  def is_moving(self):
-    """Returns True if moving"""
-
   # Note: property decorators are great but don't allow child class to define
   #       just the setter...
 
@@ -258,6 +232,38 @@ class Spine_Server(object):
   def set_lockHandler(self, handler):
     """function to call upon collision detection locking"""
     self._lock_handler = handler
+
+  def configure(self):
+    """
+    """
+    spine_conf = conf.ROBOT['mod_spine']
+    try:
+      self.hardware_name = spine_conf['backend']
+    except:
+      raise conf.LoadException("mod_spine has no 'backend' key")
+    try:
+      self.KNI_address = spine_conf['hardware_addr']
+    except:
+      raise conf.LoadException("mod_spine has no 'hardware_addr' key")
+
+    try:
+      hardware = conf.lib_spine[self.hardware_name]
+    except:
+      raise conf.LoadException("missing['%s'] in lib_spine"% self.hardware_name)
+    try:
+      self.SW_limits = hardware['AXIS_LIMITS']          # may contain angles
+    except:
+      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
+                                self.hardware_name)
+    try:
+      self.HWrest = list(hardware['POSE_REST'])
+      self.HWready = list(hardware['POSE_READY_NEUTRAL'])
+    except:
+      raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
+                               "'POSE_READY_NEUTRAL'" % self.hardware_name)
+
+  def is_moving(self):
+    """Returns True if moving"""
 
   def unlock(self):
     """Unlock spine after collision detection cause locking"""

@@ -54,7 +54,7 @@ MAX_VELOCITY = 180      # HW limit
 LOG = get_logger(__package__)
 
 
-def LH_KNI_get_poseFromHardware(self):
+def LH_KNI_get_poseFromHardware(self, check_SWlimits=False):
   """Implementation of PoseManager.get_poseFromHardware"""
   assert SpineHW.KNI_instance, "call before hardware initialization is complete"
   pose = []
@@ -65,7 +65,7 @@ def LH_KNI_get_poseFromHardware(self):
       continue
     pi_factor, offset = self.infos[AU][0:2]             # self is a pose_manager
     pose.append((AU,(enc-offset)/pi_factor))
-  return Pose(pose, self)
+  return Pose(pose, self, check_SWlimits)
 
 
 class SpineHW(Spine_Server):
@@ -75,6 +75,7 @@ class SpineHW(Spine_Server):
              '53.5': 4,
              '55.5': 5,
 #             '57.5': None,
+             'TX':   2,
              'TZ':   1}
   Axis2AU = dict([ (axis,AU) for AU,axis in AU2Axis.items() if axis ])
   AUs_sorted = [ Axis2AU.has_key(a) and Axis2AU[a] for a in range(1,7) ]
@@ -84,22 +85,21 @@ class SpineHW(Spine_Server):
     Spine_Server.__init__(self)
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
-    self.init_hardware()
-    self.check_SWlimits()
+    self._init_hardware()
+    self._review_infos()
     self.pmanager = PoseManager( dict([ 
           (AU,
            (self.EPPs[axis-1], self.HWready[axis-1],
             self.HW_limits[axis-1][0], self.HW_limits[axis-1][1],
-            (self.SW_limits[axis-1][0]-self.HWready[axis-1]) /self.EPPs[axis-1],
-            (self.SW_limits[axis-1][1]-self.HWready[axis-1]) /self.EPPs[axis-1])
+            self.SW_limits[AU][0],     self.SW_limits[AU][1])
            ) for AU,axis in self.AU2Axis.iteritems() if axis != None ]) )
     self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
-    self.AUs.set_availables(self.pmanager.get_poseFromHardware())
     self.switch_on()
+    self.AUs.set_availables(self.pmanager.get_poseFromHardware())
 
   def configure(self):
-    """
+    """Overriden in order to set the KNI config file.
     """
     super(SpineHW, self).configure()
     from os.path import dirname, sep
@@ -108,34 +108,8 @@ class SpineHW(Spine_Server):
     else:
       self.KNI_cfg_file = "katana6M90T.cfg"
 
-  def check_SWlimits(self):
-    """
-    """
-    # check limits for floats (normalized angles) and convert them to encoders
-    for i in range(len(self.SW_limits)):
-      for b in range(2):
-        if type(self.SW_limits[i][b]) == type(.1):      # normalized angle
-          self.SW_limits[i] = list(self.SW_limits[i])
-          self.SW_limits[i][b]= self.nval2enc(i+1,self.SW_limits[i][b])
-      LOG.debug("AU %s - axis %i HW:%s %se/pi - "
-                "SW:(%se{%.3f/pi}[%senc],%s,[%senc]%se{%.3f/pi})",
-                SpineHW.Axis2AU[i+1] if SpineHW.Axis2AU.has_key(i+1) else None,
-                i+1,
-                self.HW_limits[i], self.EPPs[i], 
-                self.SW_limits[i][0],
-                self.enc2nval(i+1,self.SW_limits[i][0]),
-                self.HWready[i]-self.SW_limits[i][0],
-                self.HWready[i],
-                self.SW_limits[i][1]-self.HWready[i],
-                self.SW_limits[i][1],
-                self.enc2nval(i+1,self.SW_limits[i][1]))
-      if ( self.SW_limits[i][0] < self.HW_limits[i][0] or
-           self.SW_limits[i][1] > self.HW_limits[i][1] ):
-        LOG.critical(_MSG_ERR_CFG_SW, i+1, self.SW_limits[i], self.HW_limits[i])
-#        exit(2)                                         # crude but safe
-
-  def init_hardware(self):
-    """
+  def _init_hardware(self):
+    """Initializes hardware: calibrate, check encoders, unlock arm if needed. 
     """
     def calibrate():
       print "\n\n\n\n=== MAKE SURE THE HEAD IS NOT ATTACHED TO THE ARM ==="
@@ -171,12 +145,39 @@ class SpineHW(Spine_Server):
 
     self.HW_limits, EPCs = self.KNI.getMinMaxEPC()
     self.EPPs = [ float(epc)/2 for epc in EPCs ]
-
+    # rest and ready poses insignificant joints (None value) are set to 0 rad.
     for name, pose in (('ready',self.HWready),('rest',self.HWrest)):
       for i,enc in enumerate(pose):
         if enc == None:
           pose[i] = encoders_at_init[i]
           LOG.debug("Pose '%s', axis %i: 0 is now %senc.", name, i+1, pose[i])
+
+  def _review_infos(self):
+    """Manages software limits:
+
+    * negating EPPs to fix rotation direction
+    * checking for configuration value errors
+    * setting encoder values to normalized values
+    """
+    for AU in self.SW_limits.iterkeys():
+      try:
+        axis = SpineHW.AU2Axis[AU]
+      except KeyError:
+        LOG.info("AU %s not supported by this backend", AU)
+        continue
+      # negates EPP if extra flag found
+      if len(self.SW_limits[AU]) == 3:
+        LOG.info("config for AU %s: extra param found, inverting rotation.", AU)
+        self.EPPs[axis-1] *= -1
+        self.SW_limits[AU] = self.SW_limits[AU][0:2]
+      # Try avoiding stupid mistakes enforcing same type for min/max
+      if repr(coerce(*self.SW_limits[AU])) != repr(self.SW_limits[AU]):
+        raise SpineError("config: AU %s Software limits: same type needed.", AU)
+      # convert encoder values to normalized
+      if type(self.SW_limits[AU][0]) != type(.1):
+        self.SW_limits[AU] = list(self.SW_limits[AU])           # set editable
+        self.SW_limits[AU][0] = self.enc2nval(axis,self.SW_limits[AU][0])
+        self.SW_limits[AU][1] = self.enc2nval(axis,self.SW_limits[AU][1])
 
   def unblock_if_needed(self):
     """Returns True if unblocked, None if not blocked, exits if still blocked.
@@ -206,6 +207,7 @@ class SpineHW(Spine_Server):
 
   def reach_pose(self, pose, wait=True):
     """Set all the motors to a pose (an absolute position).
+
     pose: a Pose instance
     wait: if True, waits for the pose to be reached before returning
     """
@@ -214,15 +216,13 @@ class SpineHW(Spine_Server):
     #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])              # ~460ms
 
   def set_targetTriplets(self, triplets):
-    """Unlocks the speed control loop, so it can update the AUpool with
-    accurate HW values.
+    """Unlocks speed control loop to update the AUpool with accurate HW values.
     """
     super(SpineHW, self).set_targetTriplets(triplets)
     self.AUs.unblock_wait()
 
   def set_speeds(self, curr_Hpose, step_dur):
-    """Computes and sets the arm's speed from current hardware pose and ideal
-    speed.
+    """Computes and sets arm's speed from current hardware pose and ideal speed.
     """
     # The problem: arm's acceleration profile is unknown which generates
     # prediction errors. Hence the use of weighted average between ideal speed
@@ -287,9 +287,10 @@ class SpineHW(Spine_Server):
     pose_diff = [ abs(cp - rp) for cp,rp in zip(self.KNI.getEncoders(),
                                                 self.HWready) ]
     if max(pose_diff) > TOLER:
-      LOG.debug("moving (current pose far from 'ready' pose %s)", pose_diff)
-#      self.reach_raw(self.HWrest)                           # we may have moved
-      self.reach_raw(self.HWready)
+      LOG.debug("moving to rest pose (too far from ready pose: +%s)", pose_diff)
+      self.reach_raw(self.HWrest)
+
+    self.reach_raw(self.HWready)
     self.start_speedControl()
 
   def switch_off(self):
@@ -307,20 +308,6 @@ class SpineHW(Spine_Server):
     """Resumes normal (driven-mode) operation of the robot."""
     self._motors_on and self.KNI.allMotorsOn()
     self._motors_on = True
-
-  def check_encoder(self, axis, enc):
-    """
-    axis: KNI axis
-    enc: encoder value for that axis
-    """
-    axis -= 1
-    HWenc = min( max(enc,   self.HW_limits[axis][0]), self.HW_limits[axis][1])
-    if HWenc != enc:
-      raise ValueError("%senc. beyond axis %i Hardware limits." % (enc, axis+1))
-    SWenc = min( max(HWenc, self.SW_limits[axis][0]), self.SW_limits[axis][1])
-    if SWenc != enc:
-      raise ValueError("%senc. beyond axis %i Software limits." % (enc, axis+1))
-    return SWenc
 
   def nval2enc(self, axis, nvalue):
     """Computes encoder value for given axis.
@@ -343,11 +330,8 @@ class SpineHW(Spine_Server):
     #print "Axis %i: got %i encoder -> %s nvalue" % (axis+1, encoder, value)
     return value
 
-  def set_accel(self, value):
-    """Set normalized values, relative to hardware capabilities."""
-    self._accel = min(value, self.SPEED_LIMITS[1][1])
-
   def is_moving(self):
+    """Returns True if currently moving."""
     return self.KNI.is_moving(0)
 
   def cleanUp(self):
