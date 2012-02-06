@@ -48,7 +48,7 @@ Either:
 """
 ACCEL = 1
 SPEED = 20
-TOLER = 30
+TOLER = 10
 VELOC = 50
 MAX_VELOCITY = 180      # HW limit
 LOG = get_logger(__package__)

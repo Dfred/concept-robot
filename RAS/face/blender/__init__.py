@@ -167,14 +167,17 @@ def initialize(server):
   G.setLogicTicRate(MAX_FPS)
   G.setMaxLogicFrame(1)       # relative to rendering
   import Rasterizer
-#    Rasterizer.enableMotionBlur( 0.65)
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                            'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
-  print """camera: lens %s
-view matrix: %s
-proj matrix: %s
-  """ % (cam.lens, cam.modelview_matrix, cam.projection_matrix)
+  print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
+    cam.lens, cam.modelview_matrix, cam.projection_matrix)
+  try:
+    if conf.ROBOT['mod_face'].has_key('blender_proj'):
+      cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
+  except StandardError, e:
+    print "ERROR: Couldn't set projection matrix (%s)" % e
+
   G.last_update_time = time.time()
   return cont
 
