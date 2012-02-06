@@ -131,7 +131,7 @@ class BaseServer(object):
     """
     self.poll_interval = min([sock.gettimeout() for sock in \
                               self.polling_sockets + [self.socket]])
-    LOG.debug("%s poll_interval is now %ss.", self, self.poll_interval)
+    LOG.debug("%s> poll_interval is now %ss.", id(self), self.poll_interval)
 
   def activate(self):
     """To be overriden"""
@@ -189,7 +189,7 @@ class BaseServer(object):
       r, w, e = select.select(self.polling_sockets, [],
                               self.polling_sockets, self.poll_interval)
     except select.error, e_no:
-      return self.handle_error(self.polling_sockets, "select error #%i" % e_no)
+      return self.handle_error(self.polling_sockets, "select error (%s)" % e_no)
     if e:
       for sock in e:
         self.close_request(sock)
@@ -238,7 +238,7 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    LOG.error('%s got Exception with %s (%s)', self, sock, client_addr)
+    LOG.error('%s> got Exception with %s (%s)', id(self), sock, client_addr)
     handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
