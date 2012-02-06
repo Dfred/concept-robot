@@ -1,24 +1,15 @@
 
-import sys, threading, math, Queue, time, random
+import threading, math, Queue, time, random
     
 from HMS import expression_player as ep
 from HMS.communication import ThreadedExpressionComm, ThreadedLightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
 from HMS import cogmod
-from cogmod.layout import Ui_MainWindow
-from cogmod import graphic_dev
+from cogmod import vision, cfg
 
-from cogmod_dev import graphic_vision
-from cogmod_dev import graphic_cfg as gc
-
-
-use_gui = 1
 show_emo = 1
-use_new_vision = 0
 
 
 class Behaviour_thread(threading.Thread):
@@ -389,23 +380,9 @@ if __name__ == '__main__':
     from_behaviours_q = Queue.Queue()
     bt = Behaviour_thread(from_gui_q, from_behaviours_q)
     bt.start()
-    
-    if use_new_vision:
-        vis = graphic_vision.Vision(gc.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
-        vis.start_camera()
         
-    else:
-        if use_gui:
-            app = QApplication(sys.argv)
-            mainwindow = graphic_dev.GUI(from_gui_q, from_behaviours_q)
-            ui = Ui_MainWindow()
-            ui.setupUi(mainwindow)
-            mainwindow.layout = ui
-            mainwindow.set_defaults()
-            mainwindow.show()
-            app.exec_()
-            from_gui_q.join()
-            from_behaviours_q.join()
+    vis = vision.Vision(cfg.use_gui, from_gui_q=from_gui_q, from_beh_q=from_behaviours_q)
+    vis.start_camera()
 
 
     
