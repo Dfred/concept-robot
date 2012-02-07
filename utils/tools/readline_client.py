@@ -81,7 +81,7 @@ class myUI(cmd.Cmd):
         self.cnx.disconnect()
       self.done = True
     elif line.upper().startswith('!RECO OFF'):
-        self.cnx.running = False
+        self.cnx.disconnect()
         print("\n disabled reconnections")
     elif line.upper().startswith('!RECO ON'):
         self.cnx.autoreco = True
@@ -156,13 +156,13 @@ class commConsClient(comm.ScriptCommandClient):
     self.slines_it = iter(script_lines)
 
   def send_line_from_pipe(self):
-    """Writes a line of data in the ."""
+    """Writes a line of data in the pipe."""
     try:
         line = self.slines_it.next()
         print("%s> %s" % (self.name, line[:-1]))                    # remove \n
         self.send_msg(line)
         if self.status.startswith(DISCONNECTED):
-          self.running = False
+            self.disconnect()
     except StopIteration:
         print('--- done with script ---', file=sys.stderr)
         self.looping = False
@@ -187,8 +187,8 @@ class commConsClient(comm.ScriptCommandClient):
           handle_exception_debug(force_debugger=True)
     if self.ui:
       self.ui.done = True
-      print('press Enter key to finish')                # to unblock input read
-      self.ui.thread.join()
+#      print('press Enter key to finish')                # to unblock input read
+#      self.ui.thread.join()
 
   def handle_connect(self):
     """Called when the client has just connected successfully"""
@@ -198,7 +198,6 @@ class commConsClient(comm.ScriptCommandClient):
 
   def handle_disconnect(self):
     self.status = DISCONNECTED + " from %s on %s" % self.addr_port
-    self.running = False
     if self.ui:
         self.ui.redraw_prompt()
     else:

@@ -24,7 +24,8 @@ DYNAMICS MODULE
 
  This module controls the robot's motion/speed using bijective functions and
 their derivative. Currently a single instance of the dynamics module exists
-across the whole system as other modules simply access this module's . This could be later changed if need
+across the whole system as other modules simply access this module's . This
+could be later changed if need.
 
  With this module, the HMS can update the dynamics of the robot in realtime,
 without changing initial and target states.
@@ -35,17 +36,57 @@ there may be obvious visual side-effects if the functions are very different.
 
 from utils import get_logger
 from utils.comm import ASCIIRequestHandler
-from utils.dynamics import Dynamics,ENTRIES
+from utils.dynamics import Profile, ENTRIES
 
 import RAS
 
 __all__ = ['Dynamics']
 
 LOG = get_logger(__package__)
-DYNAMICS = ENTRIES['smooth_step1']
+INSTANCE = None
+
 
 class DynamicsError(StandardError):
   pass
+
+
+class Dynamics_Server(object):
+  """
+  """
+  def __init__(self):
+    super(Dynamics_Server, self).__init__()
+    self.callbacks = []
+    self.profiles = None
+    self.change_profile('smooth_step1')
+
+  def get_profiles_expression(self):
+    return self.profiles.fct_expr, self.profiles.drv_expr
+
+  def register(self, function):
+    """Registers a callback to be called upon profile changes.
+    """
+    self.callbacks.append(function)
+
+  def unregister(self, fct):
+    """Unregisters a profile-change callback.
+    """
+    try:
+      self.callbacks.pop(self.callbacks.index(function))
+    except (IndexError, ValueError):
+      raise DynamicsError("callback not registered: %s", fct)
+
+  def change_profile(self, profile):
+    """
+    """
+    if profile not in ENTRIES.keys():
+      LOG.warning("dynamic function '%s' doesn't exist", profile)
+      return False
+    self.profiles = ENTRIES[profile]
+    for fct in self.callbacks:
+      fct()
+
+
+INSTANCE = Dynamics_Server()
 
 
 class Dynamics_Handler(ASCIIRequestHandler):
@@ -63,13 +104,6 @@ class Dynamics_Handler(ASCIIRequestHandler):
   def cmd_use(self, argline):
     """Set a specific function to be used.
     """
-    if argline not in Dynamics.ENTRIES.keys():
-      LOG.warning("dynamic function '%s' doesn't exist", argline)
-      return
-    DYNAMICS = ENTRIES[argline.strip()]
+    if self.server.change_to(argline.strip()):
+      LOG.debug("changed dynamics to '%s'", argline.strip())
 
-
-class Dynamics_Server(object):
-  """
-  """
-  pass

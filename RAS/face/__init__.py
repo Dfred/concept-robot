@@ -125,6 +125,19 @@ class Face_Handler(ASCIIRequestHandler):
     #XXX: we return the number of immediately following bytes to be ignored
     return int(size)                                        # design limitation
 
+  def cmd_raw(self, argline):
+    """Call functions of server object (e.g: low-level access to backend)."""
+    args = [ arg.strip() for arg in argline.split() ]
+    if args:
+      if args[0] == 'dir':
+        ret = " ".join([ a for a in dir(self.server) if a[0].islower() ])
+      else:
+        try:
+          ret = eval("self.server."+args[0]+"".join(args[1:]))
+        except StandardError, e:
+          ret = e
+      self.send_msg(str(ret))
+
 
 class Face_Server(object):
   """Main facial feature animation module

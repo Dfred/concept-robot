@@ -27,7 +27,7 @@
   a Shape Action actuator which provides the relative basic facial animation.
 
  MODULES IO:
-===========
+ -----------
  INPUT: - face
 
  A few things to remember for integration with Blender (2.49):
@@ -38,6 +38,39 @@ import sys, time, atexit
 from math import cos, sin, pi
 
 import GameLogic as G
+
+from RAS.face import Face_Server
+
+
+class FaceHW(Face_Server):
+  """Blender is our entry point, so make it simple letting blender take over.
+  So this script fetches Face's data pool directly in update().
+  
+  No hardware implementation is actually needed in this case.
+  """
+  global G
+
+  def cleanUp(self):
+    shutdown(G.getCurrentController())
+
+  def cam_proj(self, *args):
+    m = G.getCurrentScene().active_camera.projection_matrix
+    col = int(args[0])
+    row = int(args[1])
+    inc = float(args[2])
+    m[row][col] += inc
+    print "new projection matrix:", m
+    G.getCurrentScene().active_camera.setProjectionMatrix(m)
+
+  def cam_mview(self, *args):
+    m = G.getCurrentScene().active_camera.modelview_matrix
+    col = int(args[0])
+    row = int(args[1])
+    inc = float(args[2])
+    m[row][col] += inc
+    print "new modelview matrix:", m
+    G.getCurrentScene().active_camera.setModelViewMatrix(m)
+
 
 # A word on threading:
 # The server can run in its thread, handlers (connected clients) can also run in
@@ -60,14 +93,6 @@ INFO_PERIOD = None
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
-from RAS.face import Face_Server
-class FaceHW(Face_Server):
-    """Blender is our entry point, so make it simple letting blender take over.
-    So this script fetches Face's data pool directly in update().
-
-    No hardware implementation is actually needed in this case.
-    """
-    pass
 
 def exiting():
   # server may not have been successfully created
@@ -142,9 +167,17 @@ def initialize(server):
   G.setLogicTicRate(MAX_FPS)
   G.setMaxLogicFrame(1)       # relative to rendering
   import Rasterizer
-#    Rasterizer.enableMotionBlur( 0.65)
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                            'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+  cam = G.getCurrentScene().active_camera
+  print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
+    cam.lens, cam.modelview_matrix, cam.projection_matrix)
+  try:
+    if conf.ROBOT['mod_face'].has_key('blender_proj'):
+      cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
+  except StandardError, e:
+    print "ERROR: Couldn't set projection matrix (%s)" % e
+
   G.last_update_time = time.time()
   return cont
 

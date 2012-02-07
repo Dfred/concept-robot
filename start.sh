@@ -57,21 +57,19 @@ case `uname -s` in
         ;;
 esac
 
-getopts "w" OPTS
-if [ "$OPTS" = "w" ]; then
-    shift;
-    if [ "$OPTS" = "w" ]; then
+OPTIONS="wi"
+OPT="-"
+while [ "$OPT" != "?" ]
+do getopts $OPTIONS OPT
+case "$OPT" in
+    "w")
     	PROJECT_NAME=$PROJECT_NAME-window
-    fi
-fi
-
-getopts "i" OPTS
-if [ "$OPTS" = "i" ]; then
-    shift;
-    if [ "$OPTS" = "i" ]; then
-    	PREFIX="optirun ./"
-    fi
-fi
+	;;
+    "i")
+	PREFIX="optirun ./"
+	;;
+esac
+done
 
 if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
     echo "Could not find executable file '$PROJECT_NAME' in this directory."
@@ -79,14 +77,15 @@ if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
 fi
 
 if test -z "$CONF_FILE"; then
+    echo "Missing config file."
     exit 3
 fi
 
 # Now launch
 
-echo -n "--- launching face ---"
-if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
-fi
+echo -n "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX " #$@"
+#if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
+#fi
 
-$PREFIX$PROJECT_NAME$BIN_SUFFIX $@
+$PREFIX$PROJECT_NAME$BIN_SUFFIX
 

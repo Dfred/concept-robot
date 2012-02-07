@@ -69,7 +69,7 @@ from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
 FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
-DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, ]
+DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF ]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
 
@@ -131,7 +131,7 @@ class BaseServer(object):
     """
     self.poll_interval = min([sock.gettimeout() for sock in \
                               self.polling_sockets + [self.socket]])
-    LOG.debug("poll_interval for %s now %ss.", self, self.poll_interval)
+    LOG.debug("%s> poll_interval is now %ss.", id(self), self.poll_interval)
 
   def activate(self):
     """To be overriden"""
@@ -151,13 +151,13 @@ class BaseServer(object):
     if self.threaded:
       self.thread = Thread(target=G.server.serve_forever, name='server')
       self.thread.start()
-    LOG.info("%s started in %s thread.", self.__class__.__name__,
+    LOG.info("%s> %s started in %s thread.", id(self), self.__class__.__name__,
              self.threaded and 'its' or 'main')
     return self.threaded and self.thread or None
 
   def pre_shutdown(self):
     """To be overriden"""
-    LOG.debug('server %s now shutting down.' % self)
+    LOG.debug('%s> server %s shutting down.', id(self), self.__class__.__name__)
     pass
 
   def shutdown(self):
@@ -171,11 +171,10 @@ class BaseServer(object):
         self.thread.join()
       else:
         for sock, client in self.clients.items():
-          client.cleanup()
           if client.socket in self.polling_sockets:
             self.close_request(client.socket)
     self.disactivate()
-    LOG.info('server %s now shut down.' % self)
+    LOG.info('%s> server %s now shut down.', id(self), self.__class__.__name__)
 
   def serve_once(self):
     """Check for incoming connections and save further calls to select()
@@ -190,7 +189,7 @@ class BaseServer(object):
       r, w, e = select.select(self.polling_sockets, [],
                               self.polling_sockets, self.poll_interval)
     except select.error, e_no:
-      return self.handle_error(self.polling_sockets, "select error #%i" % e_no)
+      return self.handle_error(self.polling_sockets, "select error (%s)" % e_no)
     if e:
       for sock in e:
         self.close_request(sock)
@@ -239,7 +238,7 @@ class BaseServer(object):
     """Installs an interactive pdb session if logger is at DEBUG level.
     Return: None or False
     """
-    LOG.error('%s got Exception with %s (%s)', self, sock, client_addr)
+    LOG.error('%s> got Exception with %s (%s)', id(self), sock, client_addr)
     handle_exception(LOG)
 
   def verify_request(self, request, client_addrPort):
@@ -259,7 +258,8 @@ class BaseServer(object):
   def finish_request(self, sock, client_addr):
     """Instanciates the RequestHandler and set its connection timeout.
     """
-    LOG.debug('new connection request from %s (%s)', client_addr, sock)
+    LOG.debug('%s> new connection request from %s (%s)', id(self),
+              client_addr, sock)
     handler = self.RequestHandlerClass(self, sock, client_addr)
     sock.settimeout(self.handler_timeout)
     handler.setup()
@@ -350,7 +350,7 @@ class TCPServer(BaseServer):
     """Called to clean up an individual request.
     """
     if self.clients.has_key(sock):
-      LOG.debug('closing TCP connection with %s (%s)',
+      LOG.debug('%s> finishing TCP connection with %s (%s)', id(self),
                 self.clients[sock].addr_port, sock)
     BaseServer.close_request(self, sock)
     sock.close()
@@ -531,9 +531,16 @@ class BasePeer(object):
 
   def __init__(self):
     super(BasePeer,self).__init__()
-    self.running = False                                    # bail out flag
-    self.unprocessed = ''                                   # socket data buffer
-    self._th_save = {}                                      # see set_threading
+    self._running = False                               # bail out flag
+    self._unprocessed = ''                              # socket data buffer
+    self._th_save = {}                                  # see set_threading
+    self.each_loop = None                               # see read_while_running
+
+  @property
+  def running(self):
+      """Returns the running status of the network loop. If False, networking
+      does not operate."""
+      return self._running
 
   def handle_error(self, error):
     """Called upon connection error.
@@ -542,14 +549,14 @@ class BasePeer(object):
     Return: None
     """
     import utils
-    LOG.warning("Connection error :%s", error)
+    LOG.warning("%s> Connection error :%s", id(self), error)
     utils.handle_exception(LOG)
 
   def handle_disconnect(self):
     """Called after disconnection from server.
     Return: None
     """
-    LOG.debug('client disconnected from remote server %s', self.addr_port)
+    LOG.debug('%s> Disconnected from remote server %s', id(self),self.addr_port)
 
   def abort(self):
     """Completely abort any loop or connection.
@@ -558,7 +565,7 @@ class BasePeer(object):
     if self.socket:
       self.socket.close()
     self.connected = False
-    self.running = False
+    self._running = False
     self.handle_disconnect()
     return False
 
@@ -575,7 +582,7 @@ class BasePeer(object):
       if e.errno not in DISCN_ERRORS:                       # for Windows
         self.handle_error(e)
       return self.abort()
-    LOG.debug("read %iB from socket", len(buff))
+    LOG.debug("%s> read %iB from socket", id(self), len(buff))
     return buff
 
   def read_socket_and_process(self, size=2048):
@@ -585,7 +592,7 @@ class BasePeer(object):
     """
     buff = self.read_socket(size)
     if buff != False:
-      self.unprocessed = self.process(self.unprocessed + buff)
+      self._unprocessed = self.process(self._unprocessed + buff)
       return True
     return False
 
@@ -595,18 +602,19 @@ class BasePeer(object):
     """
     if self.connected:
       try:
-        LOG.debug("sending:'%s'", data)
+        LOG.debug("%s> sending:'%s'", id(self), data)
         self.socket.send(data)
         return True
       except socket.error, e:
         if e.errno in DISCN_ERRORS:
-          LOG.warning("client %s disconnected before we could send '%s'",
-                      self.socket.fileno(), data)
+          LOG.warning("%s> client %s disconnected before we could send '%s'",
+                      id(self), self.socket.fileno(), data)
         else:
           self.handle_error(e)
         return self.abort()
     else:
-      LOG.warning("socket disconnected, cannot send data '%s'.", data)
+      LOG.warning("%s> disconnected, cannot send data '%s'.",
+                  id(self), data)
       return False
 
   def read_once(self, timeout):
@@ -629,17 +637,18 @@ class BasePeer(object):
     return self.read_socket_and_process()
 
   def read_while_running(self, timeout=0.01):
-    """Process client commands until self.running is False. See also
-     self.each_loop().
+    """Process client commands until self._running is False.
+
+    If self.each_loop evaluate to False, the function calls self.each_loop()
+    every step of the loop.
     timeout: delay (in seconds) see doc for read_once().
     Return: True if stopped running, False on error.
     """
-    self.running = True
-    each_loop = getattr(self,'each_loop',None)
-    while self.running:
+    self._running = True
+    while self._running:
       if not self.read_once(timeout):
         return False
-      each_loop and each_loop()
+      self.each_loop and self.each_loop()
     return True
 
   # TODO: test
@@ -660,19 +669,21 @@ class BasePeer(object):
       self._th_save['send_msg'] = self.send_msg
       self._threading_lock = Lock()
       self.send_msg = th_send_msg
-      LOG.debug('client in thread-safe. send_msg is %s', self.send_msg)
+      LOG.debug('%s> client in thread-safe. send_msg is %s', 
+                id(self), self.send_msg)
     else:
       for name, member in self._th_save:
         setattr(self, name, member)
       self._th_save.clear()
-      LOG.debug('client in single-thread. send_msg is %s', self.send_msg)
+      LOG.debug('%s> client in single-thread. send_msg is %s',
+                id(self), self.send_msg)
 
 
 #TODO: clean class (of set_looping)
 class BaseRequestHandler(BasePeer):
   """Instancied on successful connection to the server: a remote client.
   BasePeer provides 2 functions for the server, depending on threading status:
-  - read_socket_and_process() when self share the server thread
+  - read_socket_and_process() when self shares the server thread
   - read_while_running() when instances of this class run in their own thread.
 
   This class cannot be instanciated directly, it requires the implementation of
@@ -682,18 +693,18 @@ class BaseRequestHandler(BasePeer):
 
   def __init__(self, server, sock, addr_port):
     super(BaseRequestHandler,self).__init__()
-    self.connected = True
     self.server = server                                # server that spawned us
     self.socket = sock
+    self.connected = True
     self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
                        or addr_port )
-    LOG.debug("initialized %s (a %s).", id(self), self.__class__.__name__)
+    LOG.debug("%s> initialized a %s.", id(self), self.__class__.__name__)
 
   def setup(self):
     """Initializer for child classes. Override.
     """
 #    LOG.info("%i> connection accepted from %s on %s. Client is %slooping",
-    LOG.info("%i> connection accepted from %s on %s.",
+    LOG.info("%s> socket %i: connection accepted from %s on %s.", id(self),
              self.socket.fileno(),self.addr_port[0],str(self.addr_port[1]))
 #             self.work is self.read_once and '*NOT* ' or '')
 
@@ -703,11 +714,11 @@ class BaseRequestHandler(BasePeer):
 #        if not self.server.handler_looping:
 #            return
     try:
-      connID = str(self.socket.fileno())
+      connID = self.socket.fileno()
     except Exception, e:
       connID = '(closed)'
-    LOG.info("%s> connection terminating : %s on "+str(self.addr_port[1]),
-             connID, self.addr_port[0])
+    LOG.info("%s> socket %s: connection terminating : %s on %s", id(self),
+             connID, self.addr_port[0], self.addr_port[1])
 
 
 class BaseClient(BasePeer):
@@ -717,7 +728,7 @@ class BaseClient(BasePeer):
   This base class cannot be used directly, it requires the implementation of
   process(), an abstract method of BasePresentation.
   Unless you use BasePresentation.read_once(), you should only care about
-   self.running to get out of self.connect_and_run().
+   self._running to get out of self.connect_and_run().
   """
 
   @staticmethod
@@ -769,26 +780,29 @@ class BaseClient(BasePeer):
     """Called upon connection time-out.
     Return: None
     """
-    LOG.debug('time-out connecting to remote server %s', self.addr_port)
+    LOG.debug('%s> time-out connecting to remote server %s', id(self),
+              self.addr_port)
 
   def handle_connect_error(self, e):
     """Called upon error waiting for input.
     Return: None
     """
-    LOG.debug('error connecting to server %s (%s)', self.addr_port, e)
+    LOG.debug('%s> error connecting to server %s : %s', id(self),
+              self.addr_port, e)
 
   def handle_connect(self):
     """Called upon successful connection to (remote) server.
     Return: None
     """
-    LOG.debug('client connected to remote server %s', self.addr_port)
+    LOG.debug('%s> client connected to remote server %s', id(self),
+              self.addr_port)
 
   def connect(self):
     """Creates a new connection to a server.
     Return: False on error.
     """
     assert self.connected is False, 'connecting while connected ?'
-    LOG.debug('connecting to %s:%s (for%s)', self.addr_port[0],
+    LOG.debug('%s> connecting to %s:%s (for%s)', id(self), self.addr_port[0],
               self.addr_port[1], (self.connect_timeout is None and 'ever')
               or " %ss." % self.connect_timeout )
     try:
@@ -799,7 +813,7 @@ class BaseClient(BasePeer):
       self.handle_connect_timeout()
     except socket.error, e:
       if e[0] in FATAL_ERRORS:
-        self.running = False                          # too serious to carry on
+        self._running = False                          # too serious to carry on
       self.handle_connect_error(e)
     else:
       self.connected = True
@@ -816,16 +830,16 @@ class BaseClient(BasePeer):
     return True
 
   def connect_and_run(self, connect_timeout=None, read_timeout=0.01):
-    """Blocking call. Interrupt the loop setting self.running to False.
+    """Blocking call. Interrupt the loop setting self._running to False.
     connect_timeout: alternative to setting self.connect_timeout.
     read_timeout: delay in seconds before giving up waiting for data (select).
     Return: True if disconnected normally, False on error.
     """
-    self.running = True
+    self._running = True
     self.connect_timeout = connect_timeout
     if not self.pre_connect():
       return True                                     # not considered an error
-    while self.running and not self.connect():        # carry on despite failure
+    while self._running and not self.connect():        # carry on despite failure
       pass
     if not self.connected:
       return False
@@ -846,7 +860,7 @@ class BaseClient(BasePeer):
     """Set flag for disconnection.
     Return: None
     """
-    self.running = False
+    self._running = False
 
 
 ################################################################################

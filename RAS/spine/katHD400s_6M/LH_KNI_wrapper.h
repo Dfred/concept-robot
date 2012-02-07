@@ -11,6 +11,7 @@
 - getEncoders
 - getVelocities
 - getAxisMinMaxEPC
+- moveMotFaster
 - is_moving
 - is_blocked
  also applied cosmetics to original KNI files.
@@ -423,9 +424,16 @@ extern "C" {
 
   //!Gets all motors encoder at once
   //!@param dest_encs An array of int
-  //!@return returns -1 on failure  
+  //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int
   getEncoders(int dest_encs[MAX_MOTORS]);
+
+  //!Gets a motors velocity
+  //!@param axis index of the motor to use.
+  //!@param dest_vels An array of int
+  //!@return returns -1 on failure, 1 if successful
+  DLLEXPORT int  
+  getVelocity(int axis, short int *dest_vel);
 
   //!Gets all motors velocity at once
   //!@param dest_vels An array of int
@@ -437,19 +445,30 @@ extern "C" {
   //!@param dest_mins allocated table receiving minimum encoder values
   //!@param dest_mins allocated table receiving maximum encoder values
   //!@param dest_mins allocated table receiving encoder per cycle values
+  //!@return returns -1 on failure, 1 if successful
   DLLEXPORT int
   getAllAxisMinMaxEPC(int dest_mins[MAX_MOTORS], 
 		      int dest_maxs[MAX_MOTORS],
 		      int dest_EPCs[MAX_MOTORS]);
 
-  //!Checks if a particular axis is blocked.
+  //!Faster version of moveMot (doesn't set speed nor acceleration)
+  //!@param axis index of the motor to use
+  //!@param enc_value encoder value
+  //!@return returns -1 on failure, 1 if successful
+  DLLEXPORT int
+  moveMotFaster(int axis, int enc_value);
+
+  //!Checks without moving if a particular (or all) axis is/are Hard blocked.
+  //!Notice that soft blocking can happen when playing with PID (see
+  //! setControllerParameters) and moving the motor.
+  //!@param axis index of the motor to use. If 0, consider all.
   //!@return returns -1 on failure, 0 if not blocked, 1 if axis is blocked.
   DLLEXPORT int
-  is_blocked();
+  is_blocked(int axis);
 
   //!Gets the moving status of one or all axis
   //!@param axis index of the motor to use. If 0, use all.
-  //!@return returns -1 on failure, 0 if not moving
+  //!@return returns -1 on failure, 0 if not moving, 1 if axis is moving.
   DLLEXPORT int
   is_moving(int axis);
 

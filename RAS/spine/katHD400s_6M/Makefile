@@ -46,8 +46,8 @@ EXTRA_OBJS = $(DEPLIBS_DIR)/libKNIBase.a    \
 	     $(DEPLIBS_DIR)/libKinematics.a
 
 GCC	   = gcc
-CXXFLAGS  += -Wall
-CFLAGS	  += -Wall -std=c99
+CXXFLAGS  += -Wall -fPIC
+CFLAGS	  += -Wall -fPIC -std=c99
 LDFLAGS   += -lstdc++ -L $(DEPLIBS_DIR)
 
 TARGET     = lib$(LIBNAME).so
@@ -57,7 +57,7 @@ TST_OBJS   = $(TST_SRC:.cpp=.o)				# .c are left untouched
 TST_OBJS  := $(TST_OBJS:.c=.o)				# so it's fix here.
 TST_LDFLAGS= -Wl,-rpath=$(TARGET_DIR)
 
-.PHONY: all debug optim check_env test
+.PHONY: all debug optim clean check_env test
 
 all: CXXFLAGS += -O3
 all: check_env $(TARGET)
