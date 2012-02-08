@@ -29,7 +29,7 @@ class Vision():
         gl.from_beh_q = from_beh_q
         
         self.camera_running = False
-        haar_casc = cfg.root_dir +"resources/haarcascade_frontalface_alt.xml"        # change path for compatibility
+        haar_casc = cfg.vis_dir +"/haarcascade_frontalface_alt.xml"     # change path for compatibility
         self.face_detector = CascadeDetector(cascade_name=haar_casc, min_size=(50,50), image_scale=0.5)
         
         #opencv visual processing
