@@ -274,6 +274,7 @@ class CamUtils(CamCapture):
 
         Return: list of rects or None
         """
+        assert self.face_detector, "call to enable_face_detection() required"
         return self.face_detector.detect(self.frame)
 
     def find_eyes(self, faces):
