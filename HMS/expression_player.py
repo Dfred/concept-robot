@@ -35,7 +35,7 @@ import time
 
 from utils import conf, handle_exception
 from utils.FSMs import SMFSM
-from HMS.communication import ThreadedExpressionComm
+from utils.communication import ThreadedExpressionComm
 
 
 def fatal(msg):
@@ -67,19 +67,15 @@ class Behaviour_Builder():
   def __init__(self, machine_defs, with_vision=True):
     """
     """
-    try:
-      conf.set_name('lightHead')
-      missing = conf.load(required_entries=('ROBOT','expression_server'))
-      if missing:
-        print '\nmissing configuration entries: %s' % missing
-        sys.exit(1)
-    except conf.LoadException, e:
-      print 'in file {0[0]}: {0[1]}'.format(e)
-      sys.exit(2)
+    conf.set_name('lightHead')
+    missing = conf.load(required_entries=('ROBOT','expression_server'))
+    if missing:
+      print '\nmissing configuration entries: %s' % missing
+      sys.exit(1)
 
     # now that we're sure conf is ok, import other modules
     if with_vision:
-      from RAS import vision
+      from utils import vision
 
     for name, rules, parent_name in machine_defs:
       try:
@@ -95,9 +91,9 @@ class Behaviour_Builder():
     if with_vision:
       try:
         self.vision = vision.CamFaceFinder()
-        self.vision.use_camera(conf.ROBOT['mod_vision']['camera'])
+        self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
         #XXX: put that to conf for vision to read
-        self.vision_frame = self.vision.camera.get_tolerance_frame(.1)  # 10%
+        self.vision_frame = self.vision.camera.tolerance = .1   # 10%
         self.vision.gui_create()
         self.vision.update()
       except vision.VisionException, e:

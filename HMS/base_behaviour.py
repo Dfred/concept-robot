@@ -2,7 +2,7 @@
 import threading, math, Queue, time, random
     
 from HMS import expression_player as ep
-from HMS.communication import ThreadedExpressionComm, ThreadedLightHeadComm
+from utils.communication import ThreadedExpressionComm, ThreadedLightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
