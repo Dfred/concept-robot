@@ -250,10 +250,13 @@ class CamUtils(CamCapture):
     """High-level class compiling various image processing algorithms.
     """
 
-    def enable_face_detection(self, haar_cascade_path=None):
+    def enable_face_detection(self, haar_cascade_path=None,
+                              msize=(50,50), scale=.5):
         """Enables face detection algorithms.
 
         haar_cascade_path: path to .xml, if None then use default
+        msize: (width,height), minimum size
+        scale: float, image scale
         Returns: None
         """
         if not haar_cascade_path:
@@ -266,7 +269,7 @@ class CamUtils(CamCapture):
             haar_cascade_path = join(dirname(__file__),
                                      'haarcascade_frontalface_alt.xml')
         self.face_detector = CascadeDetector(cascade_name=haar_cascade_path,
-                                             min_size=(50,50), image_scale=0.5)
+                                             min_size=msize, image_scale=scale)
         self.eyes_detector = FilterEyeLocator()
 
     def find_faces(self):
