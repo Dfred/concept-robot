@@ -137,7 +137,9 @@ class LightHeadServer(object):#MetaServerMixin):
         # check for attributes, allowing a submodule to register more
         #  than one ORIGIN keyword with its extra_origins attribute.
         for name, info in r_dict.iteritems():
-            if not name.startswith('mod_') or not r_dict[name]:
+            if not name.startswith('mod_') or not info:
+                continue
+            if info.has_key('backend') and not info['backend']:
                 continue
             name = name[4:]
             try:
