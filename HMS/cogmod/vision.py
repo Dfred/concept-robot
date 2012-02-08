@@ -260,7 +260,6 @@ class Vision():
         else:
             
             if gl.from_gui_q:   # there is a connection
-                print "here"
                 if cfg.gaze_follows_target:
                     tuning = (cfg.gaze_tune_x, cfg.gaze_tune_y,  cfg.neck_tune_x, cfg.neck_tune_y)
                     gl.from_gui_q.put(("face_gaze", self.robot_target, tuning), None)    # make first face available
