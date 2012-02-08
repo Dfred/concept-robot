@@ -87,11 +87,11 @@ class Behaviour_Builder(object):
       while not self.comm_expr.connected:
         time.sleep(1)
       self.root_fsm.run(self.step_callback)
-    except KeyboardInterrupt:
-      print 'aborting'
-      self.root_fsm.abort()
     except StandardError, e:
       handle_exception(None)
+    except KeyboardInterrupt:
+      print 'aborting'
+    self.root_fsm.abort()
 
 
 
