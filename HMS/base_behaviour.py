@@ -34,11 +34,15 @@ class Base_behaviour(ep.Behaviour_Builder):
     def __init__(self, from_gui_q, from_beh_q):
         self.from_gui_q = from_gui_q
         self.from_beh_q = from_beh_q
-        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started),\
-                           ('FOLLOW_TARGET', self.set_gaze_neck_to_target), ('RUN_DEMO', self.run_demo_behaviour), \
-                           ('FACE_GROW', self.face_grow_behaviour),('FACE_SHRINK', self.face_shrink_behaviour), \
-                           ('WAVE', self.wave_behaviour), ('MOVE_LIMIT', self.move_limit_behaviour),
-                           (SMFSM.STOPPED,self.stopped) )
+        BASE_PLAYER_DEF = ( (SMFSM.STARTED,self.started),
+                            ('FOLLOW_TARGET', self.set_gaze_neck_to_target),
+                            ('RUN_DEMO', self.run_demo_behaviour),
+                            ('FACE_GROW', self.face_grow_behaviour),
+                            ('FACE_SHRINK', self.face_shrink_behaviour),
+                            ('WAVE', self.wave_behaviour),
+                            ('MOVE_LIMIT', self.move_limit_behaviour),
+                            (SMFSM.STOPPED,self.stopped)
+                          )
         machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
         ep.Behaviour_Builder.__init__(self, machine_def)
         
