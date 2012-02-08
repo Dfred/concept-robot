@@ -201,30 +201,30 @@ class ThreadedExpressionComm(ThreadedComm):
         assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
         self.datablock[2] = str(vector3)[1:-1]
 
-    def set_neck(self, rotation=(), orientation=(), position=()):
-        """Set head placement.
+    def set_neck(self, rotation=(), orientation=(), translation=()):
+        """Set head placement. (absolute position is not available).
+
         rotation:    (x,y,z) : relative normalized orientation 
         orientation: (x,y,z) : absolute normalized orientation
-        position:    (x,y,z) : relative normalized position
+        translation:    (x,y,z) : relative normalized translation
         right handedness (ie: with y+ pointing forward)
         """
         assert rotation and \
             (len(rotation)==3 and type(rotation[0]) is float) or \
-            True, 'wrong types'
+            True, 'rotation: wrong types'
         assert orientation and \
             (len(orientation) == 3 and type(orientation[0]) is float) or\
-            True, 'wrong types'
-        assert position and \
-            (len(position) == 3 and type(position[0]) is float) or \
-            True, 'wrong types'
-        assert rotation or orientation, 'cannot specify orientation and rotation'
-        msg = ""
+            True, 'orientation: wrong types'
+        assert translation and \
+            (len(translation) == 3 and type(translation[0]) is float) or \
+            True, 'translation: wrong types'
+        assert rotation or orientation, "it's either orientation *OR* rotation"
         if rotation:
-          self.datablock[3] += str(rotation)
+          self.datablock[3] = "(%s, %s, %s)" % tuple(rotation)
         if orientation:
-          self.datablock[3] += "((%s, %s, %s))" % orientation
-        if position:
-          self.datablock[3] += str(list(position))
+          self.datablock[3] = "((%s, %s, %s))" % tuple(orientation)
+        if translation:
+          self.datablock[3] = "[%s, %s, %s]" % tuple(translation)
         
 
     def set_instinct(self, command):

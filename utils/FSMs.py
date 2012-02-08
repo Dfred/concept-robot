@@ -108,10 +108,10 @@ class SMFSM(object):
         """
         all_states, machines = [], [self]+self.machines
         for m in machines:
-            m.current_state = self.STARTED
+            m.current_state = SMFSM.STARTED
             all_states.extend(m.actions.keys())
         all_states = set(all_states)
-        while self.current_state is not self.STOPPED:
+        while self.current_state is not SMFSM.STOPPED:
             m_states = [ m.current_state for m in machines ]  # get child states
             errors = [ not m._step(m_states) for m in machines ]
             if all(errors):
@@ -139,7 +139,7 @@ class SMFSM(object):
         if state is not None:
             LOG.debug("[%s] changing to state: %s", self.name, state)
             self.current_state = state
-            if state == self.STOPPED and self.actions.has_key(self.STOPPED):
+            if state == SMFSM.STOPPED and self.actions.has_key(SMFSM.STOPPED):
                 self.actions[state](self.name)
         return True
 
@@ -147,7 +147,7 @@ class SMFSM(object):
         """
         """
         for m in [self]+self.machines:
-            m.current_state = None
+            m.current_state = SMFSM.STOPPED
 
 class FSM(SMFSM):
     """ A simple FSM.
