@@ -90,7 +90,7 @@ class Behaviour_Builder():
 
     if with_vision:
       try:
-        self.vision = vision.CamFaceFinder()
+        self.vision = vision.CamUtils()
         self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
         #XXX: put that to conf for vision to read
         self.vision_frame = self.vision.camera.tolerance = .1   # 10%
@@ -134,9 +134,12 @@ class Behaviour_Builder():
     except StandardError, e:
       handle_exception(None)
 
+
 if __name__ == '__main__':
-  import sys
-  print 'python path:', sys.path
+  import logging
+  from utils import comm, conf, LOGFORMATINFO
+  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+
 
   class TestBehaviour_Builder(Behaviour_Builder):
     """
@@ -150,7 +153,7 @@ if __name__ == '__main__':
         self.vision.mark_rects(faces)
         self.vision.gui.show_frame(self.vision.frame)
       return faces and SMFSM.STOPPED or None
-    def stopped(self):
+    def stopped(self, name):
       print 'test stopped'
       return
     def __init__(self):
@@ -162,5 +165,6 @@ if __name__ == '__main__':
       Behaviour_Builder.__init__(self, machine_def)
 
   player = TestBehaviour_Builder()
+  player.vision.enable_face_detection()
   player.run()
   player.cleanup()
