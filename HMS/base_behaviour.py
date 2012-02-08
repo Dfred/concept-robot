@@ -40,7 +40,7 @@ class Base_behaviour(ep.Behaviour_Builder):
                            ('WAVE', self.wave_behaviour), ('MOVE_LIMIT', self.move_limit_behaviour),
                            (SMFSM.STOPPED,self.stopped) )
         machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
-        ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
+        ep.Behaviour_Builder.__init__(self, machine_def)
         
         self.connected = False
         self.comm_send_tags = []
@@ -375,7 +375,8 @@ class Base_behaviour(ep.Behaviour_Builder):
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
-    
+
+    conf.set_name('lightHead')
     from_gui_q = Queue.Queue()
     from_behaviours_q = Queue.Queue()
     bt = Behaviour_thread(from_gui_q, from_behaviours_q)

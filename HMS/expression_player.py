@@ -43,39 +43,17 @@ def fatal(msg):
   exit(1)
 
 
-class expressionComm(ThreadedExpressionComm):
-    
-    def __init__(self, srv_addrPort, connection_succeded_function):
-        super(expressionComm, self).__init__(srv_addrPort, connection_succeded_function)
-        self.neck_adjust_tags = []
-        print "new_expression_comm"
-        
-    def cmd_ACK(self, argline):
-        self.status = self.ST_ACK
-        self.tag = argline.strip()
-        if "NECK_ADJUST" in self.tag:
-            self.neck_adjust_tags.append(self.tag)
-        try: self.on_reply[self.tag]('ACK', self.tag)
-        except KeyError: pass
-        
-        
-
-class Behaviour_Builder():
+class Behaviour_Builder(object):
   """A generic framework for specifying behaviour through SMFSM objects.
   """
 
-  def __init__(self, machine_defs, with_vision=True):
+  def __init__(self, machine_defs):
     """
     """
-    conf.set_name('lightHead')
     missing = conf.load(required_entries=('ROBOT','expression_server'))
     if missing:
       print '\nmissing configuration entries: %s' % missing
       sys.exit(1)
-
-    # now that we're sure conf is ok, import other modules
-    if with_vision:
-      from utils import vision
 
     for name, rules, parent_name in machine_defs:
       try:
@@ -87,37 +65,18 @@ class Behaviour_Builder():
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
-
-    if with_vision:
-      try:
-        self.vision = vision.CamUtils()
-        self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
-        #XXX: put that to conf for vision to read
-        self.vision_frame = self.vision.camera.tolerance = .1   # 10%
-        self.vision.gui_create()
-        self.vision.update()
-      except vision.VisionException, e:
-        fatal(e)
-    self.comm_expr = expressionComm(conf.expression_server, connection_succeded_function=self.connected)
-    
+    self.comm_expr = ThreadedExpressionComm(conf.expression_server,
+                                            connection_succeded_function=self.connected)
     
   def connected(self):
     self.connected = True
 
   def cleanup(self):
-    """
-    """
-    if hasattr(self,'vision'):
-      self.vision.gui_destroy()
     self.comm_expr.done()
 
   def step_callback(self, machines):
-    """Will die on disconnection with expression, also updates webcam.
-    Return: None
+    """Stops the FSM upon disconnection from expression.
     """
-    if hasattr(self,'vision'):
-      self.vision.update()
-      self.vision.gui_show()
     if not self.comm_expr.connected:
       self.root_fsm.abort()
 
@@ -135,36 +94,69 @@ class Behaviour_Builder():
       handle_exception(None)
 
 
+
 if __name__ == '__main__':
-  import logging
-  from utils import comm, conf, LOGFORMATINFO
-  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+  from utils import vision, fps
 
-
-  class TestBehaviour_Builder(Behaviour_Builder):
-    """
-    """
+  class Test_BehaviourBuilder(Behaviour_Builder):
+    # OUR STATE FUNCTIONS
     def started(self):
       print 'test started'
       return 'TESTING'
+
     def testing(self):
       faces = self.vision.find_faces()
       if self.vision.gui:
         self.vision.mark_rects(faces)
         self.vision.gui.show_frame(self.vision.frame)
       return faces and SMFSM.STOPPED or None
+
     def stopped(self, name):
       print 'test stopped'
       return
-    def __init__(self):
+
+    # SETTING UP
+    def __init__(self, with_gui=True):
       rules = (
           (SMFSM.STARTED,self.started),
           ('TESTING',  self.testing),
           (SMFSM.STOPPED,self.stopped) )
       machine_def = [ ('test', rules, None) ]
-      Behaviour_Builder.__init__(self, machine_def)
+      super(Test_BehaviourBuilder,self).__init__(machine_def)
 
-  player = TestBehaviour_Builder()
-  player.vision.enable_face_detection()
+      self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
+      try:
+        self.vision = vision.CamUtils()
+        self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
+        #XXX: put that to conf for vision to read
+        self.vision_frame = self.vision.camera.tolerance = .1   # 10%
+        if with_gui:
+          self.vision.gui_create()
+        else:
+          print '--- NOT USING CAMERA GUI ---'
+        self.vision.update()
+        self.vision.enable_face_detection()
+      except vision.VisionException, e:
+        fatal(e)
+
+    # OVERRIDING MOTHER CLASS TO DO OUR JOB
+    def step_callback(self, FSMs):
+      super(Test_BehaviourBuilder,self).step_callback(FSMs)
+      self.vision.update()
+      self.vision.gui_show()
+      self.my_fps.update()
+      self.my_fps.show()
+
+    def cleanUp(self):
+      super(Test_BehaviourBuilder,self).cleanUp()
+      self.vision.gui_destroy()
+
+  import sys
+  import logging
+  from utils import comm, conf, LOGFORMATINFO
+  logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+  conf.set_name('lightHead')
+
+  player = Test_BehaviourBuilder(len(sys.argv) == 1)
   player.run()
   player.cleanup()
