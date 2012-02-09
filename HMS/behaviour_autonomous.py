@@ -38,28 +38,6 @@ from HMS.expression_player import Behaviour_Builder, fatal
 from utils.FSMs import SMFSM
 from utils import vision, fps
 
-PERIOD_RANGES = {               # min/max time between actions (in seconds)
-  'fexpr': (.8, 20),
-  'gaze' : (1,5),
-  'neck' : (5,15),
-}
-FEXPRS = {
-  'search' : ('neutral', 'really_look', 'frown2', 'dummy_name4'),
-  'found'  : ('simple_smile_wide1', 'surprised1'),
-}
-SCAN_RANGE = {
-  'gaze' : (            # in meters
-    (-1,1),     # X (horiz)
-    ( 2,5),     # Y (depth)
-    (-1,.5)     # Z (vert)
-    ),
-  'neck' : (            # in normalized angle
-    (-.1,.1),   # X (horiz)
-    (-.1,.1),   # Y (depth)
-    (-.5,.5)    # Z (vert)
-    ),
-}
-
 # OUR STATES
 ST_AWAKED       = 'awaked'
 ST_SEARCH       = 'search'
@@ -69,79 +47,116 @@ ST_GOODBYE      = 'disengage'
 #ST_  = ''
 
 
+FEXPRS = {
+  ST_SEARCH     : ('neutral', 'really_look', 'frown2', 'dummy_name4'),
+  ST_FOUND_USR  : ('simple_smile_wide1', 'surprised1'),
+}
+GAZE_RANGES = {         # in meters
+                # X (horiz) # Y (depth) # Z (vert)
+  ST_SEARCH     : ( (-1,1), ( 2,5), (-1,.5) ),
+  ST_FOUND_USR  : ( (), (), (), ),
+}
+NECK_RANGES = {         # in normalized angle
+  ST_SEARCH     : ( (-.1,.1), (-.1,.1), (-.5,.5) ),
+  ST_FOUND_USR  : ( (), (), (), ),
+}
+SPINE_RANGES = {        # in normalized angle
+  ST_SEARCH     : ( (-.1,.1), (-.1,.1), (-.5,.5) ),
+  ST_FOUND_USR  : ( (), (), (), ),
+}
+
+
+class Action(object):
+  def __init__(self, period_range, init_time, data, fct):
+    self.period_range = period_range    # min/max time between actions (in s.)
+    self.time   = init_time
+    self.data   = data
+    self.fct    = fct
+
+  def is_active(self, now):
+    b = now - self.time > random.uniform(*self.period_range)
+    if b:
+      self.time = now
+    return b
+
+  def get_data(self, state):
+    return self.fct(self.data[state])
+
+
 class LightHead_Behaviour(Behaviour_Builder):
   """
   """
   
   def __init__(self, with_gui=True):
-      rules = (
-          (SMFSM.STARTED,self.st_started),
-          (ST_SEARCH,   self.st_search),
+    rules = ( (SMFSM.STARTED,self.st_started),
+              (ST_SEARCH,   self.st_search),
 #          (ST_ENGAGE,   self.st_engage),
 #          (ST_, self.),
-          (SMFSM.STOPPED,self.st_stopped) )
-      machine_def = [ ('test', rules, None) ]
-      super(LightHead_Behaviour,self).__init__(machine_def)
+              (SMFSM.STOPPED,self.st_stopped) )
+    machine_def = [ ('test', rules, None) ]
+    super(LightHead_Behaviour,self).__init__(machine_def)
 
-      t = time.time()
-      self.last_time = {'fexpr':t, 'gaze':t, 'neck':t}
-      self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
-      try:
-        self.vision = vision.CamUtils()
-        self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
+    fct_rand_range = lambda x: [random.uniform(*a) for a in (x)]
+    self.actions = {
+      'fexpr': Action((.8, 20), time.time(), FEXPRS, random.choice),
+      'gaze' : Action((1,5) , time.time(), GAZE_RANGES, fct_rand_range),
+      'neck' : Action((5,15), time.time(), NECK_RANGES, fct_rand_range),
+      'spine': Action((5,15), time.time(), SPINE_RANGES, fct_rand_range),
+      }
+    self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
+    try:
+      self.vision = vision.CamUtils()
+      self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
         #XXX: put that to conf for vision to read
-        self.vision_frame = self.vision.camera.tolerance = .1   # 10%
-        if with_gui:
-          self.vision.gui_create()
-        else:
-          print '--- NOT USING CAMERA GUI ---'
-        self.vision.update()
-        self.vision.enable_face_detection()
-      except vision.VisionException, e:
-        fatal(e)
+      self.vision_frame = self.vision.camera.tolerance = .1   # 10%
+      if with_gui:
+        self.vision.gui_create()
+      else:
+        print '--- NOT USING CAMERA GUI ---'
+      self.vision.update()
+      self.vision.enable_face_detection()
+    except vision.VisionException, e:
+      fatal(e)
 
     # OVERRIDING MOTHER CLASS TO DO OUR JOB
   def step_callback(self, FSMs):
-      super(LightHead_Behaviour,self).step_callback(FSMs)
-      self.vision.update()
-      self.vision.gui_show()
-      self.my_fps.update()
-      self.my_fps.show()
+    super(LightHead_Behaviour,self).step_callback(FSMs)
+    self.vision.update()
+    self.vision.gui_show()
+    self.my_fps.update()
+    self.my_fps.show()
 
   def cleanUp(self):
-      super(LightHead_Behaviour,self).cleanUp()
-      self.vision.gui_destroy()
+    super(LightHead_Behaviour,self).cleanUp()
+    self.vision.gui_destroy()
 
     # OUR STATE FUNCTIONS
   def st_started(self):
-      print 'test started'
-      return ST_SEARCH
+    print 'test started'
+    return ST_SEARCH
 
   def st_search(self):
     now = time.time()
-    if now - self.last_time['fexpr'] > random.uniform(*PERIOD_RANGES['fexpr']):
-      self.comm_expr.set_fExpression(random.choice(FEXPRS['search']))
-      self.last_time['fexpr'] = now
-    if now - self.last_time['gaze'] > random.uniform(*PERIOD_RANGES['gaze']):
-      self.comm_expr.set_gaze([random.uniform(*a) for a in (SCAN_RANGE['gaze'])])
-      self.last_time['gaze'] = now
-    if now - self.last_time['neck'] > random.uniform(*PERIOD_RANGES['neck']):
-      self.comm_expr.set_neck(orientation=[random.uniform(*a) for a
-                                           in (SCAN_RANGE['neck']) ] )
-      self.last_time['neck'] = now
+    fe, gz, nc, sp = (self.actions[k] for k in ('fexpr','gaze','neck','spine'))
+    if fe.is_active(now):
+      self.comm_expr.set_fExpression(fe.get_data('search'))
+    if gz.is_active(now):
+      self.comm_expr.set_gaze(gz.get_data('search'))
+    if nc.is_active(now):
+      self.comm_expr.set_neck(orientation=nc.get_data('search'))
     if any(self.comm_expr.datablock):
       self.comm_expr.send_datablock()
 
   def st_keep_usr_visible(self):
-      faces = self.vision.find_faces()
-      if self.vision.gui:
-        self.vision.mark_rects(faces)
-        self.vision.gui.show_frame(self.vision.frame)
-      return faces and SMFSM.STOPPED or None
+    faces = self.vision.find_faces()
+    if self.vision.gui:
+      self.vision.mark_rects(faces)
+      self.vision.gui.show_frame(self.vision.frame)
+    return faces and SMFSM.STOPPED or None
 
   def st_stopped(self, name):
-      print 'test stopped'
-      return
+    print 'test stopped'
+    return
 
 
 if __name__ == '__main__':
