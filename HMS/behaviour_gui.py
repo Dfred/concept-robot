@@ -48,7 +48,7 @@ class Base_behaviour(ep.Behaviour_Builder):
         self.connected = False
         self.comm_send_tags = []
         # for snapshots, not used atm
-        #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_function=self.on_connect)
+        #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_fct=self.on_connect)
         
         # tuning
         self.gaze_adjust_x = 0.5

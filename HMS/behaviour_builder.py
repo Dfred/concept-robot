@@ -66,7 +66,7 @@ class Behaviour_Builder(object):
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
     self.comm_expr = ThreadedExpressionComm(conf.expression_server,
-                                            connection_succeded_function=self.connected)
+                                            connection_succeded_fct=self.connected)
     
   def connected(self):
     self.connected = True
