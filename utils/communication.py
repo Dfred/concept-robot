@@ -127,10 +127,13 @@ class ThreadedExpressionComm(ThreadedComm):
 
     ST_ACK, ST_NACK, ST_INT, ST_DSC = range(4)
 
-    def __init__(self, srv_addrPort, connection_succeded_function):
+    def __init__(self, srv_addrPort, connection_succeded_fct):
         """
+        srv_addrPort: (server_address, port)
+        connection_succeded_fct: function called on successful connection.
         """
-        super(ThreadedExpressionComm,self).__init__(srv_addrPort, connection_succeded_function)
+        super(ThreadedExpressionComm,self).__init__(srv_addrPort,
+                                                    connection_succeded_fct)
         self.tag = None
         self.tag_count = 0
         self.status = None
@@ -179,13 +182,16 @@ class ThreadedExpressionComm(ThreadedComm):
         """
         self.datablock = ['']*5
 
-    def set_fExpression(self, name, intensity=1.0):
+    def set_fExpression(self, name, intensity=1.0, duration=None):
         """
         name: facial expression identifier, no colon (:) allowed.
-        intensity: normalized gain.
+        intensity: float, normalized gain.
+        duration: float, duration of facial expression in seconds.
         """
         assert type(name) is str and type(intensity) is float, 'wrong types'
-        self.datablock[0] = '{0!s}:{1:.3f}'.format(name, intensity)
+        assert duration is None or type(duration) is float, 'duration not float'
+        d_str = duration and '/%.2f' % duration or ''
+        self.datablock[0] = '{0!s}:{1:.3f}{2s}'.format(name, intensity, d_str)
 
     def set_text(self, text):
         """
@@ -201,13 +207,15 @@ class ThreadedExpressionComm(ThreadedComm):
         assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
         self.datablock[2] = str(vector3)[1:-1]
 
-    def set_neck(self, rotation=(), orientation=(), translation=()):
+    def set_neck(self, rotation=(), orientation=(), translation=(),
+                 duration=None):
         """Set head placement. (absolute position is not available).
 
+        Uses right handedness (ie: with y+ pointing forward) 
         rotation:    (x,y,z) : relative normalized orientation 
         orientation: (x,y,z) : absolute normalized orientation
-        translation:    (x,y,z) : relative normalized translation
-        right handedness (ie: with y+ pointing forward)
+        translation: (x,y,z) : relative normalized translation
+        duration: float, duration of movement in seconds.
         """
         assert rotation and \
             (len(rotation)==3 and type(rotation[0]) is float) or \
@@ -219,13 +227,15 @@ class ThreadedExpressionComm(ThreadedComm):
             (len(translation) == 3 and type(translation[0]) is float) or \
             True, 'translation: wrong types'
         assert rotation or orientation, "it's either orientation *OR* rotation"
+        assert duration is None or type(duration) is float, 'duration not float'
         if rotation:
           self.datablock[3] = "(%s, %s, %s)" % tuple(rotation)
         if orientation:
           self.datablock[3] = "((%s, %s, %s))" % tuple(orientation)
         if translation:
           self.datablock[3] = "[%s, %s, %s]" % tuple(translation)
-        
+        if duration:
+          self.datablock[3] += "/%.2f" % duration
 
     def set_instinct(self, command):
         """
@@ -234,20 +244,9 @@ class ThreadedExpressionComm(ThreadedComm):
         assert type(command) is str, 'wrong types'
         self.datablock[4] = command
 
-    def set_datablock(self, f_expr, intens, txt, gaze, neck_rot, neck_pos, cmd):
-        """
-        All-in-one function, check parameters details from specific functions.
-        """
-        assert type(f_expr) is str and type(intens) is float, 'wrong types'
-        assert type(txt) is str, 'wrong types'
-        assert len(gaze) == 3 and type(gaze[0]) is float, 'wrong types'
-        assert len(neck_rot) == 3 and type(neck_rot[0]) is float, 'wrong types'
-        assert len(neck_pos) == 3 and type(neck_pos[0]) is float, 'wrong types'
-        assert type(cmd) is str, 'wrong types'
-        self.datablock = [ f_expr, intens, txt, gaze, neck_rot, neck_pos, cmd ]
-
     def send_datablock(self, tag=''):
         """Sends self.datablock to server and resets self.datablock.
+
         Use wait_reply to block until server replies for your tag.
         tag: string identifying your datablock.
         Returns: tag, part of it is generated. You may need it for wait_reply().
@@ -260,9 +259,11 @@ class ThreadedExpressionComm(ThreadedComm):
         self.send_msg(datablock+tag)
         return tag
 
-    def send_my_datablock(self, datablock, tag):
+    def send_my_datablock(self, datablock):
+        """Sends a raw datablock, so you have to know datablock formatting.
+        """
         self.status = None
-        self.send_msg(datablock+tag)
+        self.send_msg(datablock)
 
     def wait_reply(self, tag):
         """Wait for a reply from the server.
