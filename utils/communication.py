@@ -191,7 +191,7 @@ class ThreadedExpressionComm(ThreadedComm):
         assert type(name) is str and type(intensity) is float, 'wrong types'
         assert duration is None or type(duration) is float, 'duration not float'
         d_str = duration and '/%.2f' % duration or ''
-        self.datablock[0] = '{0!s}:{1:.3f}{2s}'.format(name, intensity, d_str)
+        self.datablock[0] = '{0!s}:{1:.3f}{2:s}'.format(name, intensity, d_str)
 
     def set_text(self, text):
         """
@@ -209,9 +209,18 @@ class ThreadedExpressionComm(ThreadedComm):
 
     def set_neck(self, rotation=(), orientation=(), translation=(),
                  duration=None):
-        """Set head placement. (absolute position is not available).
+        """Places head (absolute position is not available). See set_spine().
+        """
+        self.set_spine(rotation, orientation, translation, duration, 'neck')
 
-        Uses right handedness (ie: with y+ pointing forward) 
+    def set_thorax(self, rotation=(), orientation=(), duration=None):
+        """Places thorax (position is not available). Arguments: see set_spine()
+        """
+        self.set_spine(rotation, orientation, duration=duration, 'thorax')
+
+    def set_spine(self, rotation=(), orientation=(), translation=(),
+                 duration=None, part='neck'):
+        """Uses right handedness (ie: with y+ pointing forward) 
         rotation:    (x,y,z) : relative normalized orientation 
         orientation: (x,y,z) : absolute normalized orientation
         translation: (x,y,z) : relative normalized translation
@@ -223,17 +232,23 @@ class ThreadedExpressionComm(ThreadedComm):
         assert orientation and \
             (len(orientation) == 3 and type(orientation[0]) is float) or\
             True, 'orientation: wrong types'
-        assert translation and \
-            (len(translation) == 3 and type(translation[0]) is float) or \
-            True, 'translation: wrong types'
+        if part == 'neck':
+            assert translation and \
+              (len(translation) == 3 and type(translation[0]) is float) or \
+              True, 'translation: wrong types'
         assert rotation or orientation, "it's either orientation *OR* rotation"
         assert duration is None or type(duration) is float, 'duration not float'
+        if self.datablock[3]:
+            self.datablock[3] += "|"
+        self.datablock[3] += part
         if rotation:
-          self.datablock[3] = "(%s, %s, %s)" % tuple(rotation)
-        if orientation:
-          self.datablock[3] = "((%s, %s, %s))" % tuple(orientation)
-        if translation:
-          self.datablock[3] = "[%s, %s, %s]" % tuple(translation)
+          self.datablock[3] += "(%s, %s, %s)" % tuple(rotation)
+        elif orientation:
+          self.datablock[3] += "((%s, %s, %s))" % tuple(orientation)
+        elif translation:
+          self.datablock[3] += "[%s, %s, %s]" % tuple(translation)
+        else:
+          raise ValueError("no vector given")
         if duration:
           self.datablock[3] += "/%.2f" % duration
 
