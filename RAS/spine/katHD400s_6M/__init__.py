@@ -34,7 +34,7 @@ except ImportError, e:
   print e, "Make sure you have run 'source_me_to_set_env.sh'"
   exit(1)
 import LH_KNI_wrapper
-from RAS import BVAL, RDIST, TDUR, DDUR, DVT, VAL
+from RAS.au_pool import BVAL, RDIST, TDUR, DDUR, DVT, VAL
 from RAS.spine import SpineError, Spine_Server, PoseManager, Pose
 
 __all__ = ['SpineHW']

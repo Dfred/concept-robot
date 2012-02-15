@@ -38,7 +38,7 @@ import sys
 from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
 from utils import get_logger, conf
-from RAS import FeaturePool
+from RAS.au_pool import FeaturePool
 
 LOG = get_logger(__package__)
 ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords

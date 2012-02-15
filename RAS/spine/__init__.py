@@ -39,6 +39,7 @@ import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
+from RAS.au_pool import AUPool
 from RAS.dynamics import INSTANCE as DYNAMICS
 
 import RAS
@@ -204,7 +205,7 @@ class Spine_Server(object):
     self._motors_on = False
     self._lock_handler = None
     self._new_pt = None                                 # pose and triplets
-    self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
+    self.AUs = AUPool('spine', DYNAMICS, threaded=True)
     self.HWready  = None                                # Hardware action ready
     self.HWrest   = None                                # Hardware switch-off ok
     self.configure()

@@ -43,7 +43,6 @@ from pyvision.types.Video import Webcam
 from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from RAS import FeaturePool
 from utils import conf, get_logger, Frame, fps
 
 LOG = get_logger(__package__)

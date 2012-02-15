@@ -28,14 +28,16 @@ The backend should poll for the values and perform actuation.
 
 import sys
 import time
-import thread
 import random
 import collections
 import logging
+
 import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
+from RAS.au_pool import AUPool
+from RAS.dynamics import INSTANCE as DYNAMICS
 import RAS
 
 LOG = get_logger(__package__)
@@ -112,7 +114,11 @@ class Face_Handler(ASCIIRequestHandler):
 
   def cmd_commit(self, argline):
     """Commit buffered updates"""
-    self.server.set_AUs(self.fifo)
+    try:
+      self.server.AUs.update_targets(self.fifo)
+#      self.server.AUs.update_targets(self.fifo.__copy__())      # thread safe
+    except StandardError, e:                                    #TODO: FaceError
+      LOG.warning("can't set facial expression %s (%s)", list(self.fifo), e)
     self.fifo.clear()
 
   def cmd_sample(self, argline):
@@ -151,75 +157,22 @@ class Face_Server(object):
   MIN_ATTACK_TIME = 0.001     # in seconds.
 
   def __init__(self):
-      self.AUs = None
-      self.updates = []
-      self.thread_id = thread.get_ident()
-      self.FP = RAS.FeaturePool()         # dict of { origin : numpy.array }
+    self.AUs = AUPool('face', DYNAMICS, threaded=True)
 
   def set_available_AUs(self, available_AUs):
-      """Define list of AUs available for a specific face.
-       available_AUs: list of AUs (floats) OR list of tuples (AU, init_value)
-      """
-      available_AUs.sort()
-      a = numpy.zeros((len(available_AUs), 4), dtype=numpy.float32)
-      if type(available_AUs[0]) == tuple:
-          available_AUs, init_values = zip(*available_AUs)
-          a[:,0] = a[:,3] = numpy.array(init_values)
-      #TODO: support implemented AUs without L/R suffix
-      #invalids = [ au for au in available_AUs if au not in VALID_AUS ]
-      #if invalids:
-      #  LOG.error('invalid AU(s): %s' % ' '.join(invalids))
-      #  return False
-      # { AU_name : numpy array [target, remaining, coeff, value] }
-      self.AUs = dict(zip(available_AUs,a))
-      # set region-based AUs
-#        for name in SUPPORTED_ORIGINS:
-#            self.FP.add_feature(name, self.subarray_from_origin(name))
-      self.FP['face'] = a
-      LOG.info("Available AUs:\n")
-      for key in sorted(self.AUs.keys()):
-          LOG.info("%5s : %s", key, self.AUs[key])
-      return True
-
-  def set_AUs(self, iterable):
-      """Set targets for a specific AU, giving priority to specific inputs.
-      iterable: array of floats: AU, normalized target value, duration in sec.
-      """
-      if self.thread_id != thread.get_ident():
-          self.threadsafe_start()
-      for AU, target, attack in iterable:
-          try:
-              self.AUs[AU][:-1]= target,attack,(target-self.AUs[AU][3])/attack
-          except IndexError:
-              LOG.warning("AU '%s' not found", AU)
-      if self.thread_id != thread.get_ident():
-          self.threadsafe_stop()
-
-  def update(self, time_step):
-      """Update AU values. This function shall be called for each frame.
-       time_step: time in seconds elapsed since last call.
-      #TODO: motion dynamics
-      """
-      if self.thread_id != thread.get_ident():
-          self.threadsafe_start()
-      data = self.FP['face']
-      actives_idx = data[:,1] > 0  # AUs with remaining time
-      if not any(actives_idx):
-          return {}
-      data[actives_idx,3] += data[actives_idx,2] * time_step
-      data[:,1] -= time_step
-      # finish off shortest activations
-      overgone_idx = data[:,1]< self.MIN_ATTACK_TIME
-      data[overgone_idx, 1] = 0
-      data[overgone_idx, 3] = data[overgone_idx, 0]
-      if self.thread_id != thread.get_ident():
-          self.threadsafe_stop()
-      return self.AUs
-
-  def solve(self):
-      """Here we can set additional checks (eg. AU1 vs AU4, ...)
-      """
-      pass
+    """Define list of AUs available for a specific face.
+    available_AUs: list of AUs (floats) OR list of tuples (AU, init_value)
+    Returns: True if no error detected, False otherwise.
+    """
+    available_AUs.sort()
+    if type(available_AUs[0]) == tuple:
+      available_AUs, init_values = zip(*available_AUs)
+    invalids = [ au for au in available_AUs if au not in VALID_AUS ]
+    if invalids:
+      LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+      return False
+    self.AUs.set_availables(available_AUs, init_values)
+    return True
 
 
 def get_server_class():
