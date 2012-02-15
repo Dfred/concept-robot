@@ -211,12 +211,12 @@ class ThreadedExpressionComm(ThreadedComm):
                  duration=None):
         """Places head (absolute position is not available). See set_spine().
         """
-        self.set_spine(rotation, orientation, translation, duration, 'neck')
+        self.set_spine(rotation, orientation, translation, duration,part='neck')
 
     def set_thorax(self, rotation=(), orientation=(), duration=None):
         """Places thorax (position is not available). Arguments: see set_spine()
         """
-        self.set_spine(rotation, orientation, duration=duration, 'thorax')
+        self.set_spine(rotation, orientation, duration=duration, part='thorax')
 
     def set_spine(self, rotation=(), orientation=(), translation=(),
                  duration=None, part='neck'):
