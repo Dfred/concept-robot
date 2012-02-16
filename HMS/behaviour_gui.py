@@ -1,12 +1,12 @@
 
 import threading, math, Queue, time, random
     
-from utils.communication import ThreadedExpressionComm, ThreadedLightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
-from HMS import behaviour_builder as ep
 from HMS.cogmod import vision, cfg
+from HMS.behaviour_builder import BehaviourBuilder
+from HMS.communication import ThreadedExpressionComm, ThreadedLightheadComm
 
 show_emo = 1
 
@@ -26,7 +26,7 @@ class Behaviour_thread(threading.Thread):
         self.base_player.cleanup()
 
 
-class Base_behaviour(ep.Behaviour_Builder):
+class Base_behaviour(BehaviourBuilder):
     """ Base FSM which listens for state changes from gui and triggers behaviours accordingly
     """
     
@@ -43,12 +43,12 @@ class Base_behaviour(ep.Behaviour_Builder):
                             (SMFSM.STOPPED,self.stopped)
                           )
         machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
-        ep.Behaviour_Builder.__init__(self, machine_def)
+        BehaviourBuilder.__init__(self, machine_def)
         
         self.connected = False
         self.comm_send_tags = []
         # for snapshots, not used atm
-        #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_fct=self.on_connect)
+        #self.comm_lighthead = Lightheadcomm(conf.lightHead_server, connection_succeded_fct=self.on_connect)
         
         # tuning
         self.gaze_adjust_x = 0.5

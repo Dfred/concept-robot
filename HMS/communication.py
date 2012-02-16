@@ -29,6 +29,7 @@ __license__ = "GPL"
 
 import threading, time
 
+from utils.comm.threaded_comm import ThreadedComm
 from utils.comm import ASCIICommandClient, set_debug_logging
 from utils import get_logger
 
@@ -36,66 +37,15 @@ set_debug_logging(True)
 LOG = get_logger(__package__)
 
 
-class CommunicationError(Exception):
-    pass
-
-
-class ThreadedComm(ASCIICommandClient):
-    """A communication class based on the comm protocol with threaded polling.
-    """
-
-    CONNECT_TIMEOUT = 3
-
-    def __init__(self, server_addrPort, connection_succeded_function):
-        super(ThreadedComm,self).__init__(server_addrPort)
-        self.connect_timeout = self.CONNECT_TIMEOUT
-        self.working = True
-        # let's the threaded object manage the socket independently
-        self.thread = threading.Thread(target=self.always_connected)
-        self.thread.start()
-        self.connect_success_function = connection_succeded_function
-
-    def handle_connect_error(self, e):
-        """See handle_connect_timeout.
-        """
-        super(ThreadedComm, self).handle_connect_error(e)
-        self.handle_connect_timeout()
-
-    def handle_connect_timeout(self):
-        """Sleeps a bit.
-        """
-        time.sleep(1)
-        
-    def handle_connect(self):
-        self.connect_success_function()
-        
-    def always_connected(self):
-        """
-        """
-        while self.working:
-            self.connect_and_run()
-
-    def done(self):
-        """
-        """
-        self.working = False
-        self.disconnect()
-        self.thread.join()
-
-    def send_msg(self, msg):
-        if self.connected:
-            return super(ThreadedComm, self).send_msg(msg)
-        LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
-
-
-class ThreadedLightHeadComm(ThreadedComm):
+class ThreadedLightheadComm(ThreadedComm):
     """Class dedicated for communication with lightHead server.
     """
 
-    def __init__(self, srv_addrPort, connection_succeded_function):
+    def __init__(self, srv_addrPort, connection_succeded_fct):
         """
         """
-        super(ThreadedLightHeadComm, self).__init__(srv_addrPort, connection_succeded_function)
+        super(ThreadedLightheadComm, self).__init__(srv_addrPort,
+                                                    connection_succeded_fct)
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -114,8 +64,13 @@ class ThreadedLightHeadComm(ThreadedComm):
     def cmd_snapshot(self, argline):
         self.snapshot = argline
 
-    def get_snapshot(self):
+    def get_snapshot(self, origin, binary=False):
+        """
+        origin: string, target subset of LightHead's AU pool; None for all.
+        binary: bool, binary (faster) protocol or ASCII (clear text) protocol.
+        """
         self.send_msg("get_snapshot")
+        self.wait()
 
     def end_snapshot(self):
         return (self.lips_info, self.gaze_info, self.face_info)
@@ -239,8 +194,8 @@ class ThreadedExpressionComm(ThreadedComm):
         assert rotation or orientation, "it's either orientation *OR* rotation"
         assert duration is None or type(duration) is float, 'duration not float'
         if self.datablock[3]:
-            self.datablock[3] += "|"
-        self.datablock[3] += part
+            self.datablock[3] += '|'
+        self.datablock[3] += part+'='
         if rotation:
           self.datablock[3] += "(%s, %s, %s)" % tuple(rotation)
         elif orientation:

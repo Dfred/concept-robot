@@ -33,9 +33,9 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import time
 
+from HMS.communication import ThreadedExpressionComm
 from utils import conf, handle_exception
 from utils.FSMs import SMFSM
-from utils.communication import ThreadedExpressionComm
 
 
 def fatal(msg):
@@ -43,7 +43,7 @@ def fatal(msg):
   exit(1)
 
 
-class Behaviour_Builder(object):
+class BehaviourBuilder(object):
   """A generic framework for specifying behaviour through SMFSM objects.
   """
 
@@ -98,7 +98,7 @@ class Behaviour_Builder(object):
 if __name__ == '__main__':
   from utils import vision, fps
 
-  class Test_BehaviourBuilder(Behaviour_Builder):
+  class Test_BehaviourBuilder(BehaviourBuilder):
     # OUR STATE FUNCTIONS
     def started(self):
       print 'test started'
