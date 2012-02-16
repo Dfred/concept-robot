@@ -54,41 +54,53 @@ VAL  = 5
 
 class FeaturePool(dict):
   """This singleton class serves as an efficient working memory (numpy arrays) 
-  for each part of the system (aka origin).
-  Snapshots of the current robot's state can be returned.
+  for each feature of the system. Ideally, all system data shall be in the pool
+  so generic learning algorithms could detect data relationship across features.
+  Also, snapshots of the current state can be returned.
   """
   # single instance holder
   instance = None
 
   def __new__(cls):
     """Creates a singleton.
+
     Need another feature pool? Derive from that class, overriding self.instance,
      and don't bother with the __ prefix to make it pseudo-private...
     cls: Current type (ie: maybe a derived class type)
     """
     if cls.instance is None:
       cls.instance = super(FeaturePool,cls).__new__(cls)
+      cls.instance.__descriptors = {}                   #XXX: yes, it's bad!
     return cls.instance
 
-  def __setitem__(self, name, np_array):
-    """Registers a new Feature into the pool.
-    name: string identifying the feature
-    np_array: numpy.ndarray (aka numpy array) of arbitrary size
+  def __setitem__(self, key, value):
+    """Registers a Feature into the pool.
+
+    key: string identifying the feature
+    value: numpy.ndarray (aka numpy array) of arbitrary size
     """
-    # load non-standard module only now
-    LOG.debug("new feature (%i items) in pool from %s", len(np_array), name)
-    assert np_array is not None and isinstance(np_array, ndarray) , \
-           'Not a numpy ndarray instance'
-    dict.__setitem__(self, name, np_array)
+    LOG.debug("new feature (%i items) in pool from %s", len(value), key)
+    assert isinstance(value, ndarray) , "Not a numpy ndarray instance"
+    dict.__setitem__(self, key, value)
+    self.__descriptors[key] = None
+
+  def set_descriptor(self, key, descriptor):
+    """Describes the data for a feature. This info is sent in a snapshot.
+
+    key: string identifying the feature.
+    descriptor: tuple of iterable of strings, 1st for columns 2nd for rows.
+    """
+    assert len(descriptor) == 2, "descriptor should have only 2 iterables"
+    self.__descriptors[key] = descriptor
 
   def get_snapshot(self, features=None):
     """Get a snapshot, optionally selecting specific features.
+
     features: iterable of strings identifying features to be returned.
-    Returns: all context (default) or subset from specified features.
+    Returns: { feature : (descriptor,values) }
     """
-    features = features or features.iterkeys()
-    return dict( (f, isinstance(self[f],ndarray) and self[f] or
-                  self[f].get_feature()) for f in features )
+    return dict( (f,(self.__descriptors[f],self[f])) for f
+                 in (features or self.iterkeys()) )
 
 
 class AUPool(dict):
@@ -140,13 +152,15 @@ class AUPool(dict):
       assert len(AUs) == len(values), "AUs and values have different lengths"
     else:
       values = [0] * len(AUs)
-    # base value, value diff, target dur, dur left, curr speed, curr value
-    # BVAL      , RDIST     , TDUR      , DDUR    , DVT       , VAL
+    # base value, relatv dist, target dur, remaining dur, derivt val, curr value
+    # BVAL      , RDIST      , TDUR      , DDUR         , DVT       , VAL
     table = [values] + [[.0]*len(values)]*4 + [values]
     self.FP[self.origin] = array(zip(*table))           # transpose
-    LOG.info("Available AUs:\n")
+    self.FP.set_descriptor(self.origin, 
+                           (('BVAL','RDIST','TDUR','DDUR','DVT','VAL'),AUs) )
     for i,au in enumerate(AUs):
       self[au] = self.FP[self.origin][i]                # view or shallow copy
+    LOG.info("Available AUs:\n")
     self.Log_AUs()
 
   def update_targets(self, iterable):
