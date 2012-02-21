@@ -96,7 +96,7 @@ class SpineHW(Spine_Server):
     self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
     self.switch_on()
-    self.AUs.set_availables(self.pmanager.get_poseFromHardware())
+    self.AUs.set_availables(*zip(*self.pmanager.get_poseFromHardware().items()))
 
   def configure(self):
     """Overriden in order to set the KNI config file.
