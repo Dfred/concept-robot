@@ -45,8 +45,10 @@ __maintainer__= "Frédéric Delaunay"
 __email__     = "delaunay.fr at gmail.com"
 __credits__   = ["University of Plymouth and EPSRC"]
 
-import sys, threading
+import sys
+import time
 import logging
+import threading
 
 from . import ASCIICommandClient
 
