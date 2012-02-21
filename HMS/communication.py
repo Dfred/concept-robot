@@ -27,6 +27,7 @@ __copyright__ = "Copyright 2011, University of Plymouth, lightHead system"
 __credits__ = ["Joachim de Greeff"]
 __license__ = "GPL"
 
+import cPickle as pickle
 import threading, time
 
 from utils.comm.threaded_comm import ThreadedComm
@@ -62,15 +63,27 @@ class ThreadedLightheadComm(ThreadedComm):
         self.face_info = argline
         
     def cmd_snapshot(self, argline):
-        self.snapshot = argline
+        args = argline.split()
+        if len(args) != 1:
+            LOG.error("Binary transfer protocol error.")
+            self.snapshot = None
+        else:
+            try:
+                data = self.read(int(args[0])+1)
+                self.snapshot = pickle.loads(data)
+            except StandardError, e:
+                LOG.error("receiving snapshot: %s", e)
+                self.snapshot = None
+        self.unblock_wait()
 
-    def get_snapshot(self, origin, binary=False):
+    def get_snapshot(self, origins):
+        """Returns a snapshot from remote server.
+        origins: iterable of strings, name of origins to retreive; None for all.
         """
-        origin: string, target subset of LightHead's AU pool; None for all.
-        binary: bool, binary (faster) protocol or ASCII (clear text) protocol.
-        """
-        self.send_msg("get_snapshot")
+        assert hasattr(origins,'__iter__'), "origins isn't an iterable"
+        self.send_msg("get_snapshot " + (origins and ' '.join(origins) or '') )
         self.wait()
+        return self.snapshot
 
     def end_snapshot(self):
         return (self.lips_info, self.gaze_info, self.face_info)
