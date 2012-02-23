@@ -63,14 +63,15 @@ class ThreadedLightheadComm(ThreadedComm):
         self.face_info = argline
         
     def cmd_snapshot(self, argline):
+        """Only supports binary mode of the protocol (using pickle).
+        """ 
         args = argline.split()
         if len(args) != 1:
             LOG.error("Binary transfer protocol error.")
             self.snapshot = None
         else:
             try:
-                data = self.read(int(args[0])+1)
-                self.snapshot = pickle.loads(data)
+                self.snapshot = pickle.loads(self.read(int(args[0])+1))
             except StandardError, e:
                 LOG.error("receiving snapshot: %s", e)
                 self.snapshot = None

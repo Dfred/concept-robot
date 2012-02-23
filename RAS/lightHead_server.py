@@ -58,7 +58,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
       self.handlers[origin] = self.create_subhandler(*srv_hclass)
 
   def cmd_origin(self, argline):
-    """Set or Send current origin/subhandler"""
+    """Set or replies with current origin/subhandler"""
     if argline:
       argline = argline.strip()
       try:
@@ -105,6 +105,17 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
       self.send_msg(msg)
       self.send_msg('end_snapshot')
 
+  def cmd_backend(self, argline):
+    """Replies with the current backend for a given origin.
+    """
+    if not argline:
+      LOG.warning("missing origin")
+      return
+    if argline not in self.server.origins.keys():
+      LOG.warning("unknown origin '%s'", argline)
+      return
+    self.send_msg(self.server.origins[argline][0].name) #XXX: safer than conf
+
 
 class LightHeadServer(object):
   """Sets and regroups subservers of the lightHead system."""
@@ -127,6 +138,10 @@ class LightHeadServer(object):
 
   def register(self, server, req_handler_class, origin):
     """Binds origin keyword with server and relative request handler.
+
+    server: a server instance
+    req_handler_class: request handler class
+    origin: origin identifier
     """
     if origin not in ORIGINS:
       LOG.error("rejecting unknown origin '%s'", origin)
@@ -174,6 +189,8 @@ class LightHeadServer(object):
       except StandardError, e:
         LOG.error("Error while initializing module %s: %s", name, ' : '.join(e))
         sys.exit(4)
+      if not hasattr(subserver,"name"):
+        LOG.warning("%s has no name", subserver)        # for cmd_backend()
       self.register(subserver, handler_class, name)
       if info.has_key(EXTRA_ORIGINS):
         for origin in info[EXTRA_ORIGINS]:

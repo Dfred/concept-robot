@@ -306,7 +306,7 @@ def get_server_class():
   except ImportError, e:
     LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
     LOG.error('check in your config file for mod_spine "backend" entry.\n')
-    from RAS.spine import katHD400s_6M as backend
+    from RAS.spine import katHD400s_6M as backend       #TODO: return None
   return backend.SpineHW
 
 

@@ -48,9 +48,15 @@ class FaceHW(Face_Server):
   """Blender is our entry point, so make it simple letting blender take over.
   So this script fetches Face's data pool directly in update().
   
-  No hardware implementation is actually needed in this case.
+  Indeed, no hardware implementation is needed in this case.
   """
   global G
+
+  def __init__(self):
+    """Just sets this backend's name.
+    """
+    super(FaceHW,self).__init__()
+    self.name = 'blender'
 
   def cleanUp(self):
     shutdown(G.getCurrentController())

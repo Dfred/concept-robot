@@ -83,6 +83,7 @@ class SpineHW(Spine_Server):
 
   def __init__(self):
     Spine_Server.__init__(self)
+    self.name = 'katHD400s_6M'
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
     self._init_hardware()
