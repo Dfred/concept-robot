@@ -101,7 +101,8 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
         msg = "snapshot %s %s " % (o,
                                    dsc and repr(dsc[0]).replace(' ','') or None)
         for i, row in enumerate(array):
-          msg += "%s %s " % (dsc and dsc[1][i] or None, repr(row) )
+          msg += "%s %s\n" % (dsc and dsc[1][i] or None,
+                              ' '.join(["%s "%v for v in row]))
       self.send_msg(msg)
       self.send_msg('end_snapshot')
 
