@@ -34,7 +34,7 @@ backend provides required functions, the end-result should be similar.
 #TODO: from abc import ABCMeta, abstractmethod
 from collections import deque
 import time
-
+import math
 import numpy
 
 from utils import conf, get_logger
@@ -149,8 +149,8 @@ class Spine_Handler(ASCIIRequestHandler):
     self.fifo = deque()
 
   def cmd_AU(self, argline):
-    """Absolute rotation on 1 axis.
-    Syntax is: AU_name, target_value, attack_time (in s.)"""
+    """Absolute rotations. arg: AU(name), target_value(rad), attack_duration(s).
+    """
     try:
       au_name, value, duration = argline.split()[:3]
     except ValueError:
@@ -162,7 +162,7 @@ class Spine_Handler(ASCIIRequestHandler):
       LOG.error("[AU] invalid float (%s)", e)
       return
     if self.server.AUs.has_key(au_name):
-      self.fifo.append((au_name, value, duration))
+      self.fifo.append((au_name, value/math.pi, duration))
     else:
       LOG.warning("[AU] invalid AU (%s)", au_name)
       return
