@@ -75,6 +75,8 @@ class ThreadedLightheadComm(ThreadedComm):
             except StandardError, e:
                 LOG.error("receiving snapshot: %s", e)
                 self.snapshot = None
+            for k,v in self.snapshot.iteritems():
+                self.snapshot[k] = dict(zip(v[0][1], v[1]))
         self.unblock_wait()
 
     def get_snapshot(self, origins):
@@ -85,9 +87,6 @@ class ThreadedLightheadComm(ThreadedComm):
         self.send_msg("get_snapshot " + (origins and ' '.join(origins) or '') )
         self.wait()
         return self.snapshot
-
-    def end_snapshot(self):
-        return (self.lips_info, self.gaze_info, self.face_info)
 
 
 class ThreadedExpressionComm(ThreadedComm):
