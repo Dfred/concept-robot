@@ -40,6 +40,7 @@ from HMS.communication import ThreadedLightheadComm
 from utils.FSMs import SMFSM
 from utils import vision, fps, conf
 
+
 # OUR STATES
 ST_AWAKED       = 'awaked'
 ST_ACTUATE_RAND = 'actuate_random'
@@ -55,7 +56,7 @@ AOI_RANGES = {           # in meters
 }
 REACH_RANGES = {        # 
 }
-GAZE_COMFORT = ( (-1,1), ( 2,5), (-1,.5) )
+GAZE_COMFORT = ( (-1,1), ( 3,5), (-.5,.5) )
 F_EXPRS = {
   ST_SEARCH     : ('slow_neutral', 'really_look', 'frown2', 'dummy_name4'),
   ST_FOUND_USR  : ('simple_smile_wide1', 'surprised1'),
@@ -70,39 +71,32 @@ NECK_RANGES = {         # in normalized angle
   ST_FOUND_USR  : ( (), (), (), ),
 }
 SPINE_RANGES = {        # in normalized angle
-  ST_SEARCH     : ( (-.1,.1), (-.1,.1), (-.5,.5) ),
+  ST_SEARCH     : ( (-.1,.1), (0,0), (-.5,.5) ),
   ST_FOUND_USR  : ( (), (), (), ),
 }
 
 from numpy import array
 from math import cos, sin, tan, pi
 
-def get_head_aRot(spineAUs):
-  """Returns the absolute rotation of head"""
-  AXIS = (('53.5','TX'), ('55.5','TY'), ('51.5','TZ'))
-  return [spineAUs.setdefault(kH,0)+spineAUs.setdefault(kT,0) for kH,kT in AXIS]
 
-def vector2angles(vector):
-  """Returns gaze orientation (phi,theta,psi) needed to align gaze to vector"""
-  return 
- 
 class AOI(object):
   """Area of Interest."""
   def __init__(self, location):
     """location: 3D Vector, Area Of Interest's position realtive to ready pose.
     """
-    self.location = array(location)
+    self.location = list(location)
 
-  def get_Egaze(self, orientation):
+  def get_Egaze(self, norm_orient):
     """Returns eye gaze 3D vector considering robot's orientation (head gaze).
 
-    orientation: 3D Vector, robot's orientation relative to ready pose.
+    norm_orient: 3D Vector, normalized orientation relative to ready pose.
     """
-    Cph,Cth,Cps = [cos(-pi*a) for a in orientation]
-    Sph,Sth,Sps = [sin(-pi*a) for a in orientation]
+    Cph,Cth,Cps = [cos(-pi*a) for a in norm_orient]
+    Sph,Sth,Sps = [sin(-pi*a) for a in norm_orient]
     M = array([[Cth*Cps, -Cph*Sps+Sph*Sth*Cps,  Sph*Sps+Cph*Sth*Cps],
                [Cth*Sps,  Cph*Cps+Sph*Sth*Sps, -Sph*Cps+Cph*Sth*Sps],
                [-Sth,     Sph*Cth,              Cph*Cth]])
+    print "aoi:", self.location, "O:", norm_orient, "EG:", M.dot(self.location)
     return M.dot(self.location)
 
 
@@ -188,23 +182,15 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.LH_connected = True
 
   def gaze_reach_blink(self):
-    # 1/ make a rough eye gaze towards an AOI
-    sp_snapshot = self.comm_lightHead.get_snapshot(("spine",))['spine']
-    spineAUs = dict(zip(sp_snapshot[0][1], sp_snapshot[1][:,VAL]))
-    e_gaze = self.aoi.get_Egaze(get_head_aRot(spineAUs))
+    TAG = "TAG_RB"
+    # gaze towards an AOI, capping eye-gaze to comfort zone (done by expr2:
+    # fovea_control instinct, also rotates the rest of the body) and close eyes.
     # TODO: reduce e_gaze by 10% towards AOI.
-
-    # 2/ cap gaze to comfort zone
-    e_gaze = [ max(GAZE_COMFORT[i][0], min(val,GAZE_COMFORT[i][1])) for i,val
-                  in enumerate(e_gaze) ]
-    # 3/ close eyes + rotate head towards AOI
-    str_EG = ','.join([str(f) for f in e_gaze])
-    str_HG = "((%.5f, %.5f, %.5f))" % Vector2Angles(self.aoi.location)
-    self.comm_expr.send_my_datablock('close_eyes:1;;%s;%s;disable:blink;TAG_RB'%
-                                     (str_EG,str_HG) )
-    # 4/ open eyes before end of spine torsion
-    self.comm_expr.set_instinct('enable:blink')
-    self.comm_expr.send_datablock()
+    gaze_str = "%.5f, %.5f, %.5f" % tuple(self.aoi.location)
+    self.comm_expr.send_my_datablock(";;%s;;blink:close;%s" % (gaze_str,TAG))
+    self.comm_expr.wait_reply(TAG)
+    # open eyes before end of spine torsion, restore 
+    self.comm_expr.send_my_datablock(";;;;blink:open;%s" % TAG)
     
   def gaze_reach_pursuit(self):
     # 1/ select a temporary AOI in eyes' "comfort zone" towards target AOI
@@ -218,8 +204,11 @@ class LightHead_Behaviour(BehaviourBuilder):
     return ST_SEARCH
 
   def st_search(self):
-    self.aoi = AOI(self.actions['AOI'].is_active(time.time()))
-    return random.choice((self.gaze_reach_blink, self.gaze_reach_pursuit))()
+    if self.actions['AOI'].is_active(time.time()):
+      self.aoi = AOI(self.actions['AOI'].get_data(ST_SEARCH))
+      print "new AOI:", self.aoi.location
+      return self.gaze_reach_blink()
+#      return random.choice((self.gaze_reach_blink, self.gaze_reach_pursuit))()
 
   def st_reachedAOI(self):
     spineAUs = self.comm_lightHead.get_snapshot('spine', binary=True)
@@ -234,11 +223,11 @@ class LightHead_Behaviour(BehaviourBuilder):
     now = time.time()
     fe, gz, nc, sp = (self.actions[k] for k in ('fexpr','gaze','neck','spine'))
     if fe.is_active(now):
-      self.comm_expr.set_fExpression(fe.get_data('search'))
+      self.comm_expr.set_fExpression(fe.get_data(ST_SEARCH))
     if gz.is_active(now):
-      self.comm_expr.set_gaze(gz.get_data('search'))
+      self.comm_expr.set_gaze(gz.get_data(ST_SEARCH))
     if nc.is_active(now):
-      self.comm_expr.set_neck(orientation=nc.get_data('search'))
+      self.comm_expr.set_neck(norm_orient=nc.get_data(ST_SEARCH))
     if any(self.comm_expr.datablock):
       self.comm_expr.send_datablock()
 
