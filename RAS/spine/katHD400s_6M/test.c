@@ -97,7 +97,7 @@ calibrate_if_needed()
 {
   int encoders[NBR_AXIS];
   printf("-- checking if blocked.\n");
-  switch (is_blocked())
+  switch (is_blocked(0))
     {
     case ERR_FAILED: exit(2);
     case 1 : unblock();
