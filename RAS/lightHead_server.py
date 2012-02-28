@@ -93,6 +93,10 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
                ) or self.server.FP.keys()
     snapshot = self.server.FP.get_snapshot(origins)
     if binary:
+      # make sure we have extra origins in the snapshot as well
+      for origin in snapshot.keys():
+        for extra_o in self.server.get_extra_origins(origin):
+          snapshot[extra_o] = snapshot[origin]
       p_str = pickle.dumps(snapshot, pickle.HIGHEST_PROTOCOL)
       self.send_msg("snapshot %i" % len(p_str))
       self.send_msg(p_str)
@@ -104,7 +108,6 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
           msg += "%s %s\n" % (dsc and dsc[1][i] or None,
                               ' '.join(["%s "%v for v in row]))
       self.send_msg(msg)
-      self.send_msg('end_snapshot')
 
   def cmd_backend(self, argline):
     """Replies with the current backend for a given origin.
@@ -136,6 +139,12 @@ class LightHeadServer(object):
 
   def get_server(self, keyword):
     return self.origins[keyword][0]
+
+  def get_extra_origins(self, origin):
+    """Returns origins sharing the same (srv,req_handler_class) as given origin.
+    """
+    return [ o for o,v in self.origins.iteritems() if o != origin and
+             v == self.origins[origin] ]
 
   def register(self, server, req_handler_class, origin):
     """Binds origin keyword with server and relative request handler.
