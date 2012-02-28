@@ -90,7 +90,7 @@ class PoseManager(object):
     self.infos = hardware_infos
     LOG.debug("Hardware infos:")
     for AU, infos in hardware_infos.iteritems():
-      LOG.debug("AU %4s factor %8s offset %6s Hard[%6s %6s] Soft[%+.5f %+.5f]",
+      LOG.debug("AU %4s factor %8s offset %6s, Hard[%6s %6s] Soft[%+.5f %+.5f]",
                 AU,*infos)
       if ( not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[4])) or
            not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[5])) ):

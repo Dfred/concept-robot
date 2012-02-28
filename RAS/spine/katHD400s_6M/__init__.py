@@ -131,8 +131,8 @@ class SpineHW(Spine_Server):
     for axis in range(6):
       try:
         self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
-      except SpineError, e:
-        if self.unblock_if_needed() == None:            #TODO: set a policy ?
+      except SpineError, e:                             #TODO: better policy?
+        if self.unblock_if_needed() == None:
           try:
             LOG.info("Calibration needed.")
             LOG.debug("Got these encoders: %s", encoders_at_init)
@@ -168,9 +168,9 @@ class SpineHW(Spine_Server):
         continue
       # negates EPP if extra flag found
       if len(self.SW_limits[AU]) == 3:
-        LOG.info("config for AU %s: extra param found, inverting rotation.", AU)
         self.EPPs[axis-1] *= -1
         self.SW_limits[AU] = self.SW_limits[AU][0:2]
+        LOG.info("[config] AU %s: extra param found, inverted rotation.", AU)
       # Try avoiding stupid mistakes enforcing same type for min/max
       if repr(coerce(*self.SW_limits[AU])) != repr(self.SW_limits[AU]):
         raise SpineError("config: AU %s Software limits: same type needed.", AU)
