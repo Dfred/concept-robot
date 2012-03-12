@@ -31,50 +31,55 @@ __maintainer__ = "Frédéric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
 __status__ = "Prototype" # , "Development" or "Production"
 
+import logging
 import time
 
-from HMS.communication import ThreadedExpressionComm
+from HMS.communication import MTExpressionComm
 from utils import conf, handle_exception
-from utils.FSMs import SMFSM
+from utils.FSMs import SPFSM, STARTED, STOPPED
+
+
+LOG = logging.getLogger(__package__)
 
 
 def fatal(msg):
-  print msg
+  print 'fatal:',msg
   exit(1)
 
 
 class BehaviourBuilder(object):
-  """A generic framework for specifying behaviour through SMFSM objects.
+  """A generic framework for specifying behaviour through SPFSM objects.
   """
 
   def __init__(self, machine_defs):
-    """
+    """machine_defs: iterable of (name, FSM rules, parent machine)
     """
     missing = conf.load(required_entries=('ROBOT','expression_server'))
     if missing:
-      print '\nmissing configuration entries: %s' % missing
+      LOG.warning('\nmissing configuration entries: %s', missing)
       sys.exit(1)
 
+    assert len(machine_defs[0]) == 3, "bad machine(s) definition"
     for name, rules, parent_name in machine_defs:
       try:
-        parent= parent_name and getattr(self,'fsm_'+parent_name) or None
+        parent = parent_name and getattr(self,'fsm_'+parent_name) or None
       except AttributeError:
         raise ValueError("machine %s: parent machine '%s' not found,"
-                         " check SMFSM definition." % (name, parent_name))
-      fsm = SMFSM(name, rules, parent)
+                         " check SPFSM definition." % (name, parent_name))
+      fsm = SPFSM(name, rules, parent)
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
-    self.comm_expr = ThreadedExpressionComm(conf.expression_server,
-                                            connection_succeded_fct=self.connected)
+    self.comm_expr = MTExpressionComm(conf.expression_server,
+                                      connection_succeded_fct=self.connected)
     
   def connected(self):
-    self.connected = True
+    LOG.debug('connected')
 
   def cleanup(self):
     self.comm_expr.done()
 
-  def step_callback(self, machines):
+  def step_callback(self):
     """Stops the FSM upon disconnection from expression.
     """
     if not self.comm_expr.connected:
@@ -86,13 +91,14 @@ class BehaviourBuilder(object):
     try:
       while not self.comm_expr.connected:
         time.sleep(1)
+        print '.',
       self.root_fsm.run(self.step_callback)
     except StandardError, e:
       handle_exception(None)
     except KeyboardInterrupt:
-      print 'aborting'
+      LOG.fatal('aborting')
     self.root_fsm.abort()
-
+    LOG.debug('FSM run done.')
 
 
 if __name__ == '__main__':
@@ -102,26 +108,19 @@ if __name__ == '__main__':
     # OUR STATE FUNCTIONS
     def started(self):
       print 'test started'
-      return 'TESTING'
+      return True
 
     def testing(self):
       faces = self.vision.find_faces()
-      if self.vision.gui:
-        self.vision.mark_rects(faces)
-        self.vision.gui.show_frame(self.vision.frame)
-      return faces and SMFSM.STOPPED or None
-
-    def stopped(self, name):
-      print 'test stopped'
-      return
+      self.vision.mark_rects(faces)
+      self.vision.gui.show_frame(self.vision.frame)
+      return bool(faces)
 
     # SETTING UP
-    def __init__(self, with_gui=True):
-      rules = (
-          (SMFSM.STARTED,self.started),
-          ('TESTING',  self.testing),
-          (SMFSM.STOPPED,self.stopped) )
-      machine_def = [ ('test', rules, None) ]
+    def __init__(self):
+      machine_def = [ ('test', ( ( STARTED ,self.started,'TESTING'),
+                                 ('TESTING',self.testing, STOPPED ) ),
+                       None) ]
       super(Test_BehaviourBuilder,self).__init__(machine_def)
 
       self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
@@ -130,18 +129,16 @@ if __name__ == '__main__':
         self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
         #XXX: put that to conf for vision to read
         self.vision_frame = self.vision.camera.tolerance = .1   # 10%
-        if with_gui:
-          self.vision.gui_create()
-        else:
-          print '--- NOT USING CAMERA GUI ---'
+        self.vision.gui_create()
         self.vision.update()
         self.vision.enable_face_detection()
       except vision.VisionException, e:
+        self.comm_expr.done()
         fatal(e)
 
     # OVERRIDING MOTHER CLASS TO DO OUR JOB
-    def step_callback(self, FSMs):
-      super(Test_BehaviourBuilder,self).step_callback(FSMs)
+    def step_callback(self):
+      super(Test_BehaviourBuilder,self).step_callback()
       self.vision.update()
       self.vision.gui_show()
       self.my_fps.update()
@@ -157,6 +154,6 @@ if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   conf.set_name('lightHead')
 
-  player = Test_BehaviourBuilder(len(sys.argv) == 1)
+  player = Test_BehaviourBuilder()
   player.run()
   player.cleanup()
