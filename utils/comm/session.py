@@ -838,10 +838,10 @@ class BaseClient(BasePeer):
     self._running = True
     self.connect_timeout = connect_timeout
     if not self.pre_connect():
-      return True                                     # not considered an error
-    while self._running and not self.connect():        # carry on despite failure
+      return True                                       # not considered an error
+    while self._running and not self.connect():         # carry on despite failure
       pass
-    if not self.connected:
+    if not self.connected or not self._running:
       return False
     try:
       self.read_while_running(read_timeout)
@@ -857,8 +857,7 @@ class BaseClient(BasePeer):
     return ret
 
   def disconnect(self):
-    """Set flag for disconnection.
-    Return: None
+    """Set flag for leaving any loop (doesn't close socket). Returns None.
     """
     self._running = False
 
