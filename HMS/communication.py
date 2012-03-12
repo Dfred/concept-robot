@@ -28,9 +28,9 @@ __credits__ = ["Joachim de Greeff"]
 __license__ = "GPL"
 
 import cPickle as pickle
-import threading, time
+import time
 
-from utils.comm.threaded_comm import ThreadedComm
+from utils.comm.threaded_comm import MTComm
 from utils.comm import ASCIICommandClient, set_debug_logging
 from utils import get_logger
 
@@ -38,15 +38,15 @@ set_debug_logging(True)
 LOG = get_logger(__package__)
 
 
-class ThreadedLightheadComm(ThreadedComm):
+class MTLightheadComm(MTComm):
     """Class dedicated for communication with lightHead server.
     """
 
     def __init__(self, srv_addrPort, connection_succeded_fct):
         """
         """
-        super(ThreadedLightheadComm, self).__init__(srv_addrPort,
-                                                    connection_succeded_fct)
+        super(MTLightheadComm, self).__init__(srv_addrPort,
+                                              connection_succeded_fct)
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -89,7 +89,7 @@ class ThreadedLightheadComm(ThreadedComm):
         return self.snapshot
 
 
-class ThreadedExpressionComm(ThreadedComm):
+class MTExpressionComm(MTComm):
     """Class dedicated for communication with expression server.
     """
 
@@ -100,8 +100,8 @@ class ThreadedExpressionComm(ThreadedComm):
         srv_addrPort: (server_address, port)
         connection_succeded_fct: function called on successful connection.
         """
-        super(ThreadedExpressionComm,self).__init__(srv_addrPort,
-                                                    connection_succeded_fct)
+        super(MTExpressionComm,self).__init__(srv_addrPort,
+                                              connection_succeded_fct)
         self.tag = None
         self.tag_count = 0
         self.status = None
@@ -179,7 +179,8 @@ class ThreadedExpressionComm(ThreadedComm):
                  duration=None):
         """Places head (absolute position is not available). See set_spine().
         """
-        self.set_spine(rotation, orientation, translation, duration,part='neck')
+        self.set_spine(rotation, orientation, translation, duration,
+                       part='CERVICALS')
 
     def set_thorax(self, rotation=(), orientation=(), duration=None):
         """Places thorax (position is not available). Arguments: see set_spine()
@@ -255,3 +256,15 @@ class ThreadedExpressionComm(ThreadedComm):
             if self.tag == tag:
                 break
             time.sleep(0.05)
+
+    def sendDB_waitReply(self, datablock=None, tag=None):
+        """Sends (given or internal) datablock and returns upon reply about it.
+        
+        datablock: string without tag
+        tag: string
+        """
+        if datablock and tag:
+            self.send_my_datablock(datablock+tag)
+            self.wait_reply(tag)
+        else:
+            self.wait_reply(self.send_datablock())
