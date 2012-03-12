@@ -57,17 +57,16 @@ LOG = logging.getLogger(__package__)                      # main package logger
 __NEED_WAIT_PATCH__ = sys.version_info[0] == 2 and sys.version_info[1] < 7
 
 
-class ThreadedComm(ASCIICommandClient):
-  """A communication class based on the comm protocol with threaded polling.
+class MTComm(ASCIICommandClient):
+  """A communication class based on the comm protocol spawning its own thread.
   """
 
   CONNECT_TIMEOUT = 3
 
   def __init__(self, server_addrPort, connection_succeded_function):
-    super(ThreadedComm,self).__init__(server_addrPort)
+    super(MTComm,self).__init__(server_addrPort)
     self.connect_timeout = self.CONNECT_TIMEOUT
     self.connect_success_function = connection_succeded_function
-    # Threaded object manages the socket independently
     self.thread = threading.Thread(target=self.always_connected)
     self.event = threading.Event()
     self.working = True
@@ -97,7 +96,7 @@ class ThreadedComm(ASCIICommandClient):
   def send_msg(self, msg):
     """Sends a message and logs (debug) messages that couldn't be sent."""
     if self.connected:
-      return super(ThreadedComm, self).send_msg(msg)
+      return super(MTComm, self).send_msg(msg)
     LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
   def always_connected(self):
@@ -110,13 +109,14 @@ class ThreadedComm(ASCIICommandClient):
     """Terminates the connection.
     """
     self.working = False
-    self.disconnect()
+    self.abort()
+    LOG.debug('joining thread for %s', self)
     self.thread.join()
 
   def handle_connect_error(self, e):
     """See handle_connect_timeout.
     """
-    super(ThreadedComm, self).handle_connect_error(e)
+    super(MTComm, self).handle_connect_error(e)
     self.handle_connect_timeout()
 
   def handle_connect_timeout(self):
