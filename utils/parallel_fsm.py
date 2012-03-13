@@ -32,15 +32,14 @@ __license__ = "GPL"
 __version__ = "0.0.1"
 __maintainer__ = "Frédéric Delaunay"
 __email__ = "frederic.delaunay@plymouth.ac.uk"
-__status__ = "Prototype" # , "Development" or "Production"
+__status__ = "Development" # "Production"
 
 LOG = get_logger(__package__)
 STARTED, STOPPED = 'STARTED', 'STOPPED'
 
-
-#
-#TODO: Use a event-based approach - currently we're badly wasting CPU... :(
-#
+#TODO: Event system so rules from one FSM can wait (instead of returning None and
+#TODO:  looping which wastes CPU cycles) for an event from a relative FSM. Note:
+#TODO: set_onStateChange can help achieve this, but that's not so user-friendly..
 
 
 class FSMRuleError(StandardError):
@@ -64,10 +63,11 @@ class SPFSM(object):
         rules: iterable of (state or (states,) , function).
         parent_machine: SMFSM instance to run with.
         """
-        self.name = name
         self.current_state = None
-        self.actions = {}       # { state : (fct,out_state) }
-        self.machines = []      # for parallel machines
+        self.on_change = None                   # callback for state change
+        self.actions = {}                       # { state : (fct,out_state) }
+        self.machines = []                      # for parallel machines
+        self.name = name
         self.parent = parent_machine
         if self.parent:
             self.parent.machines.append(self)
@@ -106,6 +106,16 @@ class SPFSM(object):
             else:
                 self.set_rule(in_states, action, out_state)
 
+    def set_onStateChange(self, function):
+        """Installs a hook on FSM named name called on state transition.
+
+        function: callback with arguments for name, last_state and new_state. Use
+                  None to remove the callback.
+        """
+        if function != None:
+            assert function.func_code.co_argcount >= 3, "bad callback!"
+        self.on_change = function
+
     def run(self, callback=None):
         """Runs the machine(s) until state STOPPED is reached.
 
@@ -123,7 +133,7 @@ class SPFSM(object):
             callback and callback()
 
     def abort(self):
-        """
+        """Aborts the PFSM by setting all to state STOPPED.
         """
         for m in [self]+self.machines:
             m.current_state = STOPPED
@@ -145,15 +155,14 @@ class SPFSM(object):
         if not states:
             return False
         fct, out_state = self.actions[states[0]]
+        LOG.debug("%s calling %s()", self, fct.func_name)
         state = fct() and out_state or states[0]
         if state != self.current_state:
-            LOG.debug("[%s] changed to state: %s %s", self.name, state,
+            LOG.debug("%s changed to state: |%s| using %s", self, state,
                       self.actions.has_key(state) and self.actions[state][0] or
-                      '<keep>')
+                      '<No Function for state>')
+            self.on_change and self.on_change(self.name,self.current_state,state)
             self.current_state = state
-#            if state == STOPPED:
-#                if self.actions.has_key(STOPPED):
-#                    self.actions[state][0](self.name)
         return True
 
 
@@ -186,7 +195,6 @@ class MPFSM(SPFSM):
             else:
                 self._wake_state_waiters()
         self.parent.machines.remove(self)       # much easier than synching...
-#        self.actions.has_key(STOPPED) and self.actions[STOPPED][0](self.name)
         LOG.debug("%s terminating", self.name)
 
     def _wait_active_states(self):
@@ -217,25 +225,27 @@ class MPFSM(SPFSM):
                 if m.thread.isAlive():
                     LOG.debug("joining %s", m.name)
                     m.thread.join(.1)
-#        self.actions.has_key(STOPPED) and self.actions[STOPPED][0](self.name)
 
 
 if __name__ == "__main__":
-    import time
-#    from utils import LOGFORMATINFO
-#    logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+    import time, sys
+    if len(sys.argv) > 1 and sys.argv[1] == '-d':
+        from utils import LOGFORMATINFO
+        logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
+    else:
+        print "use -d for debug"
 
     TMP = None
     # fct1 immediately shifts to next state
-    def fct1(): print '@A@'; return True
+    def fct1(): print '@1 '; return True
     # fct2 blocks 2 times for .5s and shifts to next state
-    def fct2(): print '@B@'; TMP[0] += 1; time.sleep(.05); return TMP[0] == 2
+    def fct2(): print '@2 '; TMP[0] += 1; time.sleep(.05); return TMP[0] == 2
     # fct3 blocks 2 times for .1s and shifts to next state
-    def fct3(): print '@C@'; TMP[1] += 1; time.sleep(.01); return TMP[1] == 2
+    def fct3(): print '@3 '; TMP[1] += 1; time.sleep(.01); return TMP[1] == 2
     # fct4 is not blocking and runs as fast as possible keeping state
     def fct4(): TMP[2] += 1; return False
     # fct5 immediately shifts to next state
-    def fct5(): print '@D@'; return True    
+    def fct5(): print '@5 '; return True    
 
     parent_rules = (( STARTED ,fct1,'STATE_1'), ('STATE_1',fct2, STOPPED))
     # in single-threaded FSM, STATE_2 is never reached because fct2 blocks
@@ -252,7 +262,7 @@ if __name__ == "__main__":
             TMP = [0,0,0]
             m_p.run()
             print 'done'
-            print 'TMP counts: %s' % (TMP)
+            print 'TMP counts: %s / should be [2,0,0]' % (TMP)
 
             print '--- testing parallel %s FSM ---' % msg
             m_p = cls('SM_parent', parent_rules)
@@ -261,7 +271,11 @@ if __name__ == "__main__":
             TMP = [0,0,0]
             m_p.run()
             print 'done'
-            print 'TMP counts: %s' % (TMP)
+            print 'TMP counts: %s / should be [2,2,2%s]' % (TMP, msg[0]=='M' and
+                                                            ' or more' or '')
         except StandardError, e:
             print '===== Exception: %s =====' % e
             import pdb; pdb.post_mortem()
+
+    #TODO: mixing SPFSM and MPFSM ?
+    
