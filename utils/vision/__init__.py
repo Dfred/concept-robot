@@ -104,11 +104,10 @@ class Camera(Webcam):                           #XXX Webcam is old-style class
     """Additionaly stores camera specifics.
     """
 
-    def __init__(self, name, dev_index, resolution, tolerance=1):
+    def __init__(self, name, dev_index, resolution):
         LOG.debug('using camera device #%i %s', dev_index, resolution)
         Webcam.__init__(self, dev_index, resolution)
         self.factors = None, None, None
-        self.tolerance = tolerance
         self.name = name
 
     def set_factors(self, x, y, z):
@@ -137,23 +136,18 @@ class Camera(Webcam):                           #XXX Webcam is old-style class
                     for c in rects ]
         return (rects.x/w-.5) * fw, (rects.y/h-.5)* fh, math.log(rects.w/w * fz)
 
-    def is_within_tolerance(self, x, y):
-        """Return True if point is in tolerance frame.
-        """
-        values = 0, 0, self.size[0]*self.tolerance, self.size[1]*self.tolerance
-        return Frame(values).is_within(x,y)
-
 
 class CamCapture(object):
     """Captures video stream from camera.
     A visualisation of the video stream is also available through the gui.
     """
 
-    def __init__(self):
-        """
+    def __init__(self, sensor_name=None):
+        """sensor_name: if set, calls self.use_camera with that name.
         """
         self.camera = None
         self.gui = None
+        sensor_name and self.use_camera(sensor_name)
 
     def set_device(self, dev_index=0, resolution=(800,600)):
         """
@@ -180,10 +174,6 @@ class CamCapture(object):
             raise VisionException("Definition of camera '%s' has no %s property"
                                   " in your configuration file." % (name, e))
         self.set_device(*cam_props_req)
-        if cam_props.has_key('tolerance'):
-            self.camera.tolerance = cam_props['tolerance']
-        else:
-            LOG.info("no tolerance configured for camera %s", name)
 
         # TODO: create a calibration tool so factors is mandatory (for 3d info)
         if cam_props.has_key('factors'):
