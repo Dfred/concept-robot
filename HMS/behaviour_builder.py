@@ -48,11 +48,12 @@ def fatal(msg):
 
 
 class BehaviourBuilder(object):
-  """A generic framework for specifying behaviour through SPFSM objects.
+  """A generic framework for specifying behaviour through FSM objects.
   """
 
-  def __init__(self, machine_defs):
+  def __init__(self, machine_defs, fsm_class=SPFSM):
     """machine_defs: iterable of (name, FSM rules, parent machine)
+    fsm_class: allows you to change from SPFSM to any of its derivate, e.g:MPFSM.
     """
     missing = conf.load(required_entries=('ROBOT','expression_server'))
     if missing:
@@ -66,7 +67,7 @@ class BehaviourBuilder(object):
       except AttributeError:
         raise ValueError("machine %s: parent machine '%s' not found,"
                          " check SPFSM definition." % (name, parent_name))
-      fsm = SPFSM(name, rules, parent)
+      fsm = fsm_class(name, rules, parent)
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
