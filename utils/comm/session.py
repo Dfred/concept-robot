@@ -543,14 +543,13 @@ class BasePeer(object):
       return self._running
 
   def handle_error(self, error):
-    """Called upon connection error.
+    """Called upon socket error.
     Installs an interactive pdb session if logger is at DEBUG level.
-    error: object (usually exception of string) to print in log
+    error: exception or string to print in log
     Return: None
     """
-    import utils
     LOG.warning("%s> Connection error :%s", id(self), error)
-    utils.handle_exception(LOG)
+    handle_exception(LOG)
 
   def handle_disconnect(self):
     """Called after disconnection from server.
@@ -579,7 +578,7 @@ class BasePeer(object):
       if not buff:
         return self.abort()
     except socket.error, e:
-      if e.errno not in DISCN_ERRORS:                       # for Windows
+      if e.errno not in DISCN_ERRORS:                           # for Windows
         self.handle_error(e)
       return self.abort()
     LOG.debug("%s> read %iB from socket", id(self), len(buff))
@@ -621,7 +620,7 @@ class BasePeer(object):
     """One-pass processing of client commands.
     timeout: time waiting for data (in seconds).
              a value of 0 specifies a poll and never blocks.
-             a value of None makes the function blocks until socket's ready.
+             a value of None makes the function block until socket's ready.
     Return: False on error, True if all goes well or upon timeout expiry.
     """
     try:
@@ -629,6 +628,10 @@ class BasePeer(object):
     except KeyboardInterrupt:
       self.abort()
       raise
+    except select.error, e:
+        if e[0] == errno.EINTR:
+            LOG.debug('interrupted system call')
+            return False
     if not r:
       return timeout
     if e:
