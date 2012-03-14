@@ -112,6 +112,7 @@ class MTComm(ASCIICommandClient):
     self.abort()
     LOG.debug('joining thread for %s', self)
     self.thread.join()
+    LOG.debug('joined thread %s', self)
 
   def handle_connect_error(self, e):
     """See handle_connect_timeout.
