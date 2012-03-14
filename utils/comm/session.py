@@ -607,8 +607,8 @@ class BasePeer(object):
         return True
       except socket.error, e:
         if e.errno in DISCN_ERRORS:
-          LOG.warning("%s> client %s disconnected before we could send '%s'",
-                      id(self), self.socket.fileno(), data)
+          LOG.warning("%s> remote disconnected before we could send '%s'",
+                      id(self), data)
         else:
           self.handle_error(e)
         return self.abort()
