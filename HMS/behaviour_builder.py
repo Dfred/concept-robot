@@ -77,7 +77,7 @@ class BehaviourBuilder(object):
   def connected(self):
     LOG.debug('connected')
 
-  def cleanup(self):
+  def cleanUp(self):
     self.comm_expr.done()
 
   def step_callback(self):
@@ -157,4 +157,4 @@ if __name__ == '__main__':
 
   player = Test_BehaviourBuilder()
   player.run()
-  player.cleanup()
+  player.cleanUp()
