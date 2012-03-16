@@ -67,7 +67,7 @@ class MTComm(ASCIICommandClient):
     super(MTComm,self).__init__(server_addrPort)
     self.connect_timeout = self.CONNECT_TIMEOUT
     self.connect_success_function = connection_succeded_function
-    self.thread = threading.Thread(target=self.always_connected)
+    self.thread = threading.Thread(target=self.always_connected, name='MTComm')
     self.event = threading.Event()
     self.working = True
     self.thread.start()
