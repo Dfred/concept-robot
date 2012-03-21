@@ -250,10 +250,10 @@ class MPFSM(SPFSM):
             self.state = STOPPED
         while any( m.thread.isAlive() for m in self.machines ):
             for m in self.machines:
-                m.state = STOPPED
+                m._state = STOPPED
                 self.ev.set()
                 LOG.debug("joining %s", m.name)
-                m.thread.join(.1)
+                m.thread.join(.2)
 
 
 
