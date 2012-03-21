@@ -92,10 +92,10 @@ class PoseManager(object):
     for AU, infos in hardware_infos.iteritems():
       LOG.debug("AU %4s factor %8s offset %6s, Hard[%6s %6s] Soft[%+.5f %+.5f]",
                 AU,*infos)
-      if ( not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[4])) or
-           not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[5])) ):
-        raise SpineError("AU %s: Software limits %s out of Hardware limits %s."%
-                         (AU, infos[4:6], infos[2:4]))
+      rmin, rmax = [ self.get_rawFromNval(AU,i) for i in infos[4:6] ]
+      if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
+        raise SpineError("AU %s: Software %s %s out of Hardware %s."%
+                         (AU, infos[4:6], (rmin, rmax), infos[2:4]))
 
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
