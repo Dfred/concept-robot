@@ -122,19 +122,6 @@ class Camera(Webcam):                           #XXX Webcam is old-style class
         return self.size
 
     # TODO: see TODO in CamCapture.use_camera()
-    def get_3Dfocus(self, rects):
-        """Generates gaze vector, using a Frame's origin and estimating depth
-         from its width.
-        rects: utils.Frame instance (or iterable of).
-        Return: list of the same length as rects.
-        """
-        assert self.factors[0] != None, 'you must provide camera factors 1st'
-        w, h = self.size
-        fw, fh, fz = self.factors
-        if hasattr(rects, '__iter__'):
-            return [( (c.x/w-.5) * fw, (c.y/h-.5) * fh, math.log(r.w/w * fz) )
-                    for c in rects ]
-        return (rects.x/w-.5) * fw, (rects.y/h-.5)* fh, math.log(rects.w/w * fz)
 
 
 class CamCapture(object):
@@ -201,7 +188,7 @@ class CamCapture(object):
         self.frame = self.camera.query()        # grab ?
 
     def mark_rects(self, rects, thickness=1, color='blue'):
-        """Outlines the rects given in our video stream.
+        """Outlines the given rects in our video stream.
         rects: absolute Rects.
         thickness: in pixels.
         color: string, #rrggbb (in hexa) or color name.
@@ -216,6 +203,15 @@ class CamCapture(object):
 
         for rect in rects:
             fct(rect, *args)
+
+    def mark_points(self, points, color='green'):
+        """Outlines the given points in our video stream.
+        points: list of Point instances.
+        color: string, #rrggbb or color name.
+        Return: None
+        """
+        for p in points:
+            self.frame.annotatePoint(p, color)
 
     def gui_create(self):
         """
@@ -279,6 +275,20 @@ class CamUtils(CamCapture):
          eye coordinates produced by the filters.
         """
         return self.eyes_detector(self.frame, faces)
+    
+    def get_3Dfocus(self, rects):
+        """Returns an iterable of gaze vectors using camera's Frame origin and
+        estimating depth from its width.
+
+        rects: utils.Frame instance (or iterable of).
+        """
+        assert self.camera.factors[0] != None, 'Provide camera factors in conf.'
+        w, h = self.camera.size
+        fw, fh, fz = self.camera.factors
+        if not hasattr(rects, '__iter__'):
+            rects = [rects]
+        return [( (r.x/w-.5) * fw, (r.y/h-.5) * fh, math.log(r.w/w * fz) )
+                for r in rects ]
 
 
 if __name__ == "__main__":
