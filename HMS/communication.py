@@ -42,11 +42,14 @@ class MTLightheadComm(MTComm):
     """Class dedicated for communication with lightHead server.
     """
 
-    def __init__(self, srv_addrPort, connection_succeded_fct):
+    def __init__(self, srv_addrPort, connection_lost_fct = None,
+                 connection_succeded_fct = None):
         """
         """
         super(MTLightheadComm, self).__init__(srv_addrPort,
+                                              connection_lost_fct,
                                               connection_succeded_fct)
+        self.thread.name += '_LightHead'
         # information blocks
         self.lips_info = None
         self.gaze_info = None
@@ -91,22 +94,59 @@ class MTLightheadComm(MTComm):
 
 class MTExpressionComm(MTComm):
     """Class dedicated for communication with expression server.
+
+    It's possible to set handlers for any kind of answer from expr2.
     """
 
     ST_ACK, ST_NACK, ST_INT, ST_DSC = range(4)
 
-    def __init__(self, srv_addrPort, connection_succeded_fct):
+    @staticmethod                               #XXX: we're adding to the class
+    def add_handler(status, log_fct, msg):
+        """cmd_ handlers can only be called by self.thread so threading is easy.
+        """
+        PRE_MSG = 'expression reports '
+        def cmd_(self, argline):
+            tag = argline.strip()
+            try:
+                self.on_reply[tag](status, tag)
+            except KeyError:
+                pass
+            log_fct(PRE_MSG+msg, tag or '')
+            if tag in self.tags_pending:
+                self.tags_pending.remove(tag)
+                self.tag = tag
+                self.unblock_wait()
+                while self.tag:                     #XXX: waiters reset self.tag
+                    time.sleep(.1)
+        setattr(MTExpressionComm, 'cmd_'+status, cmd_)
+
+    def __init__(self, srv_addrPort, connection_lost_fct = None,
+                 connection_succeded_fct = None):
         """
         srv_addrPort: (server_address, port)
         connection_succeded_fct: function called on successful connection.
         """
         super(MTExpressionComm,self).__init__(srv_addrPort,
+                                              connection_lost_fct,
                                               connection_succeded_fct)
+        self.thread.name += '_Expr2'
         self.tag = None
         self.tag_count = 0
-        self.status = None
+        self.tags_pending = set()
         self.reset_datablock()
         self.on_reply = {}
+
+        for status,fct,msg in (
+            ('ACK', LOG.debug, 'processing of tag %s'),
+            ('NACK',LOG.info, 'bad message (%s)'),
+            ('INT', LOG.warning,'animation interruption (%s)'),
+            ('DSC', LOG.warning,'the RAS is disconnected!%s')):
+            MTExpressionComm.add_handler(status,fct,msg)
+
+    def reset_datablock(self):
+        """Forgets values previously stored with set_ functions.
+        """
+        self.datablock = ['']*5
 
     def on_reply_fct(self, tag, fct):
         """Installs a callback on reply from Expression.
@@ -118,40 +158,8 @@ class MTExpressionComm(MTComm):
         assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
         self.on_reply[tag] = fct
 
-    def cmd_ACK(self, argline):
-        self.status = self.ST_ACK
-        self.tag = argline.strip()
-        try: self.on_reply[self.tag]('ACK', self.tag)
-        except KeyError: pass
-
-    def cmd_NACK(self, argline):
-        self.status = self.ST_NACK
-        self.tag = argline.strip()
-        try: self.on_reply[self.tag]('NACK', self.tag)
-        except KeyError: pass
-        LOG.warning('expression reports bad message (%s).', self.tag)
-
-    def cmd_INT(self, argline):
-        self.status = self.ST_INT
-        self.tag = argline.strip()
-        try: self.on_reply[self.tag]('INT', self.tag)
-        except KeyError: pass
-        LOG.warning('expression reports animation interruption! (%s)', self.tag)
-
-    def cmd_DSC(self, argline):
-        self.status = self.ST_DSC
-        self.tag = None
-        try: self.on_reply[self.tag]('DSC', self.tag)
-        except KeyError: pass
-        LOG.warning('expression reports disconnection from lightHead!')
-
-    def reset_datablock(self):
-        """Forgets values previously stored with set_ functions.
-        """
-        self.datablock = ['']*5
-
     def set_fExpression(self, name, intensity=1.0, duration=None):
-        """
+        """Sets (and returns) the facial expression part of Expr2's datablock.
         name: facial expression identifier, no colon (:) allowed.
         intensity: float, normalized gain.
         duration: float, duration of facial expression in seconds.
@@ -160,20 +168,23 @@ class MTExpressionComm(MTComm):
         assert duration is None or type(duration) is float, 'duration not float'
         d_str = duration and '/%.2f' % duration or ''
         self.datablock[0] = '{0!s}:{1:.3f}{2:s}'.format(name, intensity, d_str)
+        return self.datablock[0]
 
     def set_text(self, text):
-        """
+        """Sets (and returns) the text part of Expr2's datablock.
         text: text to utter, no double-quotes (") allowed.
         """
         assert type(text) is str, 'wrong types'
-        self.datablock[1] = text
+        self.datablock[1] = '"%s"' % text
+        return self.datablock[1]
 
     def set_gaze(self, vector3):
-        """
+        """Sets (and returns) the eye-gaze part of Expr2's datablock.
         vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
         assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
         self.datablock[2] = str(vector3)[1:-1]
+        return self.datablock[2]
 
     def set_neck(self, rotation=(), orientation=(), translation=(),
                  duration=None):
@@ -189,7 +200,8 @@ class MTExpressionComm(MTComm):
 
     def set_spine(self, rotation=(), orientation=(), translation=(),
                  duration=None, part='neck'):
-        """Uses right handedness (ie: with y+ pointing forward) 
+        """Sets (and returns) the spine part of Expr2's datablock. Uses right
+         handedness (ie: with y+ pointing forward) 
         rotation:    (x,y,z) : relative normalized orientation 
         orientation: (x,y,z) : absolute normalized orientation
         translation: (x,y,z) : relative normalized translation
@@ -220,25 +232,25 @@ class MTExpressionComm(MTComm):
           raise ValueError("no vector given")
         if duration:
           self.datablock[3] += "/%.2f" % duration
+        return self.datablock[3]
 
     def set_instinct(self, command):
-        """
+        """Sets (and returns) the instinct part of Expr2's datablock.
         command: you should know what you are doing when dealing with this.
         """
         assert type(command) is str, 'wrong types'
         self.datablock[4] = command
+        return self.datablock[4]
 
     def send_datablock(self, tag=''):
         """Sends self.datablock to server and resets self.datablock.
-
         Use wait_reply to block until server replies for your tag.
         tag: string identifying your datablock.
         Returns: tag, part of it is generated. You may need it for wait_reply().
         """
-        datablock = '{0};"{1}";{2};{3};{4};'.format(*self.datablock)
         self.tag_count += 1
         tag += str(self.tag_count)
-        self.status = None
+        datablock = ';'.join(self.datablock)+';'
         self.reset_datablock()
         self.send_msg(datablock+tag)
         return tag
@@ -246,20 +258,20 @@ class MTExpressionComm(MTComm):
     def send_my_datablock(self, datablock):
         """Sends a raw datablock, so you have to know datablock formatting.
         """
-        self.status = None
         self.send_msg(datablock)
 
     def wait_reply(self, tag):
-        """Wait for a reply from the server.
+        """Waits for a reply from the server.
         """
-        while self.status is None:
+        self.tags_pending.add(tag)
+        while self.working:
+            self.wait(.5)
             if self.tag == tag:
                 break
-            time.sleep(0.05)
+        self.tag = None
 
     def sendDB_waitReply(self, datablock=None, tag=None):
         """Sends (given or internal) datablock and returns upon reply about it.
-        
         datablock: string without tag
         tag: string
         """
@@ -268,3 +280,7 @@ class MTExpressionComm(MTComm):
             self.wait_reply(tag)
         else:
             self.wait_reply(self.send_datablock())
+
+
+if __name__ == "__main__":
+    raise NotImplementedError("untested, potentially unreliable. Behind you!!!")
