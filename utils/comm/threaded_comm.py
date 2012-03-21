@@ -63,9 +63,12 @@ class MTComm(ASCIICommandClient):
 
   CONNECT_TIMEOUT = 3
 
-  def __init__(self, server_addrPort, connection_succeded_function):
+  def __init__(self, server_addrPort,
+               connection_succeded_function = None,
+               disconnection_function = None):
     super(MTComm,self).__init__(server_addrPort)
     self.connect_timeout = self.CONNECT_TIMEOUT
+    self.disconnect_function = disconnection_function
     self.connect_success_function = connection_succeded_function
     self.thread = threading.Thread(target=self.always_connected, name='MTComm')
     self.event = threading.Event()
@@ -124,8 +127,13 @@ class MTComm(ASCIICommandClient):
     """Sleeps for a second if connection initialization is in timeout status.
     """
     time.sleep(1)
+
+  def handle_disconnect(self):
+    """Calls your disconnection_function when connection is lost.
+    """
+    self.disconnect_function and self.disconnect_function()
         
   def handle_connect(self):
     """Calls your connection_succeeded_function when connection is established.
     """
-    self.connect_success_function()
+    self.connect_success_function and self.connect_success_function()
