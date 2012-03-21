@@ -238,8 +238,9 @@ class MPFSM(SPFSM):
         """
         self._ready_machines()
         machines = [self]+self.machines
+#        import pdb; pdb.set_trace()
         while self._state != STOPPED:
-            if self._step( [m._state for m in machines] ) == False:
+            if self._step( [self._state] ) == False:
                 self._wait_active_states(machines)
             callback and callback()
         self.abort()
@@ -261,6 +262,7 @@ if __name__ == "__main__":
     import time, sys
     if len(sys.argv) > 1 and sys.argv[1] == '-d':
         from utils import LOGFORMATINFO
+        LOGFORMATINFO['format'] = '[%(threadName)s] '+LOGFORMATINFO['format']
         logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
     else:
         print "use -d for debug"
