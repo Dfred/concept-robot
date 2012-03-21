@@ -86,14 +86,14 @@ class SpineHW(Spine_Server):
     self.name = 'katHD400s_6M'
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
-    self._init_hardware()
-    self._review_infos()
-    self.pmanager = PoseManager( dict([ 
-          (AU,
-           (self.EPPs[axis-1], self.HWready[axis-1],
-            self.HW_limits[axis-1][0], self.HW_limits[axis-1][1],
-            self.SW_limits[AU][0],     self.SW_limits[AU][1])
-           ) for AU,axis in self.AU2Axis.iteritems() if axis != None ]) )
+    HW_limits, EPPs = self._init_hardware()
+    self.EPPs = self._review_infos(EPPs)                # Encoders Per Pi
+    self.pmanager = PoseManager( { AU: (
+          self.EPPs[axis-1],          self.HWready[axis-1],
+          HW_limits[axis-1][0],       HW_limits[axis-1][1],
+          self.SW_limits[AU][0],      self.SW_limits[AU][1] )
+                                   for AU,axis in self.AU2Axis.iteritems()
+                                   if axis != None } )
     self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
     self.switch_on()
@@ -112,21 +112,25 @@ class SpineHW(Spine_Server):
   def _init_hardware(self):
     """Initializes hardware: calibrate, check encoders, unlock arm if needed. 
     """
+    PRESS_MSG = "--- Press Enter key when "
     def calibrate():
-      print "\n\n\n\n=== MAKE SURE THE HEAD IS NOT ATTACHED TO THE ARM ==="
-      raw_input("Press Enter key to start calibration")
+      print "\n\n\n\n=== Make sure the head is NOT attached to the arm ==="
+      raw_input(PRESS_MSG+"to start calibration")
       self.KNI.calibrate()
-      self.switch_off()
-      raw_input("Press Enter key when ready to use the arm (axis centered)")
-      encoders_at_init = self.KNI.getEncoders()
-      self.reach_raw(self.HWrest)
-      self.reach_raw(self.HWready)
-      return encoders_at_init
+      for i, raw_val in enumerate(self.HWrest):
+        if raw_val:                                     # let user set centers
+          self.KNI.moveMotFaster(i+1, int(raw_val))
+      raw_input(PRESS_MSG+"ready to HOLD the arm for manual mode.")
+      self.KNI.allMotorsOff()
+      raw_input(PRESS_MSG+"the head is set on the arm.")
+      for i, raw_val in enumerate(self.HWrest):
+        if not raw_val:
+          self.KNI.motorOn(i+1)
+      return self.KNI.getEncoders()
 
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
     SpineHW.KNI_instance = self.KNI
-
     encoders_at_init = self.KNI.getEncoders()
     for axis in range(6):
       try:
@@ -141,19 +145,29 @@ class SpineHW(Spine_Server):
           except SpineError, e:
             LOG.fatal('Could not switch on properly: %s', e)
             raise
-        else:
-          encoders_at_init = self.KNI.getEncoders()
 
-    self.HW_limits, EPCs = self.KNI.getMinMaxEPC()
-    self.EPPs = [ float(epc)/2 for epc in EPCs ]
-    # rest and ready poses insignificant joints (None value) are set to 0 rad.
+    HW_limits, EPCs = self.KNI.getMinMaxEPC()
+    # axis 6 having no stopper, it can be set on/out of its reported HW bounds.
+    for i,(rmin,rmax) in enumerate(HW_limits):
+      while not (rmin < encoders_at_init[i] < rmax):
+        print "motor %i is out of bounds [%i,%i]: %i" % (i+1, rmin, rmax,
+                                                         encoders_at_init[i])
+        raw_input(PRESS_MSG+"ready to set this axis in MANUAL mode.")
+        self.KNI.motorOff(i+1)
+        raw_input(PRESS_MSG+"set at the neutral position for AUTOMATIC mode.")
+        self.KNI.motorOn(i+1)
+        encoders_at_init = self.KNI.getEncoders()
+
+    # Rest and Ready poses unconfigured joints (None value) are set to 0 rad.
     for name, pose in (('ready',self.HWready),('rest',self.HWrest)):
       for i,enc in enumerate(pose):
         if enc == None:
           pose[i] = encoders_at_init[i]
           LOG.debug("Pose '%s', axis %i: 0 is now %senc.", name, i+1, pose[i])
 
-  def _review_infos(self):
+    return HW_limits, [ float(epc)/2 for epc in EPCs ]
+
+  def _review_infos(self, EPPs):
     """Manages software limits:
 
     * negating EPPs to fix rotation direction
@@ -168,7 +182,7 @@ class SpineHW(Spine_Server):
         continue
       # negates EPP if extra flag found
       if len(self.SW_limits[AU]) == 3:
-        self.EPPs[axis-1] *= -1
+        EPPs[axis-1] *= -1
         self.SW_limits[AU] = self.SW_limits[AU][0:2]
         LOG.info("[config] AU %s: extra param found, inverted rotation.", AU)
       # Try avoiding stupid mistakes enforcing same type for min/max
@@ -179,6 +193,7 @@ class SpineHW(Spine_Server):
         self.SW_limits[AU] = list(self.SW_limits[AU])           # set editable
         self.SW_limits[AU][0] = self.enc2nval(axis,self.SW_limits[AU][0])
         self.SW_limits[AU][1] = self.enc2nval(axis,self.SW_limits[AU][1])
+    return EPPs
 
   def unblock_if_needed(self):
     """Returns True if unblocked, None if not blocked, exits if still blocked.
