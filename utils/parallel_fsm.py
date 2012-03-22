@@ -148,11 +148,9 @@ class SPFSM(object):
         self._ready_machines()
         machines = [self]+self.machines
         while self._state != STOPPED:
-            self._updates = {}
             waiters = [ m for m in machines if m._step() == False ]
             if len(waiters) == len(machines):
-                raise FSMRuleError("[%s] no action for any state in %s" % (
-                                     m.name, m_states))
+                raise FSMRuleError("no transition possible: %s " % (machines))
             states = sorted(self._updates, key=lambda x: x[1])
             for m in waiters:
                 for s in states:
@@ -166,6 +164,7 @@ class SPFSM(object):
 
         Returns True on state change, None if no change, False on unbound state.
         """
+        self._updates = {}
         try:
             fct, out_state = self.actions[self._state]
         except KeyError:
@@ -253,7 +252,7 @@ class MPFSM(SPFSM):
         machines = [self]+self.machines
         while self._state != STOPPED:
             if self._step() == False:
-                self._wait_active_states(machines)
+                self.state = self._wait_active_states(machines)
             callback and callback()
         self.abort()
 
