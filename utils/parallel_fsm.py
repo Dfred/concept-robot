@@ -39,10 +39,6 @@ STARTED, STOPPED = 'STARTED', 'STOPPED'
 
 ANGULAR_SPEED = 20
 
-#TODO: Event system so rules from one FSM can wait (instead of returning None and
-#TODO:  looping which wastes CPU cycles) for an event from a relative FSM. Note:
-#TODO: set_onStateChange can help achieve this, but that's not so user-friendly..
-
 
 class FSMRuleError(StandardError):
     pass
@@ -67,6 +63,7 @@ class SPFSM(object):
         parent_machine: SMFSM instance to run with.
         """
         self._state = None
+        self._updates = {}
         self._on_change = None                  # callback for state change
         self.actions = {}                       # { state : (fct,out_state) }
         self.machines = []                      # for parallel machines
@@ -89,6 +86,8 @@ class SPFSM(object):
     @state.setter
     def state(self, new_state):
         """Also call self.change_state."""
+        u = (self.parent or self)._updates
+        u[new_state] = u[new_state]+1 if u.has_key(new_state) else 0
         self._on_change and self._on_change(self.name, self._state, new_state)
         LOG.debug("%s changed to state: [%s] %s", self, new_state, (
                 self.actions.has_key(new_state) and self.actions[new_state][0]
@@ -149,24 +148,30 @@ class SPFSM(object):
         self._ready_machines()
         machines = [self]+self.machines
         while self._state != STOPPED:
-            m_states = [ m._state for m in machines ]    # keep sequence
-            if all([m._step(m_states)==False for m in machines]):  # same here
+            self._updates = {}
+            waiters = [ m for m in machines if m._step() == False ]
+            if len(waiters) == len(machines):
                 raise FSMRuleError("[%s] no action for any state in %s" % (
                                      m.name, m_states))
+            states = sorted(self._updates, key=lambda x: x[1])
+            for m in waiters:
+                for s in states:
+                    if s in m.actions.keys():
+                        m._state = s
+                        break
             callback and callback()
 
-    def _step(self, machines_states):
+    def _step(self):
         """Performs one step of the machine.
 
-        machines_states: [ this machine state, other machines states ]
-        Return: True: state change, False: no action could be triggered, None
+        Returns True on state change, None if no change, False on unbound state.
         """
-        states = [ s for s in machines_states if self.actions.has_key(s) ]
-        if not states:
+        try:
+            fct, out_state = self.actions[self._state]
+        except KeyError:
             return False
-        fct, out_state = self.actions[states[0]]
-        state = fct() and out_state or states[0]
-        if state != machines_states[0]:
+        state = fct() and out_state or self._state
+        if state != self._state:
             self.state = state
             return True
         return None
@@ -196,7 +201,13 @@ class MPFSM(SPFSM):
     @SPFSM.state.setter
     def state(self, new_state):
         """Unblocks all threads waiting for new_state."""
-        SPFSM.state.fset(self, new_state)
+        LOG.debug("%s changed to state: [%s] %s", self, new_state, (
+                self.actions.has_key(new_state) and self.actions[new_state][0]
+                or '<No Function for state>') )
+        for m in [self.parent or self]+(self.parent or self).machines:
+            m._updates[new_state] = ( m._updates[new_state]+1 if
+                                      m._updates.has_key(new_state) else 0 )
+        self._state = new_state
         (self.parent or self).ev.set()
 
     def _ready_machines(self):
@@ -213,10 +224,9 @@ class MPFSM(SPFSM):
         """
         machines = [self,self.parent] + [m for m in self.parent.machines if
                                          m != self]
-        while self.state != STOPPED:
-            self._wait_active_states(machines)
-            if self._step( [m._state for m in machines] ) == False:
-                break
+        while self._state != STOPPED:
+            if self._step() == False:
+                self.state = self._wait_active_states(machines) or STOPPED
         LOG.debug("%s terminating", self.name)
 
     def _wait_active_states(self, machines):
@@ -224,10 +234,13 @@ class MPFSM(SPFSM):
         """
         p = self.parent or self
         my_states = self.actions.keys()                 #XXX: considered const
-        while (not any(m._state in my_states for m in machines) and
-               self._state != STOPPED):
+        while self._state != STOPPED:
             p.ev.wait()
+            states = sorted(self._updates, key=lambda x: x[1])
+            new_states = [ s for s in states if s in my_states ]
             p.ev.clear()
+            if new_states:
+                return new_states[0]
 
     def run(self, callback=None):
         """Runs the machine(s) until state STOPPED is reached.
@@ -238,9 +251,8 @@ class MPFSM(SPFSM):
         """
         self._ready_machines()
         machines = [self]+self.machines
-#        import pdb; pdb.set_trace()
         while self._state != STOPPED:
-            if self._step( [self._state] ) == False:
+            if self._step() == False:
                 self._wait_active_states(machines)
             callback and callback()
         self.abort()
@@ -310,4 +322,4 @@ if __name__ == "__main__":
             import pdb; pdb.post_mortem()
 
     #TODO: mixing SPFSM and MPFSM ?
-    #Also: MPFSM has a potential issue when 1 FSM has no 
+    #TODO: why MPFSM looping on the same state? (conditions to be clarified)
