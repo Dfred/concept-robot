@@ -248,8 +248,9 @@ class MTExpressionComm(MTComm):
         tag: string identifying your datablock.
         Returns: tag, part of it is generated. You may need it for wait_reply().
         """
-        self.tag_count += 1
-        tag += str(self.tag_count)
+        if not tag:
+            self.tag_count += 1
+            tag = str(self.tag_count)
         datablock = ';'.join(self.datablock)+';'
         self.reset_datablock()
         self.send_msg(datablock+tag)
@@ -279,7 +280,7 @@ class MTExpressionComm(MTComm):
             self.send_my_datablock(datablock+tag)
             self.wait_reply(tag)
         else:
-            self.wait_reply(self.send_datablock())
+            self.wait_reply(self.send_datablock(tag))
 
 
 if __name__ == "__main__":
