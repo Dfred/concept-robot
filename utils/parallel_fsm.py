@@ -88,7 +88,12 @@ class SPFSM(object):
         """Also call self.change_state."""
         u = (self.parent or self)._updates
         u[new_state] = u[new_state]+1 if u.has_key(new_state) else 0
-        self._on_change and self._on_change(self.name, self._state, new_state)
+        if self._on_change:
+            try:
+                self._on_change(self.name, self._state, new_state)
+            except StandardError,e:
+                LOG.error("Bad on_StateChange callback (%s)", e)
+                raise
         LOG.debug("%s changed to state: [%s] %s", self, new_state, (
                 self.actions.has_key(new_state) and self.actions[new_state][0]
                 or '<No Function for state>') )
@@ -127,8 +132,6 @@ class SPFSM(object):
         function: callback with arguments for name, last_state and new_state.
                   Use None to remove the callback.
         """
-        if function != None:
-            assert function.func_code.co_argcount >= 3, "bad callback!"
         self._on_change = function
 
     def _ready_machines(self):
@@ -155,7 +158,7 @@ class SPFSM(object):
             for m in waiters:
                 for s in states:
                     if s in m.actions.keys():
-                        m._state = s
+                        m.state = s
                         break
             callback and callback()
 
@@ -224,8 +227,14 @@ class MPFSM(SPFSM):
         machines = [self,self.parent] + [m for m in self.parent.machines if
                                          m != self]
         while self._state != STOPPED:
-            if self._step() == False:
+            s = self._step()
+            if s == False:
                 self.state = self._wait_active_states(machines) or STOPPED
+            if s == None:
+                st = [ s for s in sorted(self._updates, key=lambda x: x[1])
+                       if s in self.actions.keys() and s is not self._state ]
+                if st:
+                    self.state = st[0]
         LOG.debug("%s terminating", self.name)
 
     def _wait_active_states(self, machines):
@@ -262,7 +271,7 @@ class MPFSM(SPFSM):
             self.state = STOPPED
         while any( m.thread.isAlive() for m in self.machines ):
             for m in self.machines:
-                m._state = STOPPED
+                m.state = STOPPED
                 self.ev.set()
                 LOG.debug("joining %s", m.name)
                 m.thread.join(.2)
