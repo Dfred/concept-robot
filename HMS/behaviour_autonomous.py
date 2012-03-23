@@ -38,25 +38,28 @@ import time
 from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
-from utils.parallel_fsm import MPFSM, STARTED, STOPPED
-from utils import vision, fps, conf
+from utils.parallel_fsm import STARTED, STOPPED, MPFSM
+from utils import vision, conf
 
 LOG = logging.getLogger(__package__)
 _CERVICALS = ('53.5','55.5','51.5')
 _THORACICS = ('TX','TY','TZ')
 _SACCADES_PER_GAZE = 3
 
-MAX_STABLE_DURATION = 30
+MAX_STABLE_DURATION = 15
 
 # OUR STATES
-ST_AWAKED       = 'awaked'
 ST_ACTUATE_RAND = 'actuate_random'
+ST_AWAKED       = 'awaked'
 ST_SEARCH       = 'search'
-ST_KEEP_USR_VIS = 'keep_user_visible'
+ST_KEEP_USRVIS  = 'keep_user_visible'
 ST_FOUND_USR    = 'user_visible'
 ST_GOODBYE      = 'disengage'
-ST_BORING_STATE = 'bored'
+ST_BORED        = 'bored'
+ST_ACTIVE       = 'active'
 #ST_  = ''
+
+BORED_TEXTS = ("wellll....","hello?","anybody here?","heeello?","pop podommm.")
 
 # CONTEXTUAL RANGES
 AOI_RANGES = {           # in meters
@@ -68,7 +71,7 @@ REACH_RANGES = {        #
 GAZE_COMFORT = ( (-1,1), ( 3,5), (-.5,.5) )
 F_EXPRS = {
   ST_SEARCH     : ('slow_neutral', 'really_look', 'frown2', 'dummy_name4'),
-  ST_FOUND_USR  : ('simple_smile_wide1', 'surprised1'),
+  ST_FOUND_USR  : ('simple_smile_wide1', 'surprised'),
 }
 GAZE_RANGES = {         # in meters
                 # X (horiz) # Y (depth) # Z (vert)
@@ -173,94 +176,130 @@ class LightHead_Behaviour(BehaviourBuilder):
     if self.aoi[0]:
       self.egaze[1] = (0,10,0)
       self.gaze_refine(factor=.9, steps=3) or self.gaze_around(1)
+    return True
 
-  def st_detect_human(self):
-    """Detects human and sets its location in the visual field.
+  def st_detect_faces(self):
+    """Detects faces and sets them to self.faces . State transition if detected.
     """
     self.update_vision()
     self.faces = self.vision.find_faces()
+    if self.faces and self.vision.gui:
+      self.vision.mark_rects(self.faces)
+      self.vision.gui.show_frame(self.vision.frame)
     return len(self.faces)
 
-  def st_detect_face(self):
-    self.update_vision()
-    self.faces = self.vision.find_faces()
-    return True
+  def st_detect_eyes(self):
+    """Detects eyes and sets them to self.eyes . State transition if detected.
+    """
+    eyes = self.vision.find_eyes(self.faces)
+    if eyes:
+      self.eyes = eyes
+      self.vision.mark_points(eyes[0][1:])
+      self.vision.gui.show_frame(self.vision.frame)
+    return len(eyes)
 
   def st_engage(self):
     self.comm_expr.set_fExpression("surprised", intensity=.3)
+    self.comm_expr.set_text("ohoh!")
     self.comm_expr.sendDB_waitReply()
-    
+    return True
+  
+  def st_make_eyeContact(self):
+    if not self.eyes:
+      return None
+    self.comm_expr.set_gaze(self.vision.get_face_3Dfocus(self.faces[0])[0])
+    self.comm_expr.sendDB_waitReply()
+    return True
+
   def st_desinterested(self):
+    text = random.choice(BORED_TEXTS)
+    self.comm_expr.set_text(text)
     self.comm_expr.set_fExpression("bored", intensity=.5)
     self.comm_expr.sendDB_waitReply()    
+    return True
 
   def st_keep_usr_vis(self):
-    self.vision.update()
-    self.vision.gui_show()
-    faces = self.vision.find_faces()
-    if self.vision.gui:
-      self.vision.mark_rects(faces)
-      self.vision.gui.show_frame(self.vision.frame)
-    return faces and STOPPED or None
+    if not self.faces:
+      return None
+    self.comm_expr.set_gaze(self.vision.get_face_3Dfocus(self.faces)[0])
+    self.comm_expr.sendDB_waitReply(tag='KUV')
+    return True
 
-  def st_keep_face(self):
-    pass
+  def st_check_boredom(self):
+    """Detects boredom.
+    """
+    if time.time() - self.last_st_change_t > MAX_STABLE_DURATION:
+      self.on_state_update()
+      return True
+    time.sleep(.1)
+    return False
+
+  def st_check_activity(self):
+    """Detects activity.
+    """
+    if time.time() - self.last_st_change_t < MAX_STABLE_DURATION:
+      self.on_state_update()
+      return True
+    time.sleep(.1)
+    return False
+
+  def st_start(self):
+    self.last_st_change_t = time.time()
+    self.comm_expr.set_fExpression('neutral')
+    self.comm_expr.set_text("Starting...")
+    self.comm_expr.set_instinct("enable:FC,blink")
+    self.comm_expr.sendDB_waitReply()
+    return True
 
   def st_stopped(self, name):
     print 'test stopped'
     return
 
+
   # --- INSTANCE MANAGEMENT
   def __init__(self, with_gui=True):
-    self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
+    machines_def = [
+#      ('cog', ((STARTED, self.st_actuate_random, None),), None)
+      ('cog',   (
+          (STARTED,             self.st_start,          ST_SEARCH),
+          (ST_FOUND_USR,        self.st_engage,         ST_KEEP_USRVIS),
+          (ST_BORED,            self.st_desinterested,  ST_SEARCH), ),  None),
+      ('att',   (
+          (ST_SEARCH,           self.st_check_boredom,  ST_BORED),
+          (ST_ACTIVE,           self.st_check_boredom,  ST_BORED),
+          (ST_BORED,            self.st_check_activity, ST_ACTIVE), ),  'cog'),
+      ('vis',   (
+          (ST_SEARCH,           self.st_detect_faces,   ST_FOUND_USR),
+          (ST_KEEP_USRVIS,      self.st_detect_faces,   None), ),       'cog'),
+      ('spine', (
+          (ST_SEARCH,           self.st_search,         None),
+          (ST_KEEP_USRVIS,      self.st_keep_usr_vis,   None), ),       'cog'),
+      ]
+    super(LightHead_Behaviour,self).__init__(machines_def, MPFSM)
+    # install boredom detection
+    for fsm_name, r,p in machines_def:
+      getattr(self, 'fsm_'+fsm_name).set_onStateChange(self.on_state_update)
+
+    self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
+    self.aoi = [ None, None ]                                   # prev / current
+    self.egaze = [ None, None ]                                 # received/sent
+    self.faces = None                                           # detected faces
+    self.last_st_change_t = None
+
     try:
       self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
       self.vision.update()
       LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
       if with_gui:
         self.vision.gui_create()
-        self.vision.gui_show()
+        self.update_vision()
       self.vision.enable_face_detection()
     except vision.VisionException, e:
       fatal(e)
 
-    self.aoi = [ None, None ]                                   # prev / current
-    self.egaze = [ None, None ]                                 # received/sent
-    self.faces = None                                           # detected faces
-    self.last_st_change_t = time.time()
-    self.LH_connected = False
-
-    machines_def = [
-#      ('cog', ((STARTED, self.st_actuate_random, None),), None)
-      ('cog',   ((STARTED,              lambda : True,          ST_SEARCH),
-                 (ST_FOUND_USR,         self.st_engage,         None),
-                 (ST_BORING_STATE,      self.st_desinterested,  ST_SEARCH),),
-       None),
-      ('spine', ((ST_SEARCH,            self.st_search,         None),
-                 (ST_KEEP_USR_VIS,      self.st_keep_usr_vis,   None)),
-       'cog'),
-      ('vis',   ((ST_SEARCH,            self.st_detect_human,   ST_FOUND_USR),
-                 (ST_FOUND_USR,         self.st_detect_face,    ST_KEEP_USR_VIS),
-                 (ST_KEEP_USR_VIS,      self.st_keep_face,      None),),
-       'cog'),
-      ]
-    super(LightHead_Behaviour,self).__init__(machines_def, MPFSM)
-    # install boredom detection
-    for fsm_name, r,p in machines_def:
-      getattr(self, 'fsm_'+fsm_name).set_onStateChange(self.monitor_states)
-    self.comm_lightHead = MTLightheadComm(conf.lightHead_server,
-                                          self.lighthead_connected)
-    while not self.LH_connected:
-      time.sleep(1)
-    self.comm_expr.sendDB_waitReply(';"LightHead starting";;;;', 'START')
-
     # --- OVERRIDING MOTHER CLASS TO DO OUR JOB
-  def step_callback(self):
-    super(LightHead_Behaviour,self).step_callback()
-    # detects boredom
-    if time.time() - self.last_st_change_t > MAX_STABLE_DURATION:
-      self.monitor_states('cog', self.fsm_cog.current_state, ST_BORING_STATE)
-      self.fsm_cog.current_state = ST_BORING_STATE      #XXX: OUCH! not clean..
+#  def step_callback(self):
+#    super(LightHead_Behaviour,self).step_callback()
 
   def cleanUp(self):
     LOG.debug('--- cleaning up ---')
@@ -269,10 +308,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     super(LightHead_Behaviour,self).cleanUp()
     
     # --- OUR UTILITY FUNCTIONS
-  def lighthead_connected(self):
-    self.LH_connected = True
-
-  def monitor_states(self, fsm_name, last, new):
+  def on_state_update(self, **args):
     self.last_st_change_t = time.time()
 
   def update_vision(self):
@@ -321,17 +357,16 @@ class LightHead_Behaviour(BehaviourBuilder):
     TAG = 'GA'
     self.comm_expr.sendDB_waitReply(";;;;disable:FC;", TAG)
     for i in range(3):
-      self.comm_expr.set_gaze([ (v-dist_range/2)+random.random()*dist_range
+      self.comm_expr.set_gaze([ (v-dist_range/2.0)+random.random()*dist_range
                                 for v in self.egaze[1] ])
       self.comm_expr.sendDB_waitReply()
       time.sleep(1)
     self.comm_expr.sendDB_waitReply(";;;;enable:FC;", TAG)
-      
 
   def gaze_refine(self, factor, steps):
     """
     """
-#    self.
+    pass
 
   # def gaze_refine(self):
   #   """Considers AOI's location and refines eye-gaze through a few saccades.
@@ -347,6 +382,7 @@ if __name__ == '__main__':
 
   import logging
   from utils import comm, LOGFORMATINFO
+  LOGFORMATINFO['format'] = '%(threadName)s '+LOGFORMATINFO['format']
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
   conf.set_name('lightHead')
   missing = conf.load(required_entries=('lightHead_server',))
