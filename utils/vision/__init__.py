@@ -48,6 +48,7 @@ from utils import conf, get_logger, Frame, fps
 LOG = get_logger(__package__)
 
 
+
 class VisionException(Exception):
     """
     """
@@ -100,30 +101,6 @@ class CamGUI(object):
         cv.CreateTrackbar(label, self.name, min_v, max_v, callback)
 
 
-class Camera(Webcam):                           #XXX Webcam is old-style class
-    """Additionaly stores camera specifics.
-    """
-
-    def __init__(self, name, dev_index, resolution):
-        LOG.debug('using camera device #%i %s', dev_index, resolution)
-        Webcam.__init__(self, dev_index, resolution)
-        self.factors = None, None, None
-        self.name = name
-
-    def set_factors(self, x, y, z):
-        """Set the gain to convert relative coordinates to real coordinates.
-        """
-        self.factors = x, y, z
-
-    def get_resolution(self):
-        """
-        Returns: (width,height) of camera frames.
-        """
-        return self.size
-
-    # TODO: see TODO in CamCapture.use_camera()
-
-
 class CamCapture(object):
     """Captures video stream from camera.
     A visualisation of the video stream is also available through the gui.
@@ -141,7 +118,7 @@ class CamCapture(object):
         dev_index: specify camera number for multiple camera configurations.
         resolution: (width,height) of the frames to grab.
         """
-        self.camera = Camera('eye', dev_index, resolution)
+        self.camera = Webcam(dev_index, resolution)
         if not self.camera.grab():
             raise VisionException("Can't get camera at device index: %i" %
                                   dev_index)
@@ -161,12 +138,7 @@ class CamCapture(object):
             raise VisionException("Definition of camera '%s' has no %s property"
                                   " in your configuration file." % (name, e))
         self.set_device(*cam_props_req)
-
-        # TODO: create a calibration tool so factors is mandatory (for 3d info)
-        if cam_props.has_key('factors'):
-            self.camera.set_factors(*cam_props['factors'])
-        else:
-            LOG.info("no factors configured for camera %s", name)
+        self.cam_props = cam_props
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -186,6 +158,55 @@ class CamCapture(object):
         """
         """
         self.frame = self.camera.query()        # grab ?
+
+    def record(self, filename):
+        """
+        """
+        raise NotImplementedError()
+        VideoWriterVSP(filename, size=self.camera.size)
+
+    def gui_create(self):
+        """
+        """
+        self.gui = CamGUI()
+
+    def gui_show(self):
+        """
+        """
+        if self.gui:
+            self.gui.show_frame(self.frame)
+
+    def gui_destroy(self):
+        """
+        """
+        if self.gui:
+            self.gui.destroy()
+
+
+class CamUtils(CamCapture):
+    """High-level class compiling various image processing algorithms.
+    """
+
+    def __init__(self, sensor_name=None):
+        super(CamUtils,self).__init__(sensor_name)
+        self.XY_factors = None, None
+
+    def use_camera(self, name):
+        """Overriding to add our properties.
+        """
+        super(CamUtils,self).use_camera(name)
+
+        # TODO: create a calibration tool so factors is mandatory (for 3d info)
+        for prop in ('XY_factors', 'depth_fct'):
+            if self.cam_props.has_key(prop):
+                if hasattr(self.camera,prop):
+                    LOG.warning("[conf] camera %s: overwriting property '%s'",
+                                name, prop)
+                setattr(self.camera, prop, self.cam_props[prop])
+                LOG.debug("camera %s: setting property %s: %s", name, prop,
+                          self.cam_props[prop])
+            else:
+                LOG.info("[conf] camera %s has no property '%s'", name, prop)
 
     def mark_rects(self, rects, thickness=1, color='blue'):
         """Outlines the given rects in our video stream.
@@ -212,28 +233,6 @@ class CamCapture(object):
         """
         for p in points:
             self.frame.annotatePoint(p, color)
-
-    def gui_create(self):
-        """
-        """
-        self.gui = CamGUI()
-
-    def gui_show(self):
-        """
-        """
-        if self.gui:
-            self.gui.show_frame(self.frame)
-
-    def gui_destroy(self):
-        """
-        """
-        if self.gui:
-            self.gui.destroy()
-
-
-class CamUtils(CamCapture):
-    """High-level class compiling various image processing algorithms.
-    """
 
     def enable_face_detection(self, haar_cascade_path=None,
                               msize=(50,50), scale=.5):
@@ -276,19 +275,43 @@ class CamUtils(CamCapture):
         """
         return self.eyes_detector(self.frame, faces)
     
-    def get_3Dfocus(self, rects):
-        """Returns an iterable of gaze vectors using camera's Frame origin and
-        estimating depth from its width.
+    def get_face_3Dfocus(self, rects):
+        """Returns an iterable of gaze vectors (right handeness) from detected
+        faces, estimating depth from its width.
 
         rects: utils.Frame instance (or iterable of).
+
+        Poor's man calibration procedure for 'depth_fct' (valid for a specific
+        aspect ratio):
+        1/ this script gives normalized face's Width, measure distance (meters).
+        2/ perform a regression on these values. You can use this website:
+http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
+        3/ in conf's lib_vision, set 'depth_fct' with your function as a string.
         """
-        assert self.camera.factors[0] != None, 'Provide camera factors in conf.'
-        w, h = self.camera.size
-        fw, fh, fz = self.camera.factors
+        assert hasattr(self.camera,'XY_factors'), 'Provide XY_factors in conf.'
+        assert hasattr(self.camera,'depth_fct'), 'Provide depth_fct in conf'
+        if type(self.camera.depth_fct) == type(''):
+            fct = eval('lambda x:'+self.camera.depth_fct)
+            try:
+                fct(10)
+            except StandardError, e:
+                LOG.critical("[conf] error with depth_fct expression: %s",e)
+                return None
+            else:
+                self.camera.depth_fct = fct
+        w, h = ( float(v) for v in self.camera.size )
+        fw, fh = self.camera.XY_factors
         if not hasattr(rects, '__iter__'):
             rects = [rects]
-        return [( (r.x/w-.5) * fw, (r.y/h-.5) * fh, math.log(r.w/w * fz) )
+        return [( -(r.x/w-.5)*fw, self.camera.depth_fct(r.w/w), -(r.y/h-.5)*fh )
                 for r in rects ]
+
+    def get_motions(self):
+        """Returns a list of detected motions.
+        """
+        raise NotImplementedError()
+        #MotionDetector().detect()
+
 
 
 if __name__ == "__main__":
@@ -297,13 +320,18 @@ if __name__ == "__main__":
       my_fps = fps.SimpleFPS( 30 * 2 )          # refresh period in frames
       while True:
         cap.update()
-
         faces = cap.find_faces()
-        cap.mark_rects(faces)
-
+        if faces:
+            cap.mark_rects(faces)
+            print "W: {0:.6f} note camera-face distance (in meters).".format(
+                faces[0].w/float(cap.camera.size[0]))
+            try:
+                print cap.get_face_3Dfocus(faces)[0][2]
+            except AssertionError:
+                pass
         cap.gui_show()                          # slashes fps by half...
         my_fps.update()
-        my_fps.show()
+#        my_fps.show()
 
     conf.set_name('lightHead')
     conf.load()
@@ -323,9 +351,9 @@ if __name__ == "__main__":
     from utils import comm, conf, LOGFORMATINFO
     logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
 
-    cap = CamUtils()
+    cap = CamUtils('laptop_camera')
+#    cap.set_device(resolution=r)
     cap.enable_face_detection()
-    cap.set_device(resolution=r)
     cap.gui_create()
     run(cap)
     print "done"
