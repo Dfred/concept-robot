@@ -68,7 +68,7 @@ class Pose(dict):
       for AU,nval in self.iteritems():
         if not pose_manager.is_inSWlimits(AU, nval):
           raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
-              AU, nval, pose_manager.infos[AU][-2:]))
+              AU, nval, pose_manager.infos[AU][-2:]), AU)
 
   def to_raw(self, check_SWlimits=True):
     return self.manager.get_rawFromPose(self, check_SWlimits)
@@ -95,7 +95,7 @@ class PoseManager(object):
       rmin, rmax = [ self.get_rawFromNval(AU,i) for i in infos[4:6] ]
       if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
         raise SpineError("AU %s: Software %s %s out of Hardware %s."%
-                         (AU, infos[4:6], (rmin, rmax), infos[2:4]))
+                         (AU, infos[4:6], (rmin, rmax), infos[2:4]), AU)
 
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
@@ -121,7 +121,7 @@ class PoseManager(object):
     ret = {}
     for AU,norm_val in pose.iteritems():
       if check_SWlimits and not self.is_inSWlimits(AU, norm_val):
-        raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, norm_val))
+        raise SpineError("AU %s: nvalue %s off SW limits" % (AU, norm_val), AU)
       ret[AU] = self.infos[AU][0]*norm_val + self.infos[AU][1]
     return ret
 
