@@ -109,16 +109,18 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
                               ' '.join(["%s "%v for v in row]))
       self.send_msg(msg)
 
-  def cmd_backend(self, argline):
-    """Replies with the current backend for a given origin.
+  def cmd_get(self, argline):
+    """Allows remotes to get config and variables. 100% unsecure!...
     """
-    if not argline:
-      LOG.warning("missing origin")
+    args = argline.split()
+    try:
+      if args[0] in ORIGINS:
+        self.send_msg(repr(getattr(self.server.origins[args[0]][0], args[1])))
+      elif args[0].startswith('backend'):               # origin's backend
+        self.send_msg(self.server.origins[args[1]][0].name)
+    except StandardError, e:
+      LOG.warning("cannot get: '%s' (%s)", argline, e)
       return
-    if argline not in self.server.origins.keys():
-      LOG.warning("unknown origin '%s'", argline)
-      return
-    self.send_msg(self.server.origins[argline][0].name) #XXX: safer than conf
 
 
 class LightHeadServer(object):
