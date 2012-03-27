@@ -86,16 +86,10 @@ class SpineHW(Spine_Server):
     self.name = 'katHD400s_6M'
     self.running = False
     self.enabled_AUs = [ k for k,v in SpineHW.AU2Axis.items() if v ]
-    HW_limits, EPPs = self._init_hardware()
-    self.EPPs = self._review_infos(EPPs)                # Encoders Per Pi
-    self.pmanager = PoseManager( { AU: (
-          self.EPPs[axis-1],          self.HWready[axis-1],
-          HW_limits[axis-1][0],       HW_limits[axis-1][1],
-          self.SW_limits[AU][0],      self.SW_limits[AU][1] )
-                                   for AU,axis in self.AU2Axis.iteritems()
-                                   if axis != None } )
+    self.pmanager = self._init_hardware()       #XXX:sets EPPs (Encoders Per Pi)
     self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
+    SpineHW.KNI_instance = self.KNI
     self.switch_on()
     self.AUs.set_availables(*zip(*self.pmanager.get_poseFromHardware().items()))
 
@@ -110,7 +104,7 @@ class SpineHW(Spine_Server):
       self.KNI_cfg_file = "katana6M90T.cfg"
 
   def _init_hardware(self):
-    """Initializes hardware: calibrate, check encoders, unlock arm if needed. 
+    """Calibrates, checks encoders, unlocks arm if needed. Big function!
     """
     PRESS_MSG = "--- Press Enter key when "
     def calibrate():
@@ -126,46 +120,70 @@ class SpineHW(Spine_Server):
       for i, raw_val in enumerate(self.HWrest):
         if not raw_val:
           self.KNI.motorOn(i+1)
+      del i
       return self.KNI.getEncoders()
+
+    def manual_center(axis):
+      raw_input(PRESS_MSG+"ready to HOLD axis %i (AU %s)" % (
+          axis, SpineHW.Axis2AU[axis]))
+      self.KNI.motorOff(axis)
+      raw_input(PRESS_MSG+"set at the neutral position for AUTOMATIC mode.")
+      self.KNI.motorOn(axis)
+      return self.KNI.getEncoders()
+
+    def update_centers(encoders_at_init):
+    # Rest and Ready poses unconfigured joints (None value) are set to 0 rad.
+      for name, pose in (('ready',self.HWready),('rest',self.HWrest)):
+        for i,enc in enumerate(pose):
+          if enc == None:
+            pose[i] = encoders_at_init[i]
+            LOG.debug("Pose '%s', axis %i: 0 is now %senc.", name, i+1, pose[i])
+      del i, enc
+
+    def check_calibration():
+      encoders_at_init = self.KNI.getEncoders()
+      for axis in range(6):
+        try:
+          self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
+        except SpineError, e:                             #TODO: better policy?
+          if self.unblock_if_needed() == None:
+            try:
+              LOG.info("Calibration needed.")
+              LOG.debug("Got these encoders: %s", encoders_at_init)
+              encoders_at_init = calibrate()
+              break
+            except SpineError, e:
+              LOG.fatal('Could not switch on properly: %s', e)
+              raise
+      del axis
+      return encoders_at_init
 
     LOG.info('Trying to connect (%s:%s)', self.hardware_name, self.KNI_address)
     self.KNI = LH_KNI_wrapper.LHKNI_wrapper(self.KNI_cfg_file, self.KNI_address)
-    SpineHW.KNI_instance = self.KNI
-    encoders_at_init = self.KNI.getEncoders()
-    for axis in range(6):
-      try:
-        self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
-      except SpineError, e:                             #TODO: better policy?
-        if self.unblock_if_needed() == None:
-          try:
-            LOG.info("Calibration needed.")
-            LOG.debug("Got these encoders: %s", encoders_at_init)
-            encoders_at_init = calibrate()
-            break
-          except SpineError, e:
-            LOG.fatal('Could not switch on properly: %s', e)
-            raise
-
+    encoders_at_init = check_calibration()
     HW_limits, EPCs = self.KNI.getMinMaxEPC()
-    # axis 6 having no stopper, it can be set on/out of its reported HW bounds.
-    for i,(rmin,rmax) in enumerate(HW_limits):
-      while not (rmin < encoders_at_init[i] < rmax):
-        print "motor %i is out of bounds [%i,%i]: %i" % (i+1, rmin, rmax,
+    while True:
+      #axis 6 having no stopper, it can be set on/out of its reported HW bounds.
+      for i,(rmin,rmax) in enumerate(HW_limits):
+        while not (rmin < encoders_at_init[i] < rmax):
+          print "motor %i is out of HW bounds [%i,%i]: %i" % (i+1, rmin, rmax,
                                                          encoders_at_init[i])
-        raw_input(PRESS_MSG+"ready to set this axis in MANUAL mode.")
-        self.KNI.motorOff(i+1)
-        raw_input(PRESS_MSG+"set at the neutral position for AUTOMATIC mode.")
-        self.KNI.motorOn(i+1)
-        encoders_at_init = self.KNI.getEncoders()
-
-    # Rest and Ready poses unconfigured joints (None value) are set to 0 rad.
-    for name, pose in (('ready',self.HWready),('rest',self.HWrest)):
-      for i,enc in enumerate(pose):
-        if enc == None:
-          pose[i] = encoders_at_init[i]
-          LOG.debug("Pose '%s', axis %i: 0 is now %senc.", name, i+1, pose[i])
-
-    return HW_limits, [ float(epc)/2 for epc in EPCs ]
+          encoders_at_init = manual_center(i+1)
+      self.configure()
+      update_centers(encoders_at_init)
+      self.EPPs = self._review_infos([ float(epc)/2 for epc in EPCs ])
+      try:                                      # axis may be out of SW bounds
+        pmanager = PoseManager( { AU: (
+              self.EPPs[axis-1],          self.HWready[axis-1],
+              HW_limits[axis-1][0],       HW_limits[axis-1][1],
+              self.SW_limits[AU][0],      self.SW_limits[AU][1] )
+                                  for AU,axis in self.AU2Axis.iteritems()
+                                  if axis != None } )
+      except SpineError, e:
+        LOG.warning("error: %s", e[0])
+        encoders_at_init = manual_center(SpineHW.AU2Axis[e[1]])
+      else:
+        return pmanager
 
   def _review_infos(self, EPPs):
     """Manages software limits:
