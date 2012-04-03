@@ -38,7 +38,7 @@ import time
 from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
-from utils.parallel_fsm import STARTED, STOPPED, MPFSM
+from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
 from utils import vision, conf
 
 LOG = logging.getLogger(__package__)
@@ -46,7 +46,7 @@ _CERVICALS = ('53.5','55.5','51.5')
 _THORACICS = ('TX','TY','TZ')
 _SACCADES_PER_GAZE = 3
 
-MAX_STABLE_DURATION = 15
+MAX_STABLE_DURATION = 30
 
 # OUR STATES
 ST_ACTUATE_RAND = 'actuate_random'
@@ -59,27 +59,20 @@ ST_BORED        = 'bored'
 ST_ACTIVE       = 'active'
 #ST_  = ''
 
-BORED_TEXTS = ("wellll....","hello?","anybody here?","heeello?","pop podommm.")
+BORED_TEXTS = ("wellll....","hello?","anybody here?","pop podommm.")
 
 # CONTEXTUAL RANGES
-AOI_RANGES = {           # in meters
-                # X (horiz) # Y (depth) # Z (vert)
-  ST_SEARCH     : ( (-5,1), (.5, 10), (-.5,.5) ),
-}
-REACH_RANGES = {        # 
-}
-GAZE_COMFORT = ( (-1,1), ( 3,5), (-.5,.5) )
 F_EXPRS = {
   ST_SEARCH     : ('slow_neutral', 'really_look', 'frown2', 'dummy_name4'),
   ST_FOUND_USR  : ('simple_smile_wide1', 'surprised'),
 }
+AOI_RANGES = {           # in meters
+                # X (horiz) # Y (depth) # Z (vert)
+  ST_SEARCH     : ( (-5,1), (.5, 10), (-.5,.5) ),
+}
 GAZE_RANGES = {         # in meters
                 # X (horiz) # Y (depth) # Z (vert)
-  ST_SEARCH     : GAZE_COMFORT,
-  ST_FOUND_USR  : ( (), (), (), ),
-}
-NECK_RANGES = {         # in normalized angle
-  ST_SEARCH     : ( (-.1,.1), (-.1,.1), (-.5,.5) ),
+  ST_SEARCH     : ( (-1,1), ( 3,5), (-.5,.5) ),
   ST_FOUND_USR  : ( (), (), (), ),
 }
 SPINE_RANGES = {        # in normalized angle
@@ -114,6 +107,7 @@ class AOI(object):
     return M.dot(self.location)
 
 
+# --- SIMPLE TIME-BASED SELECTION OF ACTION
 class Action(object):
   """
   """
@@ -134,18 +128,22 @@ class Action(object):
       self.time = now
     return b
 
+  def wait_active(self):
+    """Blocks until action reaches its active state and returns None.
+    """
+    dt = random.uniform(*self.period_range)
+    time.sleep(time.time() - self.time + dt)
+
   def get_data(self, state):
     """Returns data_function applied to data for current state, or False.
     """
     return self.data.has_key(state) and self.fct(self.data[state])
 
-# --- SIMPLE TIME-BASED SELECTION OF ACTION
 _fct_rand_range = lambda x: [random.uniform(*a) for a in (x)]
 ACTIONS = {
   'AOI'     : Action(AOI_RANGES,        _fct_rand_range, (3, 10)),
-  'fexpr'   : Action(F_EXPRS,           random.choice, (.8, 20)),
+  'fexpr'   : Action(F_EXPRS,           random.choice, (1.2, 20)),
   'gaze'    : Action(GAZE_RANGES,       _fct_rand_range, (1,5)),
-  'neck'    : Action(NECK_RANGES,       _fct_rand_range, (5,15)),
   'spine'   : Action(SPINE_RANGES,      _fct_rand_range, (5,15)),
       }
 
@@ -157,25 +155,23 @@ class LightHead_Behaviour(BehaviourBuilder):
 
   def st_actuate_random(self):
     now = time.time()
-    fe, gz, nc, sp = (ACTIONS[k] for k in ('fexpr','gaze','neck','spine'))
+    fe, gz, nc, sp = (ACTIONS[k] for k in ('fexpr','gaze','spine'))
     if fe.is_active(now):
       self.comm_expr.set_fExpression(fe.get_data(ST_SEARCH), duration=1.5)
     if gz.is_active(now):
       self.comm_expr.set_gaze(gz.get_data(ST_SEARCH))
     if nc.is_active(now):
-      self.comm_expr.set_neck(orientation=nc.get_data(ST_SEARCH))
+      self.comm_expr.set_neck(nc.get_data(ST_SEARCH))
     if any(self.comm_expr.datablock):
-      self.comm_expr.send_datablock()
+      self.comm_expr.sendDB_waitReply()
 
   def st_search(self):
-    if ACTIONS['AOI'].is_active(time.time()):
-      self.aoi[0] = AOI(ACTIONS['AOI'].get_data(ST_SEARCH))
+    ACTIONS['AOI'].wait_active()
+    self.aoi[0] = AOI(ACTIONS['AOI'].get_data(ST_SEARCH))
+    self.gaze_reach_blink(self.aoi[0])
 #      self.gaze_reach_pursuit()
-      random.choice((self.gaze_reach_blink, self.gaze_reach_pursuit))()
-      return
-    if self.aoi[0]:
-      self.egaze[1] = (0,10,0)
-      self.gaze_refine(factor=.9, steps=3) or self.gaze_around(1)
+#      random.choice((self.gaze_reach_blink, self.gaze_reach_pursuit))()
+#    self.gaze_refine(factor=.9, steps=3) or self.gaze_around(1)
     return True
 
   def st_detect_faces(self):
@@ -198,12 +194,6 @@ class LightHead_Behaviour(BehaviourBuilder):
       self.vision.gui.show_frame(self.vision.frame)
     return len(eyes)
 
-  def st_engage(self):
-    self.comm_expr.set_fExpression("surprised", intensity=.3)
-    self.comm_expr.set_text("ohoh!")
-    self.comm_expr.sendDB_waitReply()
-    return True
-  
   def st_make_eyeContact(self):
     if not self.eyes:
       return None
@@ -211,17 +201,29 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.comm_expr.sendDB_waitReply()
     return True
 
-  def st_desinterested(self):
+  def st_engage(self):
+    self.comm_expr.set_fExpression("surprised", intensity=.3)
+    self.comm_expr.set_instinct("coactuate:attention=1")
+    self.comm_expr.set_text("ohoh!")
+    self.comm_expr.sendDB_waitReply()
+    return True
+  
+  def st_disengage(self):
+    self.comm_expr.set_fExpression("neutral", intensity=.8)
+    self.comm_expr.sendDB_waitReply()    
     text = random.choice(BORED_TEXTS)
     self.comm_expr.set_text(text)
     self.comm_expr.set_fExpression("bored", intensity=.5)
+    self.comm_expr.set_instinct("coactuate:attention=.1")
     self.comm_expr.sendDB_waitReply()    
     return True
 
   def st_keep_usr_vis(self):
     if not self.faces:
       return None
-    self.comm_expr.set_gaze(self.vision.get_face_3Dfocus(self.faces)[0])
+    target = self.vision.get_face_3Dfocus(self.faces)[0]
+    self.comm_expr.set_instinct("gaze-control:target=%s" % 
+                                self.comm_expr.get_transform(target,'r'))
     self.comm_expr.sendDB_waitReply(tag='KUV')
     return True
 
@@ -245,9 +247,11 @@ class LightHead_Behaviour(BehaviourBuilder):
 
   def st_start(self):
     self.last_st_change_t = time.time()
-    self.comm_expr.set_fExpression('neutral')
+    self.comm_expr.set_fExpression('neutral', intensity=1)
     self.comm_expr.set_text("Starting...")
-    self.comm_expr.set_instinct("enable:FC,blink")
+    self.comm_expr.set_gaze((0,10,0))
+    self.comm_expr.set_instinct("gaze-control:target=%s" % 
+                                self.comm_expr.get_transform([0,0,0],'p'))
     self.comm_expr.sendDB_waitReply()
     return True
 
@@ -263,7 +267,7 @@ class LightHead_Behaviour(BehaviourBuilder):
       ('cog',   (
           (STARTED,             self.st_start,          ST_SEARCH),
           (ST_FOUND_USR,        self.st_engage,         ST_KEEP_USRVIS),
-          (ST_BORED,            self.st_desinterested,  ST_SEARCH), ),  None),
+          (ST_BORED,            self.st_disengage,      ST_SEARCH), ),  None),
       ('att',   (
           (ST_SEARCH,           self.st_check_boredom,  ST_BORED),
           (ST_ACTIVE,           self.st_check_boredom,  ST_BORED),
@@ -275,7 +279,7 @@ class LightHead_Behaviour(BehaviourBuilder):
           (ST_SEARCH,           self.st_search,         None),
           (ST_KEEP_USRVIS,      self.st_keep_usr_vis,   None), ),       'cog'),
       ]
-    super(LightHead_Behaviour,self).__init__(machines_def, MPFSM)
+    super(LightHead_Behaviour,self).__init__(machines_def, FSM)
     # install boredom detection
     for fsm_name, r,p in machines_def:
       getattr(self, 'fsm_'+fsm_name).set_onStateChange(self.on_state_update)
@@ -308,7 +312,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     super(LightHead_Behaviour,self).cleanUp()
     
     # --- OUR UTILITY FUNCTIONS
-  def on_state_update(self, **args):
+  def on_state_update(self, *args):
     self.last_st_change_t = time.time()
 
   def update_vision(self):
@@ -326,47 +330,39 @@ class LightHead_Behaviour(BehaviourBuilder):
                   [AUs.has_key(au) and AUs[au][1] or None for au in _THORACICS])
     return self.spine
 
-  def gaze_reach_blink(self):
+  def gaze_reach_blink(self, aoi):
     # 1/ gaze towards an AOI, capping eye-gaze to comfort zone (done by expr2:
     # fovea_control instinct, also rotates the rest of the body) closing eyes.
     # TODO: reduce e_gaze by 10% towards AOI.
-    TAG = "TAG_RB"
-    gaze_str = "%.5f, %.5f, %.5f"%tuple(self.aoi[0].location)
-    self.comm_expr.sendDB_waitReply(";;%s;;enable:FC|blink:close;" %
-                                    gaze_str, TAG)
-    time.sleep(1)
+    TAG, dur = "TAG_RB", 3
+    gazeC_str = "[[%.5f, %.5f, %.5f]]" % tuple(aoi.location)
+    self.comm_expr.sendDB_waitReply(";;;;blink:close|gaze-control:%s/%i;" %
+                                    (gazeC_str, dur), TAG)
     # 2/ open eyes before end of spine torsion, restore 
-    self.comm_expr.send_my_datablock(";;;;disable:FC|blink:open;"+TAG)
+    self.comm_expr.send_my_datablock(";;;;blink:open;"+TAG)
     
-  def gaze_reach_pursuit(self):
+  def gaze_reach_pursuit(self, aoi):
     # 1/ select a temporary AOI in eyes' "comfort zone" towards target AOI
     # 2/ keep focusing on temporary AOI (-error) while still in comfort zone
     # 3/ when out of comfort zone and not yet at target AOI, return to 1/
     TAG = "TAG_RP"
-    self.comm_expr.set_gaze(self.aoi[0].location)
-    self.comm_expr.sendDB_waitReply(";;;;disable:FC;", TAG)
+    self.comm_expr.set_gaze(aoi.location)
+    self.comm_expr.sendDB_waitReply(";;;;;", TAG)
 #    self.update_egaze_orientations()
 #    for i in range(_SACCADES_PER_GAZE):
 #      self.comm_expr.set_gaze( val*i/_SACCADES_PER_GAZE for i in )
 #      self.comm_expr.sendDB_waitReply()
-    self.comm_expr.sendDB_waitReply(";;;;enable:FC;", TAG)
+    self.comm_expr.sendDB_waitReply(";;;;;", TAG)
 
   def gaze_around(self, dist_range):
     """location: eye-gaze vector relative to center of eyes 
     """
     TAG = 'GA'
-    self.comm_expr.sendDB_waitReply(";;;;disable:FC;", TAG)
     for i in range(3):
       self.comm_expr.set_gaze([ (v-dist_range/2.0)+random.random()*dist_range
                                 for v in self.egaze[1] ])
       self.comm_expr.sendDB_waitReply()
       time.sleep(1)
-    self.comm_expr.sendDB_waitReply(";;;;enable:FC;", TAG)
-
-  def gaze_refine(self, factor, steps):
-    """
-    """
-    pass
 
   # def gaze_refine(self):
   #   """Considers AOI's location and refines eye-gaze through a few saccades.
