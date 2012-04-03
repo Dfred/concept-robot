@@ -98,7 +98,9 @@ class MTExpressionComm(MTComm):
     It's possible to set handlers for any kind of answer from expr2.
     """
 
-    ST_ACK, ST_NACK, ST_INT, ST_DSC = range(4)
+    ROTP_PRE_SUFF = { 'o':('((','))'), 'r':('(',')'),
+                      'p':('[[',']]'), 't':('[',']'),
+                    }
 
     @staticmethod                               #XXX: we're adding to the class
     def add_handler(status, log_fct, msg):
@@ -164,75 +166,39 @@ class MTExpressionComm(MTComm):
         intensity: float, normalized gain.
         duration: float, duration of facial expression in seconds.
         """
-        assert type(name) is str and type(intensity) is float, 'wrong types'
-        assert duration is None or type(duration) is float, 'duration not float'
-        d_str = duration and '/%.2f' % duration or ''
-        self.datablock[0] = '{0!s}:{1:.3f}{2:s}'.format(name, intensity, d_str)
-        return self.datablock[0]
+        assert type(name) is str , 'name should be a string'
+        return self.format_DB(0, name, None, intensity, duration)
 
     def set_text(self, text):
         """Sets (and returns) the text part of Expr2's datablock.
         text: text to utter, no double-quotes (") allowed.
         """
-        assert type(text) is str, 'wrong types'
-        self.datablock[1] = '"%s"' % text
-        return self.datablock[1]
+        assert type(text) is str, 'text should be a string'
+        return self.format_DB(1, '"%s"'%text)
 
-    def set_gaze(self, vector3):
+    def set_gaze(self, vector3, transform='p', duration=None):
         """Sets (and returns) the eye-gaze part of Expr2's datablock.
         vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
-        assert len(vector3) == 3 and type(vector3[0]) is float, 'wrong types'
-        self.datablock[2] = str(vector3)[1:-1]
-        return self.datablock[2]
+        assert len(vector3)==3, "vector3: wrong type"
+        return self.format_DB(2, vector3, transform, None, duration)
 
-    def set_neck(self, rotation=(), orientation=(), translation=(),
-                 duration=None):
-        """Places head (absolute position is not available). See set_spine().
-        """
-        self.set_spine(rotation, orientation, translation, duration,
-                       part='CERVICALS')
+    def set_neck(self, vector3, transform='o', duration=None):
+        """Places head. Arguments: see format_DB()."""
+        assert len(vector3)==3, "vector3: wrong type"
+        return self.format_DB(3, vector3, transform, None, duration,
+                              keywd='Cervicals')
 
-    def set_thorax(self, rotation=(), orientation=(), duration=None):
-        """Places thorax (position is not available). Arguments: see set_spine()
-        """
-        self.set_spine(rotation, orientation, duration=duration, part='thorax')
+    def set_thorax(self, vector3, tranform='o', duration=None):
+        """Places thorax. Arguments: see format_DB()."""
+        assert len(vector3)==3, "vector3: wrong type"
+        return self.format_DB(3, vector3, transform, None, duration,
+                              keywd='Thorax')
 
-    def set_spine(self, rotation=(), orientation=(), translation=(),
-                 duration=None, part='neck'):
-        """Sets (and returns) the spine part of Expr2's datablock. Uses right
-         handedness (ie: with y+ pointing forward) 
-        rotation:    (x,y,z) : relative normalized orientation 
-        orientation: (x,y,z) : absolute normalized orientation
-        translation: (x,y,z) : relative normalized translation
-        duration: float, duration of movement in seconds.
-        """
-        assert rotation and \
-            (len(rotation)==3 and type(rotation[0]) is float) or \
-            True, 'rotation: wrong types'
-        assert orientation and \
-            (len(orientation) == 3 and type(orientation[0]) is float) or\
-            True, 'orientation: wrong types'
-        if part == 'neck':
-            assert translation and \
-              (len(translation) == 3 and type(translation[0]) is float) or \
-              True, 'translation: wrong types'
-        assert rotation or orientation, "it's either orientation *OR* rotation"
-        assert duration is None or type(duration) is float, 'duration not float'
-        if self.datablock[3]:
-            self.datablock[3] += '|'
-        self.datablock[3] += part+'='
-        if rotation:
-          self.datablock[3] += "(%s, %s, %s)" % tuple(rotation)
-        elif orientation:
-          self.datablock[3] += "((%s, %s, %s))" % tuple(orientation)
-        elif translation:
-          self.datablock[3] += "[%s, %s, %s]" % tuple(translation)
-        else:
-          raise ValueError("no vector given")
-        if duration:
-          self.datablock[3] += "/%.2f" % duration
-        return self.datablock[3]
+    def set_spine(self, spine_section, vector3, transform, duration):
+        """Generic Spine placement."""
+        return self.format_DB(3, vector3, transform, None, duration,
+                              spine_section)
 
     def set_instinct(self, command):
         """Sets (and returns) the instinct part of Expr2's datablock.
@@ -241,6 +207,40 @@ class MTExpressionComm(MTComm):
         assert type(command) is str, 'wrong types'
         self.datablock[4] = command
         return self.datablock[4]
+
+    def format_DB(self, i, value, trnsf=None, intns=None, durtn=None,
+                  keywd=None, args=None):
+        """Sets (and returns) an element of Expr2's datablock.
+
+        Transforms use right handedness (ie: with y+ pointing forward).
+        
+        value:  representable object supported by Expression. Your check. 
+        trnsf:  char, one of o,r,t,p (Orientation, Rotatn, Transltn, Positn)
+        intns:  float, intensity of action whenever relevant.
+        durtn:  float, duration of action in seconds.
+        keywd:  string, see Expression's documentation.
+        """
+        assert durtn is None or type(durtn) is float, 'duration not float'
+        if self.datablock[i]:
+            self.datablock[i] += '|'
+        if keywd:
+            self.datablock[i] += keywd+':'
+        if trnsf:
+            self.datablock[i] += self.get_transform(value, trnsf)
+        else:
+            self.datablock[i] += "%s" % value
+        if intns:
+            self.datablock[i] += "*%.3f" % intns
+        if durtn:
+            self.datablock[i] += "/%.2f" % durtn
+        return self.datablock[i]
+
+    def get_transform(self, vector, trnsf_type):
+        """
+        """
+        assert trnsf_type in ('r','o','t','p',None), "unknown transform"
+        return ( ("%s%%s%s" % self.ROTP_PRE_SUFF[trnsf_type]) %
+                 str([round(v,3) for v in vector])[1:-1] )
 
     def send_datablock(self, tag=''):
         """Sends self.datablock to server and resets self.datablock.
