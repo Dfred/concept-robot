@@ -165,9 +165,8 @@ def initialize(server):
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
-  from utils import conf;                 #TODO: get values from blend file?
   # blender might issue a warning here, nvm as we add a member, not access it.
-  G.Skeleton.limits = conf.lib_spine['blender']['AXIS_LIMITS']
+  G.Skeleton.limits = server.SW_limits
 
   # ok, startup
   G.initialized = True
@@ -179,6 +178,7 @@ def initialize(server):
                            'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
   try:
+    from utils import conf
     if conf.ROBOT['mod_face'].has_key('blender_proj'):
       cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
   except StandardError, e:

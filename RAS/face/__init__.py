@@ -158,6 +158,7 @@ class Face_Server(object):
 
   def __init__(self):
     self.AUs = AUPool('face', DYNAMICS, threaded=True)
+    self.SW_limits = conf.lib_spine['blender']['AXIS_LIMITS']
 
   def set_available_AUs(self, available_AUs):
     """Define list of AUs available for a specific face.
