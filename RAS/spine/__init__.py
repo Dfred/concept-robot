@@ -34,11 +34,12 @@ backend provides required functions, the end-result should be similar.
 #TODO: from abc import ABCMeta, abstractmethod
 from collections import deque
 import time
-
+import math
 import numpy
 
 from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
+from RAS.au_pool import AUPool
 from RAS.dynamics import INSTANCE as DYNAMICS
 
 import RAS
@@ -67,7 +68,7 @@ class Pose(dict):
       for AU,nval in self.iteritems():
         if not pose_manager.is_inSWlimits(AU, nval):
           raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
-              AU, nval, pose_manager.infos[AU][-2:]))
+              AU, nval, pose_manager.infos[AU][-2:]), AU)
 
   def to_raw(self, check_SWlimits=True):
     return self.manager.get_rawFromPose(self, check_SWlimits)
@@ -89,12 +90,12 @@ class PoseManager(object):
     self.infos = hardware_infos
     LOG.debug("Hardware infos:")
     for AU, infos in hardware_infos.iteritems():
-      LOG.debug("AU %4s factor %8s offset %6s Hard[%6s %6s] Soft[%+.5f %+.5f]",
+      LOG.debug("AU %4s factor %8s offset %6s, Hard[%6s %6s] Soft[%+.5f %+.5f]",
                 AU,*infos)
-      if ( not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[4])) or
-           not self.is_inHWlimits(AU, self.get_rawFromNval(AU,infos[5])) ):
-        raise SpineError("AU %s: Software limits %s out of Hardware limits %s."%
-                         (AU, infos[4:6], infos[2:4]))
+      rmin, rmax = [ self.get_rawFromNval(AU,i) for i in infos[4:6] ]
+      if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
+        raise SpineError("AU %s: Software %s %s out of Hardware %s."%
+                         (AU, infos[4:6], (rmin, rmax), infos[2:4]), AU)
 
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
@@ -120,7 +121,7 @@ class PoseManager(object):
     ret = {}
     for AU,norm_val in pose.iteritems():
       if check_SWlimits and not self.is_inSWlimits(AU, norm_val):
-        raise SpineError("AU %s: nvalue %s is off soft limits" % (AU, norm_val))
+        raise SpineError("AU %s: nvalue %s off SW limits" % (AU, norm_val), AU)
       ret[AU] = self.infos[AU][0]*norm_val + self.infos[AU][1]
     return ret
 
@@ -148,8 +149,8 @@ class Spine_Handler(ASCIIRequestHandler):
     self.fifo = deque()
 
   def cmd_AU(self, argline):
-    """Absolute rotation on 1 axis.
-    Syntax is: AU_name, target_value, attack_time (in s.)"""
+    """Absolute rotations. arg: AU(name), target_value(rad), attack_duration(s).
+    """
     try:
       au_name, value, duration = argline.split()[:3]
     except ValueError:
@@ -161,7 +162,7 @@ class Spine_Handler(ASCIIRequestHandler):
       LOG.error("[AU] invalid float (%s)", e)
       return
     if self.server.AUs.has_key(au_name):
-      self.fifo.append((au_name, value, duration))
+      self.fifo.append((au_name, value/math.pi, duration))
     else:
       LOG.warning("[AU] invalid AU (%s)", au_name)
       return
@@ -204,7 +205,7 @@ class Spine_Server(object):
     self._motors_on = False
     self._lock_handler = None
     self._new_pt = None                                 # pose and triplets
-    self.AUs = RAS.AUPool('spine', DYNAMICS, threaded=True)
+    self.AUs = AUPool('spine', DYNAMICS, threaded=True)
     self.HWready  = None                                # Hardware action ready
     self.HWrest   = None                                # Hardware switch-off ok
     self.configure()
@@ -305,7 +306,7 @@ def get_server_class():
   except ImportError, e:
     LOG.error("\n*** SPINE INITIALIZATION ERROR *** (%s)", e)
     LOG.error('check in your config file for mod_spine "backend" entry.\n')
-    from RAS.spine import katHD400s_6M as backend
+    from RAS.spine import katHD400s_6M as backend       #TODO: return None
   return backend.SpineHW
 
 

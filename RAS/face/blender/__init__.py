@@ -35,10 +35,12 @@
 """
 
 import sys, time, atexit
+import site                                     # Blender has its own python.
 from math import cos, sin, pi
 
 import GameLogic as G
 
+from RAS.au_pool import VAL
 from RAS.face import Face_Server
 
 
@@ -46,9 +48,15 @@ class FaceHW(Face_Server):
   """Blender is our entry point, so make it simple letting blender take over.
   So this script fetches Face's data pool directly in update().
   
-  No hardware implementation is actually needed in this case.
+  Indeed, no hardware implementation is needed in this case.
   """
   global G
+
+  def __init__(self):
+    """Just sets this backend's name.
+    """
+    super(FaceHW,self).__init__()
+    self.name = 'blender'
 
   def cleanUp(self):
     shutdown(G.getCurrentController())
@@ -137,9 +145,9 @@ def initialize(server):
   # get driven objects
   objs = G.getCurrentScene().objects
   for obj_name in REQUIRED_OBJECTS:
-      if OBJ_PREFIX+obj_name not in objs:
-          return fatal("Object '%s' not found in blender scene" % obj_name)
-      setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
+    if OBJ_PREFIX+obj_name not in objs:
+      return fatal("Object '%s' not found in blender scene" % obj_name)
+    setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
   # set available Action Units from the blender file (Blender Shape Actions)
   cont = G.getCurrentController()
@@ -153,7 +161,7 @@ def initialize(server):
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
           pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
-      return fatal('Check your .blend file for bad property names')
+    return fatal('Check your .blend file for bad property names')
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
@@ -170,14 +178,13 @@ def initialize(server):
   print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                            'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
-  print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
-    cam.lens, cam.modelview_matrix, cam.projection_matrix)
   try:
     if conf.ROBOT['mod_face'].has_key('blender_proj'):
       cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
   except StandardError, e:
     print "ERROR: Couldn't set projection matrix (%s)" % e
-
+  print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
+    cam.lens, cam.modelview_matrix, cam.projection_matrix)
   G.last_update_time = time.time()
   return cont
 
@@ -200,65 +207,64 @@ def update():
   eyes_done, spine_done = False, False
   time_diff = time.time() - G.last_update_time
 
-  # threaded server is thread-safe
-  face_map = srv.update(time_diff)
-
-  for au, values in face_map.iteritems():
+  srv.AUs.update_time(time_diff)
+  for au, values in srv.AUs.iteritems():
+    nval = values[VAL]
     # XXX: yes, 6 is an eye prefix (do better ?)
     if au.startswith('6'):
-        if eyes_done:                   # all in one pass
-            continue
-        ax  = -face_map['63.5'][3]      # Eye_L is the character's left eye.
-        azR =  face_map['61.5R'][3]
-        azL =  face_map['61.5L'][3]
-        G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
-        G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
-        eyes_done = True
+      if eyes_done:                                     # all in one pass
+        continue
+      ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
+      azR =  srv.AUs['61.5R'][VAL]
+      azL =  srv.AUs['61.5L'][VAL]
+      G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
+      G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
+      eyes_done = True
 
+    # XXX: yes, T is a thorax prefix (do better ?)
     elif au.startswith('T'):
-        if au[-1] == '0':
-            cont.owner['p'+au] = SH_ACT_LEN * values[3]
-            cont.activate(cont.actuators[au])
-        else:
-            a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[3] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+      if au[-1] == '0':
+        cont.owner['p'+au] = SH_ACT_LEN * nval
+        cont.activate(cont.actuators[au])
+      else:
+        a_min, a_max = G.Skeleton.limits[au]
+        a_bound = nval < 0 and a_min or a_max
+        G.Skeleton['p'+au] = (abs(nval)/a_bound +1) * SH_ACT_LEN/2
 
     # XXX: yes, 9 is a tongue prefix (do better ?)
     elif au.startswith('9'):
-        G.tongue[au] = SH_ACT_LEN * values[3]
+      G.tongue[au] = SH_ACT_LEN * nval
 
     # XXX: yes, 5 is a head prefix (do better ?)
     elif au.startswith('5'):
-        if float(au) <= 55.5:   # pan, tilt, roll
-            a_min, a_max = G.Skeleton.limits[au]
-            a_bound = values[3] < 0 and a_min or a_max
-            G.Skeleton['p'+au] = (abs(values[3])/a_bound +1) * SH_ACT_LEN/2
+      if float(au) <= 55.5:                             # pan, tilt, roll
+        a_min, a_max = G.Skeleton.limits[au]
+        a_bound = nval < 0 and a_min or a_max
+        G.Skeleton['p'+au] = (abs(nval)/a_bound +1) * SH_ACT_LEN/2
 
     elif au == '26':
-        # TODO: try with G.setChannel ?
-        G.Skeleton['p26'] = SH_ACT_LEN * values[3]
+      # TODO: try with G.setChannel ?
+      G.Skeleton['p26'] = SH_ACT_LEN * nval
 
     elif au[0].isdigit():
-        cont.owner['p'+au] = SH_ACT_LEN * values[3]
-        cont.activate(cont.actuators[au])
+      cont.owner['p'+au] = SH_ACT_LEN * nval
+      cont.activate(cont.actuators[au])
 
     else:
-        a_min, a_max = G.Skeleton.limits[au]
-        if values[3] >= 0:
-            G.Skeleton['p'+au] = (values[3]/a_max + 1) * SH_ACT_LEN/2
-        if values[3] < 0:
-            G.Skeleton['p'+au] = (-values[3]/a_min +1) * SH_ACT_LEN/2
+      a_min, a_max = G.Skeleton.limits[au]
+      if nval >= 0:
+        G.Skeleton['p'+au] = (nval/a_max + 1) * SH_ACT_LEN/2
+      if nval < 0:
+        G.Skeleton['p'+au] = (-nval/a_min +1) * SH_ACT_LEN/2
 
   G.last_update_time = time.time()
-
   G.info_duration += time_diff
   if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
-      print "--- RENDERING INFO ---"
-      print "BGE logic running at", G.getLogicTicRate(), "fps."
+    print "--- RENDERING INFO ---"
+    print "BGE logic running at", G.getLogicTicRate(), "fps."
 #        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
-      print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
-      G.info_duration = 0
+    print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
+    G.info_duration = 0
 
 
 #
@@ -266,27 +272,25 @@ def update():
 #
 
 def main():
-    if not hasattr(G, "initialized"):
-        try:
-            import RAS
-            G.server = RAS.initialize(THREAD_INFO)
-            G.face_server = G.server['face']
+  if not hasattr(G, "initialized"):
+    try:
+      import RAS
+      G.server = RAS.initialize(THREAD_INFO)
+      G.face_server = G.server['face']
 
-            cont = initialize(G.face_server)
-            G.server.set_listen_timeout(0.001)      # tune it !
-            G.server.start()
-        except StandardError:
-            fatal("initialization error")
-        else:
-            print '--- initialization OK ---'
+      cont = initialize(G.face_server)
+      G.server.set_listen_timeout(0.001)      # tune it !
+      G.server.start()
+    except StandardError:
+      fatal("initialization error")
     else:
-        if not THREADED_SERVER:
-            # server handles channels explicitly
-            if not G.server.serve_once():
-                print 'server returned an error'
-                G.server.shutdown()
-        try:
-            # update blender with fresh face data
-            update()
-        except Exception,e:
-            fatal("runtime error")
+      print '--- initialization OK ---'
+  else:
+    # server handles channels explicitly
+    try:
+      if not THREADED_SERVER and not G.server.serve_once():
+        raise StandardError('server returned an error')
+      # update blender with fresh face data
+      update()
+    except Exception,e:
+      fatal("runtime error")

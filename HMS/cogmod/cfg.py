@@ -39,7 +39,9 @@ set_value = False            # displays end value in the plot
 
 
 # may need to be modified
-root_dir = '/home/joachim/PhD@Plymouth/Concept_project/workspace/cogmod2_0.31/'  
+root_dir = '/home/joachim/PhD@Plymouth/Concept_project/workspace/cogmod2_0.31/'
+vis_dir = '/home/fred/Work/concept-robot/utils/vision'
+
 
 # graphical config
 use_gui = True

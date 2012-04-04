@@ -1,13 +1,12 @@
 
 import threading, math, Queue, time, random
     
-from HMS import expression_player as ep
-from HMS.communication import ThreadedExpressionComm, ThreadedLightHeadComm
 from utils import conf, handle_exception, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
-from HMS import cogmod
-from cogmod import vision, cfg
+from HMS.cogmod import vision, cfg
+from HMS.behaviour_builder import BehaviourBuilder
+from HMS.communication import ThreadedExpressionComm, ThreadedLightheadComm
 
 show_emo = 1
 
@@ -27,25 +26,29 @@ class Behaviour_thread(threading.Thread):
         self.base_player.cleanup()
 
 
-class Base_behaviour(ep.Behaviour_Builder):
+class Base_behaviour(BehaviourBuilder):
     """ Base FSM which listens for state changes from gui and triggers behaviours accordingly
     """
     
     def __init__(self, from_gui_q, from_beh_q):
         self.from_gui_q = from_gui_q
         self.from_beh_q = from_beh_q
-        BASE_PLAYER_DEF = ((SMFSM.STARTED,self.started),\
-                           ('FOLLOW_TARGET', self.set_gaze_neck_to_target), ('RUN_DEMO', self.run_demo_behaviour), \
-                           ('FACE_GROW', self.face_grow_behaviour),('FACE_SHRINK', self.face_shrink_behaviour), \
-                           ('WAVE', self.wave_behaviour), ('MOVE_LIMIT', self.move_limit_behaviour),
-                           (SMFSM.STOPPED,self.stopped) )
+        BASE_PLAYER_DEF = ( (SMFSM.STARTED,self.started),
+                            ('FOLLOW_TARGET', self.set_gaze_neck_to_target),
+                            ('RUN_DEMO', self.run_demo_behaviour),
+                            ('FACE_GROW', self.face_grow_behaviour),
+                            ('FACE_SHRINK', self.face_shrink_behaviour),
+                            ('WAVE', self.wave_behaviour),
+                            ('MOVE_LIMIT', self.move_limit_behaviour),
+                            (SMFSM.STOPPED,self.stopped)
+                          )
         machine_def = [ ('base_player', BASE_PLAYER_DEF, None)]
-        ep.Behaviour_Builder.__init__(self, machine_def, with_vision=False)
+        BehaviourBuilder.__init__(self, machine_def)
         
         self.connected = False
         self.comm_send_tags = []
         # for snapshots, not used atm
-        #self.comm_lighthead = lightHeadComm(conf.lightHead_server, connection_succeded_function=self.on_connect)
+        #self.comm_lighthead = Lightheadcomm(conf.lightHead_server, connection_succeded_fct=self.on_connect)
         
         # tuning
         self.gaze_adjust_x = 0.5
@@ -375,7 +378,8 @@ class Base_behaviour(ep.Behaviour_Builder):
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
-    
+
+    conf.set_name('lightHead')
     from_gui_q = Queue.Queue()
     from_behaviours_q = Queue.Queue()
     bt = Behaviour_thread(from_gui_q, from_behaviours_q)
