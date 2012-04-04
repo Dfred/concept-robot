@@ -699,7 +699,7 @@ class BaseRequestHandler(BasePeer):
     self.server = server                                # server that spawned us
     self.socket = sock
     self.connected = True
-    self.addr_port = ( type(addr_port) is type("") and ("localhost","UNIX")
+    self.addr_port = ( isinstance(addr_port,basestring) and ("localhost","UNIX")
                        or addr_port )
     LOG.debug("%s> initialized a %s.", id(self), self.__class__.__name__)
 
@@ -740,7 +740,7 @@ class BaseClient(BasePeer):
     Return: (Address Family, updated addr_port)
     """
     localhosts = ["127.0.0.1", "localhost"]
-    if hasattr(socket, "AF_UNIX") and type(addr_port[1]) is type(""):
+    if hasattr(socket, "AF_UNIX") and isinstance(addr_port[1],basestring):
       if addr_port[0] and addr_port[0] not in localhosts:
         raise ValueError('address must be null or one of %s', localhosts)
       return socket.AF_UNIX, addr_port[1]
@@ -884,7 +884,7 @@ def getBaseServerClass(addr_port, threaded):
     addr, port = addr_port
   except ValueError:
     raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
-  if type(port) is type(''):                                # check protocol
+  if isinstance(port,basestring):                               # check protocol
     proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
     if port.isdigit():
       addr_port = (addr, int(port))
@@ -895,10 +895,10 @@ def getBaseServerClass(addr_port, threaded):
     srv_class = SERVER_CLASSES[type(port)][proto][threaded]
   except KeyError:
     raise ValueError('No suitable server class for:', port, proto)
-  if type(addr_port[1]) is type(''):
+  if isinstance(addr_port[1], basestring):
     addr_port = addr_port[1]
   LOG.debug('address-port: %s, selected server class: %s',addr_port,srv_class)
-  return tuple(addr_port), srv_class
+  return addr_port, srv_class
 
 
 def create_server(handler_class, addr_port,
@@ -912,14 +912,13 @@ def create_server(handler_class, addr_port,
                 Default behaviour is to use the auto-selected only.
   Return: auto-selected server class instance (may be mixed with server_mixin).
   """
-  if not issubclass(handler_class, BaseRequestHandler):
-    raise TypeError("%s must inherit from BaseRequestHandler" % handler_class)
-  # XXX: new style classes only, remove for python3
-  if server_mixin and not issubclass(server_mixin, object):
-    raise TypeError("%s must inherit from object" % server_mixin)
-  if (server_mixin and
-      server_mixin in [ cls for proto, cls in SERVER_CLASSES.items() ]):
-    raise TypeError("server_mixin (%s) must be your own class" % server_mixin)
+  assert (issubclass(handler_class, BaseRequestHandler),
+          "%s must inherit from BaseRequestHandler" % handler_class)
+  if server_mixin:              #XXX: new style classes only, remove for python3
+      assert (issubclass(server_mixin, object),
+              "%s must inherit from object" % server_mixin)
+      assert (server_mixin not in [cls for proto,cls in SERVER_CLASSES.items()],
+              "server_mixin (%s) must be your own class" % server_mixin)
 
   threaded_srv, threaded_cli = threading_info
   addr_port, base_class = getBaseServerClass(tuple(addr_port), threaded_cli)
