@@ -912,13 +912,13 @@ def create_server(handler_class, addr_port,
                 Default behaviour is to use the auto-selected only.
   Return: auto-selected server class instance (may be mixed with server_mixin).
   """
-  assert (issubclass(handler_class, BaseRequestHandler),
-          "%s must inherit from BaseRequestHandler" % handler_class)
+  assert issubclass(handler_class, BaseRequestHandler), \
+    "%s must inherit from BaseRequestHandler" % handler_class
   if server_mixin:              #XXX: new style classes only, remove for python3
-      assert (issubclass(server_mixin, object),
-              "%s must inherit from object" % server_mixin)
-      assert (server_mixin not in [cls for proto,cls in SERVER_CLASSES.items()],
-              "server_mixin (%s) must be your own class" % server_mixin)
+      assert issubclass(server_mixin, object), \
+        "%s must inherit from object" % server_mixin
+      assert server_mixin not in [cls for proto,cls in SERVER_CLASSES.items()],\
+        "server_mixin (%s) must be your own class" % server_mixin
 
   threaded_srv, threaded_cli = threading_info
   addr_port, base_class = getBaseServerClass(tuple(addr_port), threaded_cli)
