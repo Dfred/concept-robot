@@ -1,0 +1,95 @@
+Abstract:
+=========
+
+This software is part of the CONCEPT project from the University of Plymouth,
+ under supervision of Dr tony Belpaeme.
+
+The team involves :
+- frederic Delaunay, human-robot interaction
+- joachim De Greeff, conceptual modeling
+
+The project is part of frederic Delaunay's PhD, under supervision of
+ Dr Tony Belpaeme.
+This PhD is expected to end in late 2011.
+In the meantime, you are welcomed to try the software and submit bugfixes.
+
+More information at http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
+
+
+Requirements (In this order):
+=============
+
+- Python >= 2.7 < 3	(http://www.python.org/getit/releases/)
+- NumPy for Python 2.7 	(http://www.scipy.org/Download)
+- blender 2.49b 	(http://download.blender.org/release/)
+
+- for Windows:
+* Microsoft Visual C++ 2008 SP1 Redistributable Package x86
+* readline (if you want to use the readline client,
+ http://newcenturycomputers.net/
+ projects/download.cgi/Readline-1.7.win32-py2.6.exe)
+
+If you wish to use the vision module, get pyvision svn (https://pyvision.svn.sourceforge.net/svnroot/pyvision/trunk). This requires:
+- PIL for Python	(http://www.pythonware.com/products/pil/)
+- SciPy for Python	(http://www.scipy.org/Download)
+
+
+Running the software:
+=====================
+
+Windows:
+-------
+
+Foreword: avoid using MinGW (if you can). Python doesn't like minGW or cygWin
+ paths (ie: starting with /c/..).
+ On a similar note, Python26/Lib/ and Python26/lib point at the same location
+ *but* is considered different (FYI, the PIL package will crash python if the
+ path has both Python26/lib/ and Python26/Lib/)
+
+1) Make sure you have a PYTHONPATH environment variable containing
+ Lib\site-packages.
+Otherwise, importing Numpy in a python shell could work, but not from the
+ blender backend.
+
+2) Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/.
+Then run start.bat. If it fails, backtrack in the terminal window to check the
+ first error message. You may need to edit your configuration file.
+
+
+Open source people would:
+------------------------
+
+1) Open a shell and change into the directory containing this file.
+
+2) Create a blender executable (To be done once and for all):
+
+  2.1) you can load environment variables (supposedly for development):
+
+       $ . common/source_me_to_set_env.sh  lightHead
+
+       lightHead is the project name, setting the search for a system
+        configuration file to lightHead.conf.
+       This also allows multiple variations of a configuration.
+
+  2.2) open the blend file to generate a standalone version for your platform:
+
+       $ edit_face        (if you have followed 2.1)
+
+       Use blender menu: File > Save Game as Runtime, and save it in this folder
+        as: "lightHead"
+
+3) start the facial animation system with:
+
+   $ ./start.sh
+
+   By default the graphical interface is in full-screen;
+    use option -w to enjoy window mode.
+   Also, configurations running Ironhide can use -i option.
+
+Now you can connect and start setting Action Units according to the protocol
+ definition. Rather, you could use the Expression server along with its
+ datablock specification for higher-level animation.
+
+
+Contact: frederic.delaunay@plymouth.ac.uk
+========
