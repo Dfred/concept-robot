@@ -5,9 +5,10 @@ common/		scripts, configuration and miscelaneous files for the project
 experiments/	experiments and results
 extern/		embedded dependencies
 HMS/		High-level Management System folder
-HMS/control/	modules for the concept learning part (from Joachim's repository)
+HMS/control/ and 
+HMS/cogmod/	modules for concept learning from Joachim's repository
 RAS/		Robotic Animation System folder
-RAS/eyes/	eye animation engine (currently a place holder since eye animation is handled by face)
+RAS/eyes/	eye animation engine (place holder since eyes handled by face)
 RAS/face/	facial animation engine(s)
 RAS/spine/	includes thorax, neck and head movements
 RAS/vision/	image sensor and processing classes
