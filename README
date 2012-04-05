@@ -29,7 +29,9 @@ Requirements (In this order):
  http://newcenturycomputers.net/
  projects/download.cgi/Readline-1.7.win32-py2.6.exe)
 
-If you wish to use the vision module, get pyvision svn (https://pyvision.svn.sourceforge.net/svnroot/pyvision/trunk). This requires:
+If you wish to use the vision module, change to the extern folder, then get
+pyvision svn at https://pyvision.svn.sourceforge.net/svnroot/pyvision/trunk .
+This requires:
 - PIL for Python	(http://www.pythonware.com/products/pil/)
 - SciPy for Python	(http://www.scipy.org/Download)
 
