@@ -36,7 +36,7 @@ import time
 
 from HMS.communication import MTExpressionComm
 from utils import conf, handle_exception
-from utils.FSMs import SPFSM, STARTED, STOPPED
+from utils.parallel_fsm import SPFSM, STARTED, STOPPED
 
 
 LOG = logging.getLogger(__package__)
