@@ -284,9 +284,12 @@ class CamUtils(CamCapture):
         Poor's man calibration procedure for 'depth_fct' (valid for a specific
         aspect ratio):
         1/ this script gives normalized face's Width, measure distance (meters).
-        2/ perform a regression on these values. You can use this website:
+        2/ measure the face Width at different depth levels, i.e. 30cm, 60cm, 1m
+        3/ perform a regression on these values, with x=Width and y=Depth. You can use this website:
 http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
-        3/ in conf's lib_vision, set 'depth_fct' with your function as a string.
+        this will provide a function, e.g. y = 0.249136x^-0.443607
+        4/ in conf's lib_vision, set 'depth_fct' with your function as a string, 
+        e.g. 'depth_fct': '0.249136*x**-0.443607' for the function above
         """
         assert hasattr(self.camera,'XY_factors'), 'Provide XY_factors in conf.'
         assert hasattr(self.camera,'depth_fct'), 'Provide depth_fct in conf'
