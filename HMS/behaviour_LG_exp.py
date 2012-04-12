@@ -4,14 +4,13 @@
 # behaviours to be used in conjunction with LG experiments
 
 import logging
-import random
-import time
+import time, random, Queue
 
 from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, SPFSM as FSM
-from utils import vision, conf
+from utils import conf
 
 LOG = logging.getLogger(__package__)
 
@@ -21,21 +20,28 @@ class LightHead_Behaviour(BehaviourBuilder):
     """
 
     def st_start(self):
+        item = None
+        while not item:
+            try:    # query the queue
+                item = self.from_gui_queue.get()
+            except Queue.Empty:
+                item = None
+        
         self.last_st_change_t = time.time()
         self.comm_expr.set_fExpression('neutral', intensity=1)
         self.comm_expr.set_text("Starting...")
-        self.comm_expr.set_gaze((0,10,0))
-        #self.comm_expr.set_instinct("gaze-control:target=%s" % self.comm_expr.get_transform([0,0,0],'p'))
-        self.comm_expr.sendDB_waitReply()
-        return True
+        if item[0] == "gaze_adjust":
+            self.comm_expr.set_gaze(item[1])
+            self.comm_expr.sendDB_waitReply()
+        if item[0] == "end":
+            return True
 
 
     def st_stopped(self):
-        print 'test stopped'
         return True
   
   
-    def __init__(self, with_gui=True):
+    def __init__(self, from_gui_queue, with_gui=True):
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
@@ -43,7 +49,8 @@ class LightHead_Behaviour(BehaviourBuilder):
           ]
         super(LightHead_Behaviour,self).__init__(machines_def, FSM)
         
-        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)    
+        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)  
+        self.from_gui_queue = from_gui_queue
     
     
     def cleanUp(self):
