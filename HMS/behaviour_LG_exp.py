@@ -28,12 +28,16 @@ class LightHead_Behaviour(BehaviourBuilder):
                 item = None
         
         self.last_st_change_t = time.time()
-        self.comm_expr.set_fExpression('neutral', intensity=1)
-        self.comm_expr.set_text("Starting...")
+
         if item[0] == "gaze_adjust":
             self.comm_expr.set_gaze(item[1])
             self.comm_expr.sendDB_waitReply()
+        if item[0] == "expression_adjust":
+            self.comm_expr.set_fExpression(item[1], intensity=item[2])
+            self.comm_expr.sendDB_waitReply()
         if item[0] == "end":
+            self.comm_expr.set_fExpression("neutral", intensity=.8)
+            self.comm_expr.sendDB_waitReply()
             return True
 
 
