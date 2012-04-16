@@ -97,7 +97,7 @@ OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
 MAX_FPS = 60
-INFO_PERIOD = None
+INFO_PERIOD = 10
 # Naming Convention: regular objects are lower case, bones are title-ized.
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
@@ -198,9 +198,9 @@ def update():
     """Up is positive Z values and the model is supposed to look towards
     negative Y values.
     """
-    return [ [cos(azL),        -sin(azL),         0],
-             [cos(x)*sin(z), cos(ax)*cos(azL),-sin(ax)],
-             [sin(x)*sin(z), sin(ax)*cos(azL), cos(ax)] ]
+    return [ [cos(z),        -sin(z),         0],
+             [cos(x)*sin(z), cos(x)*cos(z),-sin(x)],
+             [sin(x)*sin(z), sin(x)*cos(z), cos(x)] ]
 
   srv = G.face_server
   cont = G.getCurrentController()
@@ -215,10 +215,8 @@ def update():
       if eyes_done:                                     # all in one pass
         continue
       ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
-      azR =  srv.AUs['61.5R'][VAL]
-      azL =  srv.AUs['61.5L'][VAL]
-      G.eye_L.localOrientation = get_orientation_XZ(ax,azL)
-      G.eye_R.localOrientation = get_orientation_XZ(ax,azR)
+      G.eye_L.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5L'][VAL]))
+      G.eye_R.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5R'][VAL]))
       eyes_done = True
 
     # XXX: yes, T is a thorax prefix (do better ?)
