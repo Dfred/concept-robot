@@ -14,6 +14,7 @@ from utils import conf
 
 LOG = logging.getLogger(__package__)
 
+hw_robot = False    # hardware robot is present
 
 class LightHead_Behaviour(BehaviourBuilder):
     """
@@ -29,16 +30,82 @@ class LightHead_Behaviour(BehaviourBuilder):
         
         self.last_st_change_t = time.time()
 
-        if item[0] == "gaze_adjust":
-            self.comm_expr.set_gaze(item[1])
-            self.comm_expr.sendDB_waitReply()
-        if item[0] == "expression_adjust":
-            self.comm_expr.set_fExpression(item[1], intensity=item[2])
-            self.comm_expr.sendDB_waitReply()
+        if item[0] == "do_behaviour":
+            self.do_behaviour(item[1], item[2])
         if item[0] == "end":
             self.comm_expr.set_fExpression("neutral", intensity=.8)
             self.comm_expr.sendDB_waitReply()
             return True
+        
+    
+    def do_behaviour(self, behaviour, gaze_target):
+        if behaviour == "1": # starting
+            pass
+        if behaviour == "2A": # waiting for teacher to choose a topic
+            if hw_robot:
+                self.comm_expr.set_neck((-0.1, 0.0, 0.1))
+                self.comm_expr.sendDB_waitReply()
+                self.comm_expr.set_neck((-0.1, 0.0, 0.0))
+                self.comm_expr.sendDB_waitReply()
+                self.comm_expr.set_neck((-0.1, 0.0, -0.1))
+                self.comm_expr.sendDB_waitReply()
+                # look_at_teacher()
+            self.comm_expr.set_fExpression("neutral", intensity=.8)
+            self.comm_expr.set_gaze((3,10,0), duration=.5)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((0,10,0), duration=.5)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((-3,10,0), duration=.5)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((0,10,0), duration=.5)
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "2B": # trying to indicate preferred topic to teacher
+            if hw_robot:
+                self.comm_expr.set_neck((-0.1, 0.0, 0.1))
+                # look_at_teacher()
+        if behaviour == "3": # don't know word
+            if hw_robot:
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+                self.comm_expr.set_neck((0.0, -0.1, 0.0))
+            self.comm_expr.set_gaze((3,10,3))
+            self.comm_expr.set_fExpression("really_look", intensity=.5, duration=1.5)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((0,10,0))
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "4": # learns word
+            if hw_robot:
+                self.comm_expr.set_neck((-0.1, 0.0, 0.1)) # look at topic
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+                self.comm_expr.set_neck((-0.1, 0.0, 0.0))
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+            self.comm_expr.set_gaze((3 - (gaze_target*3),10,0), duration=.5)
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "5": # guessing an animal
+            if hw_robot:
+                self.comm_expr.set_neck((-0.1, 0.0, 0.1)) # look at topic
+                # look_at_teacher()
+            self.comm_expr.set_gaze((3 - (gaze_target*3),10,0))
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "6": # guessed right
+            if hw_robot:
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+                self.comm_expr.set_neck((0.1, 0.0, 0.0))
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+            self.comm_expr.set_fExpression("simple_smile_wide2", 1.0, duration=2.0)
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "7": # guessed wrong
+            if hw_robot:
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+                self.comm_expr.set_gaze((0,10,-3))
+            self.comm_expr.set_fExpression("disgust1", 1.0, duration=2.0)
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "8": # guessing game over
+            if hw_robot:
+                self.comm_expr.set_neck((0.0, 0.0, 0.0))
+            self.comm_expr.set_gaze((0,10,0))
+            self.comm_expr.set_fExpression("simple_smile_wide1", 1.0)
+            self.comm_expr.sendDB_waitReply()
+
 
 
     def st_stopped(self):
@@ -53,7 +120,7 @@ class LightHead_Behaviour(BehaviourBuilder):
           ]
         super(LightHead_Behaviour,self).__init__(machines_def, FSM)
         
-        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)  
+        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
         self.from_gui_queue = from_gui_queue
     
     
