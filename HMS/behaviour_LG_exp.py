@@ -78,13 +78,13 @@ class LightHead_Behaviour(BehaviourBuilder):
                 self.comm_expr.set_neck((0.0, 0.0, 0.0))
                 self.comm_expr.set_neck((-0.1, 0.0, 0.0))
                 self.comm_expr.set_neck((0.0, 0.0, 0.0))
-            self.comm_expr.set_gaze((3 - (gaze_target*3),10,0), duration=.5)
+            self.comm_expr.set_gaze((-3 + (gaze_target*3),10,0), duration=.5)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "5": # guessing an animal
             if hw_robot:
                 self.comm_expr.set_neck((-0.1, 0.0, 0.1)) # look at topic
                 # look_at_teacher()
-            self.comm_expr.set_gaze((3 - (gaze_target*3),10,0))
+            self.comm_expr.set_gaze((-3 + (gaze_target*3),10,0))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "6": # guessed right
             if hw_robot:
