@@ -14,7 +14,10 @@ from utils import vision, conf
 
 LOG = logging.getLogger(__package__)
 
-hw_robot = False    # hardware robot is present
+#parameters for touchscreen
+param_gaze_x = 0.15
+param_gaze_y = 0.25
+
 
 class LightHead_Behaviour(BehaviourBuilder):
     """
@@ -43,38 +46,60 @@ class LightHead_Behaviour(BehaviourBuilder):
             pass
         if behaviour == "2A": # waiting for teacher to choose a topic
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
+            self.comm_expr.sendDB_waitReply()
             signs = [1.0, -1.0]
             sign_mod = signs[random.randint(0,1)]
                 
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.5))" % (-.5*sign_mod))
+            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.5))")
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
             self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.5))"% (.5*sign_mod))
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
                 
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.4))")
             self.comm_expr.sendDB_waitReply()
         if behaviour == "2B": # trying to indicate preferred topic to teacher
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=.5)
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
+            self.comm_expr.set_gaze((0,10,0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
+            signs = [1.0, -1.0]
+            sign_mod = signs[random.randint(0,1)]
+                
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
+            
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
+            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.6)))
             self.comm_expr.sendDB_waitReply()
             # look_at_teacher()
         if behaviour == "3": # don't know word
             self.comm_expr.set_gaze((0.2,1.0,0.2), duration=1.0)
             self.comm_expr.set_fExpression("surprised", intensity=1.0,)
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=2.0)
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "4": # learns word
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
+            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
@@ -83,15 +108,17 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "5": # guessing an animal
+            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "6": # guessed right
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
         if behaviour == "7": # guessed wrong
-            print "guessed wrong"
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
