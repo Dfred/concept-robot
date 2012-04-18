@@ -9,8 +9,8 @@ import time, random, Queue
 from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
-from utils.parallel_fsm import STARTED, STOPPED, SPFSM as FSM
-from utils import conf
+from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
+from utils import vision, conf
 
 LOG = logging.getLogger(__package__)
 
@@ -27,8 +27,6 @@ class LightHead_Behaviour(BehaviourBuilder):
                 item = self.from_gui_queue.get()
             except Queue.Empty:
                 item = None
-        
-        self.last_st_change_t = time.time()
 
         if item[0] == "do_behaviour":
             self.do_behaviour(item[1], item[2])
@@ -106,15 +104,43 @@ class LightHead_Behaviour(BehaviourBuilder):
 
     def st_stopped(self):
         return True
+    
+    
+    def st_detect_faces(self):
+        self.update_vision()
+        self.faces = self.vision.find_faces()
+        if self.faces and self.vision.gui:
+            self.vision.mark_rects(self.faces)
+            self.vision.gui.show_frame(self.vision.frame)
+        return len(self.faces)
+    
+    
+    def update_vision(self):
+        self.vision.update()
+        self.vision.gui_show()
   
   
-    def __init__(self, from_gui_queue, with_gui=True):
+    def __init__(self, from_gui_queue, with_gui=True, with_vision=False):
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
             ('stop_state', self.st_stopped, STOPPED),), None), 
+#          ('vis',   (
+#            (STARTED, self.st_detect_faces,   None), ),  'cog'),
           ]
         super(LightHead_Behaviour,self).__init__(machines_def, FSM)
+        
+        if with_vision:
+            try:
+                self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
+                self.vision.update()
+                LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
+                if with_gui:
+                    self.vision.gui_create()
+                    self.update_vision()
+                self.vision.enable_face_detection()
+            except vision.VisionException, e:
+                fatal(e)
         
         self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
         self.from_gui_queue = from_gui_queue
