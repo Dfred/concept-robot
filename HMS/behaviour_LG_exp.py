@@ -10,7 +10,7 @@ from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
-from utils import vision, conf
+from utils import conf
 
 LOG = logging.getLogger(__package__)
 
@@ -32,7 +32,7 @@ class LightHead_Behaviour(BehaviourBuilder):
                 item = None
 
         if item[0] == "do_behaviour":
-            self.do_behaviour(item[1], item[2])
+            self.do_behaviour(item[1], item[2], item[3])
         if item[0] == "end":
             self.comm_expr.set_fExpression("neutral", intensity=.8)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
@@ -41,7 +41,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             return True
         
     
-    def do_behaviour(self, behaviour, gaze_target):
+    def do_behaviour(self, behaviour, gaze_target, teacher_word):
         if behaviour == "1": # starting
             pass
         if behaviour == "2A": # waiting for teacher to choose a topic
@@ -50,22 +50,24 @@ class LightHead_Behaviour(BehaviourBuilder):
             signs = [1.0, -1.0]
             sign_mod = signs[random.randint(0,1)]
                 
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=2)
             self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_text("Lets get started, Fred!")
+            self.comm_expr.set_text("mentally choose an animal, and tell me its category")
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
+
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
                 
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
             if self.faces:
@@ -99,10 +101,12 @@ class LightHead_Behaviour(BehaviourBuilder):
         if behaviour == "3": # don't know word
             self.comm_expr.set_gaze((0.2,1.0,0.2), duration=1.0)
             self.comm_expr.set_fExpression("surprised", intensity=1.0,)
+            self.comm_expr.set_text("mmm, I don't know this word, please click on the animal")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "4": # learns word
+            self.comm_expr.set_text("ah, so this is a " + teacher_word)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
@@ -113,16 +117,19 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "5": # guessing an animal
+            self.comm_expr.set_text("I'm guessing this a " + self.a1_word+ "?")
             self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "6": # guessed right
+            self.comm_expr.set_text("aha, just as I thought!")
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
         if behaviour == "7": # guessed wrong
+            self.comm_expr.set_text("oww, I guessed wrong")
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
@@ -152,7 +159,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.vision.gui_show()
   
   
-    def __init__(self, from_gui_queue, with_gui=True, with_vision=True):
+    def __init__(self, from_gui_queue, with_gui=True, with_vision=False):
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
@@ -175,12 +182,17 @@ class LightHead_Behaviour(BehaviourBuilder):
                 fatal(e)
         
         self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
+        print "check"
         self.from_gui_queue = from_gui_queue
         self.last_face = None   # location of last detected face
     
     
     def cleanUp(self):
         LOG.debug('--- cleaning up ---')
+        try:
+            self.vision.gui_destroy()
+        except AttributeError:
+            pass # we have no gui
         self.comm_lightHead.done()
         super(LightHead_Behaviour,self).cleanUp()
     
