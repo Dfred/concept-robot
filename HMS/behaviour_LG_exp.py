@@ -50,24 +50,25 @@ class LightHead_Behaviour(BehaviourBuilder):
             signs = [1.0, -1.0]
             sign_mod = signs[random.randint(0,1)]
                 
-            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=2)
-            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
             self.comm_expr.set_text("mentally choose an animal, and tell me its category")
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=2.0)
+            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
 
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
 
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
                 
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
             if self.faces:
@@ -101,7 +102,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         if behaviour == "3": # don't know word
             self.comm_expr.set_gaze((0.2,1.0,0.2), duration=1.0)
             self.comm_expr.set_fExpression("surprised", intensity=1.0,)
-            self.comm_expr.set_text("mmm, I don't know this word, please click on the animal")
+            self.comm_expr.set_text("uum, I don't know this word, please click on the animal")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
@@ -117,19 +118,19 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.sendDB_waitReply()
         if behaviour == "5": # guessing an animal
-            self.comm_expr.set_text("I'm guessing this a " + self.a1_word+ "?")
+            self.comm_expr.set_text("I'm guessing this is a " + teacher_word + "?")
             self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "6": # guessed right
-            self.comm_expr.set_text("aha, just as I thought!")
+            self.comm_expr.set_text("yes!, just as I thought!")
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
         if behaviour == "7": # guessed wrong
-            self.comm_expr.set_text("oww, I guessed wrong")
+            self.comm_expr.set_text("ow!, I guessed wrong")
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
@@ -184,7 +185,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
         print "check"
         self.from_gui_queue = from_gui_queue
-        self.last_face = None   # location of last detected face
+        self.faces = None
     
     
     def cleanUp(self):
