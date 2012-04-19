@@ -52,6 +52,7 @@ class LightHead_Behaviour(BehaviourBuilder):
                 
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_text("Lets get started, Fred!")
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
@@ -65,8 +66,12 @@ class LightHead_Behaviour(BehaviourBuilder):
                 
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.4))")
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
+            if self.faces:
+                target = self.vision.get_face_3Dfocus(self.faces)[0]
+                self.comm_expr.set_instinct("gaze-control:target=%s" % self.comm_expr.get_transform(target,'r'))
+                self.comm_expr.sendDB_waitReply(tag='KUV')
         if behaviour == "2B": # trying to indicate preferred topic to teacher
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
@@ -147,13 +152,13 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.vision.gui_show()
   
   
-    def __init__(self, from_gui_queue, with_gui=True, with_vision=False):
+    def __init__(self, from_gui_queue, with_gui=True, with_vision=True):
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
             ('stop_state', self.st_stopped, STOPPED),), None), 
-#          ('vis',   (
-#            (STARTED, self.st_detect_faces,   None), ),  'cog'),
+          ('vis',   (
+            (STARTED, self.st_detect_faces,   None), ),  'cog'),
           ]
         super(LightHead_Behaviour,self).__init__(machines_def, FSM)
         
@@ -171,6 +176,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         
         self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
         self.from_gui_queue = from_gui_queue
+        self.last_face = None   # location of last detected face
     
     
     def cleanUp(self):
