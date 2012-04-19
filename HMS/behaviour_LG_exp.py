@@ -10,7 +10,7 @@ from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
-from utils import conf
+from utils import conf, vision
 
 LOG = logging.getLogger(__package__)
 
@@ -33,6 +33,7 @@ class LightHead_Behaviour(BehaviourBuilder):
 
         if item[0] == "do_behaviour":
             self.do_behaviour(item[1], item[2], item[3])
+            
         if item[0] == "end":
             self.comm_expr.set_fExpression("neutral", intensity=.8)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
@@ -51,24 +52,24 @@ class LightHead_Behaviour(BehaviourBuilder):
             sign_mod = signs[random.randint(0,1)]
                 
             self.comm_expr.set_text("mentally choose an animal, and tell me its category")
-            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=2.0)
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.6))" % (-.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
-            self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
-
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.6))")
             self.comm_expr.sendDB_waitReply()
+            
+            
             self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
-
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
                 
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
             if self.faces:
@@ -147,12 +148,15 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     
     def st_detect_faces(self):
-        self.update_vision()
-        self.faces = self.vision.find_faces()
-        if self.faces and self.vision.gui:
-            self.vision.mark_rects(self.faces)
-            self.vision.gui.show_frame(self.vision.frame)
-        return len(self.faces)
+        if self.vision:
+            self.update_vision()
+            self.faces = self.vision.find_faces()
+            if self.faces and self.vision.gui:
+                self.vision.mark_rects(self.faces)
+                self.vision.gui.show_frame(self.vision.frame)
+            return len(self.faces)
+        else:
+            return False
     
     
     def update_vision(self):
@@ -161,12 +165,14 @@ class LightHead_Behaviour(BehaviourBuilder):
   
   
     def __init__(self, from_gui_queue, with_gui=True, with_vision=False):
+        self.faces = None
+        self.vision = None
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
             ('stop_state', self.st_stopped, STOPPED),), None), 
-          ('vis',   (
-            (STARTED, self.st_detect_faces,   None), ),  'cog'),
+          #('vis',   (
+          #  (STARTED, self.st_detect_faces,   None), ),  'cog'),
           ]
         super(LightHead_Behaviour,self).__init__(machines_def, FSM)
         
@@ -183,9 +189,9 @@ class LightHead_Behaviour(BehaviourBuilder):
                 fatal(e)
         
         self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
-        print "check"
         self.from_gui_queue = from_gui_queue
-        self.faces = None
+        
+        
     
     
     def cleanUp(self):
