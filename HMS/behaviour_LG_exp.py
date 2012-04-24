@@ -15,26 +15,68 @@ from utils import conf, vision
 
 LOG = logging.getLogger(__package__)
 
-#parameters for touchscreen
-param_gaze_x = 0.15
-param_gaze_y = 0.25
+
+PARAM_GAZE_X = 0.14     #parameters for touchscreen
+PARAM_GAZE_Y = 0.28
+
+MIN_TIME_MOVES = 10     # minimum time between moves
+
 
 
 class LightHead_Behaviour(BehaviourBuilder):
     """
     """
+    
+    def __init__(self, from_gq, to_gq, with_gui=True, with_vision=True):
+        self.faces = []
+        self.follow_face = False
+        self.vision = None
+        self.cycle = None
+        self.time_last_action = time.time()
+        
+        machines_def = [
+          ('cog', (
+            (STARTED, self.st_start, 'stop_state'),
+            ('stop_state', self.st_stopped, STOPPED),), None), 
+          ('bor',   (
+            (STARTED, self.st_check_boredom,   None), ),  'cog'),
+          ('vis',   (
+            (STARTED, self.st_detect_faces,   None), ),  'cog'),
+          ]
+        super(LightHead_Behaviour,self).__init__(machines_def, FSM)
+        
+        if with_vision:
+            try:
+                self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
+                self.vision.update()
+                LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
+                if with_gui:
+                    self.vision.gui_create()
+                    self.update_vision()
+                self.vision.enable_face_detection()
+            except vision.VisionException, e:
+                fatal(e)
+        
+        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
+        self.from_gq = from_gq
+        self.to_gq = to_gq
+        
 
     def st_start(self):
         item = None
         while not item:
             try:    # query the queue
-                item = self.from_gui_queue.get()
+                item = self.from_gq.get()
             except Queue.Empty:
                 item = None
 
         if item[0] == "do_behaviour":
             self.cycle = item[4]
+            self.time_last_action = time.time()
             self.do_behaviour(item[1], item[2], item[3])
+            self.to_gq.put(["done"], None)
+            self.time_last_action = time.time()
+            
             
         if item[0] == "end":
             print "ending"
@@ -44,6 +86,16 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.sendDB_waitReply()
             return True
         
+        
+        
+    def st_check_boredom(self):
+        """if we have done nothing for a while, do something random
+        """
+        time.sleep(0.5)
+        if time.time() - self.time_last_action > MIN_TIME_MOVES:
+            self.do_random_behaviour_small()
+            print "small random move"
+    
     
     def do_behaviour(self, behaviour, gaze_target, teacher_word):
         if behaviour == "1": # starting
@@ -54,22 +106,24 @@ class LightHead_Behaviour(BehaviourBuilder):
             signs = [1.0, -1.0]
             sign_mod = signs[ran.randint(0,1)]
                 
-            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=2.0)
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=2.0)
             self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.6))" % (-.6*sign_mod))
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.6))")
+            self.comm_expr.set_text(self.get_next_round_statement())    # get speech
+            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            
+            self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.5)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.5)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze((-PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
                 
-            self.comm_expr.set_text(self.get_next_round_statement())    # get speech
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
@@ -82,24 +136,27 @@ class LightHead_Behaviour(BehaviourBuilder):
             sign_mod = signs[ran.randint(0,1)]
                 
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_gaze((param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.6))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_gaze((0.0,1.0,-param_gaze_y), duration=1.0)
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
+            
+            self.comm_expr.set_text(self.get_next_round_active_statement())    # get speech
+            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            
+            self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.5)
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.5)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.6))")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_gaze((-param_gaze_x*sign_mod,1.0,-param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze((-PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text(self.get_next_round_active_statement())    # get speech
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
-            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.6)))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "3": # don't know word
@@ -113,7 +170,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         if behaviour == "4": # learns word
             self.comm_expr.set_text(self.get_learning_statement(teacher_word))    # get speech
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
-            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
@@ -124,7 +181,7 @@ class LightHead_Behaviour(BehaviourBuilder):
         if behaviour == "5": # guessing an animal
             self.follow_face = False
             self.comm_expr.set_text(self.get_guessing_statement(teacher_word))    # get speech
-            self.comm_expr.set_gaze(  ( -param_gaze_x + (gaze_target*param_gaze_x), 1.0, -param_gaze_y), duration=1.0)
+            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
@@ -192,13 +249,13 @@ class LightHead_Behaviour(BehaviourBuilder):
         
     
     def get_dont_know_statement(self, teacher_word):
-        stats = ("uum, I don't know what a " + teacher_word + " is, please click on the animal",
-                 "I don't have a clue what a " + teacher_word + "might be, please click on correct the animal",
+        stats = ("uum, I don't know what a " + teacher_word + " is, click on the animal",
+                 "I don't have a clue what a " + teacher_word + " might be, click on the correct animal",
                  "Never heard off " + teacher_word + " before, let me know what animal this is",
-                 "don't know " +teacher_word + ", please tell me what it is",
-                 teacher_word + "?, I don't really know, just click on the correct animal so I can learn",
-                 teacher_word + "? I don't know that one. please click on the animal",
-                 "a " +teacher_word+ "? No clue. Please click on the correct animal") 
+                 "don't know " +teacher_word + ", tell me what it is",
+                 teacher_word + "?, I don't really know, click on the correct animal so I can learn",
+                 teacher_word + "? I don't know that one. click on the animal",
+                 "a " +teacher_word+ "? No clue. click on the correct animal") 
         return stats[ran.randint(0, len(stats)-1)]
     
     
@@ -240,18 +297,32 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     def get_wrong_statement(self):
         stats = ("ow!, I guessed wrong",
-                 "mmm, too bad",
+                 "um, too bad",
                  "noho, not wrong again", 
                  "too bad, I thought I knew that one",
                  "sadly, I am mistaken",
                  "really? I thought otherwise, oh well",
                  "if you say so, I guess I was wrong",
-                 "mm, guessed that one wrong",
-                 "that's not correct?, oh well",
+                 "um, guessed that one wrong",
+                 "is that not correct?, oh well",
                  "are you sure, well, if you say so")
         return stats[ran.randint(0, len(stats)-1)]
 
 
+    def do_random_behaviour_small(self):
+        var = 100.0
+        ran_x, ran_y, ran_z = ran.randint(-50,50)/var, ran.randint(-50,50)/var, ran.randint(-50,50)/(var*2)
+        self.comm_expr.set_gaze((ran_x/-2.0, 1.0, ran_z), duration=1.0)
+        self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
+        self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , %2f))" %(ran_x, ran_z) )
+        self.comm_expr.sendDB_waitReply(tag='BOR')
+        self.time_last_action = time.time()
+    
+    
+    def do_random_behaviour_big(self):
+        pass
+    
+    
     def st_stopped(self):
         return True
     
@@ -266,12 +337,12 @@ class LightHead_Behaviour(BehaviourBuilder):
             if self.faces:
                 if self.follow_face:
                     #target = self.vision.get_face_3Dfocus(self.faces)[0]
-                    #print self.faces, target
                     #self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=.5)
-                    self.comm_expr.set_instinct("gaze-control:target=%s" %self.calc_face_target())
+                    #self.comm_expr.set_instinct("gaze-control:target=%s" %self.calc_face_target())
                     #self.comm_expr.set_instinct("gaze-control:target=%s" % self.comm_expr.get_transform(target,'r'))
-                    self.comm_expr.sendDB_waitReply(tag='KUV')
-                    print "looking for face"
+                    self.comm_expr.set_gaze(self.calc_face_target())
+                    self.comm_expr.sendDB_waitReply()
+                    #self.comm_expr.send_datablock()
         return len(self.faces)
 
 
@@ -281,44 +352,14 @@ class LightHead_Behaviour(BehaviourBuilder):
         face_dist = ((-88.5 * math.log(fw)) + 538.5)
         fx = fx + (fw/2.0)
         fy = fy + (fh/2.0)
-        x_dist = 0.5 * (((fx/320.0) *-2) +1)
-        y_dist = 0.5 * (((fy/240.0) *-2) +1)
-        return "(%2f, %2f, %2f)" %(-x_dist, (face_dist/100.0), y_dist)
+        x_dist = 0.5 * (((fx/640.0) *-2) +1)
+        y_dist = 0.5 * (((fy/480.0) *-2) +1)
+        return (x_dist, face_dist/100.0, y_dist)
     
     
     def update_vision(self):
         self.vision.update()
         self.vision.gui_show()
-  
-  
-    def __init__(self, from_gui_queue, with_gui=True, with_vision=True):
-        self.faces = []
-        self.follow_face = False
-        self.vision = None
-        self.cycle = None
-        machines_def = [
-          ('cog', (
-            (STARTED, self.st_start, 'stop_state'),
-            ('stop_state', self.st_stopped, STOPPED),), None), 
-          ('vis',   (
-            (STARTED, self.st_detect_faces,   None), ),  'cog'),
-          ]
-        super(LightHead_Behaviour,self).__init__(machines_def, FSM)
-        
-        if with_vision:
-            try:
-                self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
-                self.vision.update()
-                LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
-                if with_gui:
-                    self.vision.gui_create()
-                    self.update_vision()
-                self.vision.enable_face_detection()
-            except vision.VisionException, e:
-                fatal(e)
-        
-        self.comm_lightHead = MTLightheadComm(conf.lightHead_server)
-        self.from_gui_queue = from_gui_queue
         
         
     
