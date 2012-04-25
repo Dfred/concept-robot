@@ -44,7 +44,7 @@ LOG = get_logger(__package__)
 VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
              "04L","04R",
-             "05L","05R",
+             "05L","05R","05s",
              "06L","06R",
              "07L","07R",
              "08L","08R",
@@ -72,9 +72,12 @@ VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "39L","39R",
              "51.5","53.5","55.5",
              "61.5L","61.5R","63.5",
-             "96","97","98",
+             "93X","93Y","93Z",
+             "93mZ","93bT",
+             "94","95",
              "SYL","SYR",
              "SZL","SZR",
+             "skB","skS",
              "Th",
              "TX","TY","TZ")
 
