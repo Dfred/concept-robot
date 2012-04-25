@@ -38,8 +38,8 @@ class LightHead_Behaviour(BehaviourBuilder):
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
             ('stop_state', self.st_stopped, STOPPED),), None), 
-          ('bor',   (
-            (STARTED, self.st_check_boredom,   None), ),  'cog'),
+          #('bor',   (
+          #  (STARTED, self.st_check_boredom,   None), ),  'cog'),
           ('vis',   (
             (STARTED, self.st_detect_faces,   None), ),  'cog'),
           ]
@@ -74,7 +74,6 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.cycle = item[4]
             self.time_last_action = time.time()
             self.do_behaviour(item[1], item[2], item[3])
-            self.to_gq.put(["done"], None)
             self.time_last_action = time.time()
             
             
@@ -85,8 +84,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
             return True
-        
-        
+          
         
     def st_check_boredom(self):
         """if we have done nothing for a while, do something random
@@ -118,7 +116,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.5)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
             self.comm_expr.sendDB_waitReply()
-            
+
             self.comm_expr.set_gaze((-PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
@@ -160,45 +158,76 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.6)))
             self.comm_expr.sendDB_waitReply()
         if behaviour == "3": # don't know word
-            self.follow_face = False
+            self.follow_face = True
             self.comm_expr.set_text(self.get_dont_know_statement(teacher_word))    # get speech
-            self.comm_expr.set_gaze((0.2,1.0,0.2), duration=1.0)
+            #self.comm_expr.set_gaze((0.2,1.0,0.2), duration=.5)
             self.comm_expr.set_fExpression("surprised", intensity=1.0,)
             self.comm_expr.sendDB_waitReply()   # get speech
-            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
-            self.comm_expr.sendDB_waitReply()
+            #self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
+            #self.comm_expr.sendDB_waitReply()
         if behaviour == "4": # learns word
-            self.comm_expr.set_text(self.get_learning_statement(teacher_word))    # get speech
+            self.follow_face = False
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
             self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_text(self.get_learning_statement(teacher_word))    # get speech
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
             self.comm_expr.sendDB_waitReply()
+            self.to_gq.put(["done"], None)
         if behaviour == "5": # guessing an animal
             self.follow_face = False
-            self.comm_expr.set_text(self.get_guessing_statement(teacher_word))    # get speech
+            signs = [1.0, -1.0]
+            sign_mod = signs[ran.randint(0,1)]
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_text(self.get_guessing1_statement(teacher_word))    # get speech
+            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.0)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze((-PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
+            self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
+            
+            self.comm_expr.set_text(self.get_guessing2_statement(teacher_word))    # get speech
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
+            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.45]]" % (.5 - (gaze_target*.5)))
+            self.follow_face = True
             self.comm_expr.sendDB_waitReply()
+            
+            
+            #self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
+            #self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.5 - (gaze_target*.5)))
+            #self.comm_expr.sendDB_waitReply()
+            
         if behaviour == "6": # guessed right
+            self.follow_face = False
             self.comm_expr.set_text(self.get_correct_statement())    # get speech
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
+            self.to_gq.put(["done"], None)
         if behaviour == "7": # guessed wrong
+            self.follow_face = False
             self.comm_expr.set_text(self.get_wrong_statement())
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
+            self.to_gq.put(["done"], None)
         if behaviour == "8": # language game over
             print "LG over"
+            self.comm_expr.set_text("Thank you, and bye bye")
             self.comm_expr.set_fExpression("smiling", 1.0)
             self.comm_expr.sendDB_waitReply()
 
@@ -208,8 +237,8 @@ class LightHead_Behaviour(BehaviourBuilder):
             stats = ("mentally choose an animal, and tell me its category",
                      "think of an animal, and tell me its category",
                      "picture an animal in your mind, and let me know which category it belongs to!",
-                     "mentally choose an animal, and click on the category it belongs to!",
-                     "choose an animal that you want to teach me, and click its category")
+                     "decide on an animal, and click on the category it belongs to!",
+                     "choose an animal that you want me to guess, and click its category")
             statement = stats[ran.randint(0, len(stats)-1)]
         else:
             stats = ("Lets do another round",
@@ -268,16 +297,28 @@ class LightHead_Behaviour(BehaviourBuilder):
         return stats[ran.randint(0, len(stats)-1)]
     
     
-    def get_guessing_statement(self, teacher_word):
-        stats = ("I'm guessing this is a " + teacher_word + "?, please click on the animal that you had in mind",
-                 "is this a " + teacher_word + "? Please tell me which animal you had in mind",
-                 "I think this is a " + teacher_word + "?, please tell me if I am correct",
-                 "Am I correct in thinking this is a " + teacher_word + "?, please click on the correct animal",
-                 "uum, I think this is a " + teacher_word + ", is this correct?",
+    def get_guessing1_statement(self, teacher_word):
+        stats = ("right, lets see",
+                 "a " + teacher_word + "?, em",
+                 teacher_word + "?, I should know",
+                 "I know what a " +teacher_word+ " is",
+                 teacher_word + "?, lets see which one that is",
+                 "ok, I should know",
+                 "a " + teacher_word + "?, that should not be too hard",
+                 "Yes, I am familiar with a " + teacher_word)
+        return stats[ran.randint(0, len(stats)-1)]
+    
+    
+    def get_guessing2_statement(self, teacher_word):
+        stats = ("I'm guessing this is a " + teacher_word + "?, click on the animal that you had in mind",
+                 "is this a " + teacher_word + "? tell me which animal you had in mind",
+                 "I think this is a " + teacher_word + "?, tell me if I am correct",
+                 "Am I correct in thinking this is a " + teacher_word + "?, click on the correct animal",
+                 "um, I think this is a " + teacher_word + ", is that correct?",
                  "a " + teacher_word + "?, that must be this one!",
-                 teacher_word + "?, umm, I think this is a " + teacher_word+ ", is this correct?",
+                 "um, I think this is a " + teacher_word+ ", right?",
                  "yes, I think this is a " + teacher_word+ ", did I guess right?",
-                 "I know what a " +teacher_word+ " is, it is this one!, is that correct?" )
+                 "it is this one!, right?" )
         return stats[ran.randint(0, len(stats)-1)]
     
     
@@ -298,12 +339,12 @@ class LightHead_Behaviour(BehaviourBuilder):
     def get_wrong_statement(self):
         stats = ("ow!, I guessed wrong",
                  "um, too bad",
-                 "noho, not wrong again", 
+                 "no, not wrong again", 
                  "too bad, I thought I knew that one",
                  "sadly, I am mistaken",
                  "really? I thought otherwise, oh well",
                  "if you say so, I guess I was wrong",
-                 "um, guessed that one wrong",
+                 "um, I guessed wrong",
                  "is that not correct?, oh well",
                  "are you sure, well, if you say so")
         return stats[ran.randint(0, len(stats)-1)]
@@ -336,13 +377,8 @@ class LightHead_Behaviour(BehaviourBuilder):
                 self.vision.gui.show_frame(self.vision.frame)
             if self.faces:
                 if self.follow_face:
-                    #target = self.vision.get_face_3Dfocus(self.faces)[0]
-                    #self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=.5)
-                    #self.comm_expr.set_instinct("gaze-control:target=%s" %self.calc_face_target())
-                    #self.comm_expr.set_instinct("gaze-control:target=%s" % self.comm_expr.get_transform(target,'r'))
                     self.comm_expr.set_gaze(self.calc_face_target())
                     self.comm_expr.sendDB_waitReply()
-                    #self.comm_expr.send_datablock()
         return len(self.faces)
 
 
@@ -352,8 +388,8 @@ class LightHead_Behaviour(BehaviourBuilder):
         face_dist = ((-88.5 * math.log(fw)) + 538.5)
         fx = fx + (fw/2.0)
         fy = fy + (fh/2.0)
-        x_dist = 0.5 * (((fx/640.0) *-2) +1)
-        y_dist = 0.5 * (((fy/480.0) *-2) +1)
+        x_dist = 0.3 * (((fx/640.0) *-2) +1)
+        y_dist = 0.2 * (((fy/480.0) *-2) +1)
         return (x_dist, face_dist/100.0, y_dist)
     
     
@@ -361,8 +397,6 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.vision.update()
         self.vision.gui_show()
         
-        
-    
     
     def cleanUp(self):
         LOG.debug('--- cleaning up ---')
