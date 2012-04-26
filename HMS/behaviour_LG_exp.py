@@ -7,7 +7,6 @@ import logging
 import time, Queue, math
 import random as ran
 
-from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
@@ -16,11 +15,13 @@ from utils import conf, vision
 LOG = logging.getLogger(__package__)
 
 
-PARAM_GAZE_X = 0.14     #parameters for touchscreen
+PARAM_GAZE_X = 0.14     # parameters for touchscreen
 PARAM_GAZE_Y = 0.28
+USER_URGE = 10          # time to wait before urging the user
 
-MIN_TIME_MOVES = 10     # minimum time between moves
-
+# STATES
+ST_BORED        = 'check_bored'
+ST_CHECKB       = 'urge_user'
 
 
 class LightHead_Behaviour(BehaviourBuilder):
@@ -28,18 +29,24 @@ class LightHead_Behaviour(BehaviourBuilder):
     """
     
     def __init__(self, from_gq, to_gq, with_gui=True, with_vision=True):
+        self.gaze_target = None
         self.faces = []
         self.follow_face = False
+        self.look_at_target = False
+        self.expect_user_input = False
         self.vision = None
         self.cycle = None
-        self.time_last_action = time.time()
-        
+        self.user_timer = 0
+        self.var_user_time = 8
+
         machines_def = [
           ('cog', (
             (STARTED, self.st_start, 'stop_state'),
             ('stop_state', self.st_stopped, STOPPED),), None), 
-          #('bor',   (
-          #  (STARTED, self.st_check_boredom,   None), ),  'cog'),
+          ('bor',   (
+            (STARTED, self.st_check_boredom,   ST_BORED), 
+            (ST_BORED, self.st_urge_user,     ST_CHECKB),
+            (ST_CHECKB, self.st_check_boredom, ST_BORED),),  'cog'),
           ('vis',   (
             (STARTED, self.st_detect_faces,   None), ),  'cog'),
           ]
@@ -87,25 +94,44 @@ class LightHead_Behaviour(BehaviourBuilder):
           
         
     def st_check_boredom(self):
-        """if we have done nothing for a while, do something random
+        """check for no activity from user
         """
-        time.sleep(0.5)
-        if time.time() - self.time_last_action > MIN_TIME_MOVES:
-            self.do_random_behaviour_small()
-            print "small random move"
+        if self.expect_user_input:
+            if time.time() - self.user_timer > self.var_user_time:
+                return True
+        time.sleep(.1)
+        return False
     
+    
+    def st_urge_user(self):
+        """ urge user to get going
+        """
+        self.comm_expr.set_text(self.get_urging_statement())    # get speech
+        self.do_random_behaviour_small()
+        self.follow_face = True
+        self.user_timer = time.time()
+        self.var_user_time = ran.gauss(USER_URGE, 2)
+        return True
+        
     
     def do_behaviour(self, behaviour, gaze_target, teacher_word):
+        
         if behaviour == "1": # starting
-            pass
-        if behaviour == "2A": # waiting for teacher to choose a topic
+            self.comm_expr.set_text("let's get started") 
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
+            self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
+            self.comm_expr.sendDB_waitReply()
+        if behaviour == "2A": # waiting for teacher to choose a topic
+            self.follow_face = False
+            self.comm_expr.set_gaze((0,10,0), duration=1.0)
+            self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
             signs = [1.0, -1.0]
             sign_mod = signs[ran.randint(0,1)]
                 
-            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=2.0)
-            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.5)
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.5)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
@@ -127,14 +153,17 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
             self.follow_face = True
+            self.expect_user_input = True
+            self.user_timer = time.time()
         if behaviour == "2B": # trying to indicate preferred topic to teacher
+            self.follow_face = False
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
             self.comm_expr.sendDB_waitReply()
             signs = [1.0, -1.0]
             sign_mod = signs[ran.randint(0,1)]
                 
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.5)
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.5)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=2.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.6))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
@@ -147,6 +176,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.6))")
             self.comm_expr.sendDB_waitReply()
+            
             self.comm_expr.set_gaze((-PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
@@ -155,39 +185,64 @@ class LightHead_Behaviour(BehaviourBuilder):
             
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.6)))
+            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
             self.comm_expr.sendDB_waitReply()
+            
+            self.follow_face = True
+            self.gaze_target = gaze_target
+            self.look_at_target = True
+            
+            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (self.gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            
         if behaviour == "3": # don't know word
+            self.expect_user_input = False
+            self.look_at_target = False
             self.follow_face = True
             self.comm_expr.set_text(self.get_dont_know_statement(teacher_word))    # get speech
-            #self.comm_expr.set_gaze((0.2,1.0,0.2), duration=.5)
-            self.comm_expr.set_fExpression("surprised", intensity=1.0,)
-            self.comm_expr.sendDB_waitReply()   # get speech
-            #self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
-            #self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_fExpression("surprised", intensity=.6,)
+            self.comm_expr.set_neck((.0, .1, .0), duration=.3)
+            self.comm_expr.sendDB_waitReply()
         if behaviour == "4": # learns word
             self.follow_face = False
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
-            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
+            tar_values = ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y)
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.2)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.6]]" % (.5 - (gaze_target*.5)))
+            self.comm_expr.set_neck((.0, .0, .0), duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_text(self.get_learning_statement(teacher_word))    # get speech
+            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
+            self.comm_expr.sendDB_waitReply()
+            
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=2.0)
+   
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.sendDB_waitReply()
             self.to_gq.put(["done"], None)
         if behaviour == "5": # guessing an animal
+            self.expect_user_input = False
             self.follow_face = False
             signs = [1.0, -1.0]
             sign_mod = signs[ran.randint(0,1)]
-            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.0)
-            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
-            self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_text(self.get_guessing1_statement(teacher_word))    # get speech
             self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            
+            self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.5)
+            self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.5)
+            self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
+            self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -0.7))")
@@ -199,35 +254,36 @@ class LightHead_Behaviour(BehaviourBuilder):
             
             self.comm_expr.set_text(self.get_guessing2_statement(teacher_word))    # get speech
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
-            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
-            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.45]]" % (.5 - (gaze_target*.5)))
+            self.comm_expr.set_fExpression("neutral", intensity=.8, duration=.5)
+            self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
             self.follow_face = True
+            self.gaze_target = gaze_target
+            self.look_at_target = True
             self.comm_expr.sendDB_waitReply()
-            
             
             #self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             #self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.5 - (gaze_target*.5)))
             #self.comm_expr.sendDB_waitReply()
             
         if behaviour == "6": # guessed right
-            self.follow_face = False
+            self.look_at_target = False
             self.comm_expr.set_text(self.get_correct_statement())    # get speech
-            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=.5)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
             self.to_gq.put(["done"], None)
         if behaviour == "7": # guessed wrong
-            self.follow_face = False
+            self.look_at_target = False
             self.comm_expr.set_text(self.get_wrong_statement())
-            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=1.0)
+            self.comm_expr.set_gaze((0.0,1.0,0.0), duration=.5)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
             self.to_gq.put(["done"], None)
         if behaviour == "8": # language game over
             print "LG over"
-            self.comm_expr.set_text("Thank you, and bye bye")
+            self.comm_expr.set_text("We are finished now. Thank you, and bye bye")
             self.comm_expr.set_fExpression("smiling", 1.0)
             self.comm_expr.sendDB_waitReply()
 
@@ -240,17 +296,21 @@ class LightHead_Behaviour(BehaviourBuilder):
                      "decide on an animal, and click on the category it belongs to!",
                      "choose an animal that you want me to guess, and click its category")
             statement = stats[ran.randint(0, len(stats)-1)]
-        else:
+        elif self.cycle < 50:
             stats = ("Lets do another round",
                      "Right, lets go again",
                      "here are some more animals",
                      "what about these?",
                      "lets do some more!",
                      "another guessing round",
-                     "tell me a category, and I will guess",
+                     "let me do some more guessing",
                      "tell me the animal category",
-                     "lets guess one more time")
+                     "lets guess guess some more",
+                     "here we go again",
+                     "next round")
             statement = stats[ran.randint(0, len(stats)-1)]
+        else:
+            statement = "this is the last round"
         return statement
     
     
@@ -305,20 +365,22 @@ class LightHead_Behaviour(BehaviourBuilder):
                  teacher_word + "?, lets see which one that is",
                  "ok, I should know",
                  "a " + teacher_word + "?, that should not be too hard",
-                 "Yes, I am familiar with a " + teacher_word)
+                 "Yes, I am familiar with a " + teacher_word,
+                 "you have taught " + teacher_word + " so I should be able to guess")
         return stats[ran.randint(0, len(stats)-1)]
     
     
     def get_guessing2_statement(self, teacher_word):
-        stats = ("I'm guessing this is a " + teacher_word + "?, click on the animal that you had in mind",
-                 "is this a " + teacher_word + "? tell me which animal you had in mind",
-                 "I think this is a " + teacher_word + "?, tell me if I am correct",
-                 "Am I correct in thinking this is a " + teacher_word + "?, click on the correct animal",
-                 "um, I think this is a " + teacher_word + ", is that correct?",
+        stats = ("I'm guessing this is the " + teacher_word + "?, click on the animal that you had in mind",
+                 "is this the " + teacher_word + "? tell me which animal you had in mind",
+                 "I think this is the " + teacher_word + "?, tell me if I am correct",
+                 "Am I correct in thinking the " + teacher_word + " is this one?, tap on the animal that you had in mind",
+                 "um, I think this is the " + teacher_word + ", is that correct?",
                  "a " + teacher_word + "?, that must be this one!",
-                 "um, I think this is a " + teacher_word+ ", right?",
-                 "yes, I think this is a " + teacher_word+ ", did I guess right?",
-                 "it is this one!, right?" )
+                 "um, I think this is the " + teacher_word+ ", right?",
+                 "yes, I think this is the " + teacher_word+ ", did I guess right?",
+                 "it is this one!, right?",
+                 teacher_word + "?, yes, thats this one")
         return stats[ran.randint(0, len(stats)-1)]
     
     
@@ -350,6 +412,21 @@ class LightHead_Behaviour(BehaviourBuilder):
         return stats[ran.randint(0, len(stats)-1)]
 
 
+    def get_urging_statement(self):
+        stats = ("let's go!",
+                 "are you going to tell me anything?",
+                 "you do like to take your time, don't you?",
+                 "I wonder what's on TV tonight",
+                 "don't rush, take all the time you need",
+                 "hum, I'm curious what is going to come next",
+                 "shall we continue then?",
+                 "I'm waiting",
+                 "I don't mind you taking your time, but don't push it",
+                 "I'm bored",
+                 "awaiting your input")
+        return stats[ran.randint(0, len(stats)-1)]
+
+
     def do_random_behaviour_small(self):
         var = 100.0
         ran_x, ran_y, ran_z = ran.randint(-50,50)/var, ran.randint(-50,50)/var, ran.randint(-50,50)/(var*2)
@@ -360,8 +437,10 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.time_last_action = time.time()
     
     
-    def do_random_behaviour_big(self):
-        pass
+    def gaze_around_target(self, target):
+        var = 100.0
+        ran_x, ran_y, ran_z = ran.randint(-8,8)/var, ran.randint(-8,8)/var, ran.randint(-8,8)/var
+        return (ran_x+target[0], target[1], ran_z+target[2])
     
     
     def st_stopped(self):
@@ -379,6 +458,14 @@ class LightHead_Behaviour(BehaviourBuilder):
                 if self.follow_face:
                     self.comm_expr.set_gaze(self.calc_face_target())
                     self.comm_expr.sendDB_waitReply()
+                    
+                    if self.look_at_target: 
+                        if ran.randint(1,100) < 20: #occasionally look at target
+                            self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (self.gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=.3)
+                            self.comm_expr.sendDB_waitReply()
+                            time.sleep(2)
+                            self.comm_expr.set_gaze(self.calc_face_target())
+                            self.comm_expr.sendDB_waitReply()
         return len(self.faces)
 
 
