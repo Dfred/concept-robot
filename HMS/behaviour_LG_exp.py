@@ -16,8 +16,8 @@ LOG = logging.getLogger(__package__)
 
 
 PARAM_GAZE_X = 0.14     # parameters for touchscreen
-PARAM_GAZE_Y = 0.28
-USER_URGE = 10          # time to wait before urging the user
+PARAM_GAZE_Y = 0.32
+USER_URGE = 13          # time to wait before urging the user
 
 # STATES
 ST_BORED        = 'check_bored'
@@ -143,14 +143,14 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_text("we are going to play a series off guessing games. First we are going to practice with some colour categories.")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_text("On the touchscreen, you will see 3 different coloured tiles. "+
-                                    "you mentally pick one colour tile as the topic for our conversation. ")
+            self.comm_expr.set_text("On the touchscreen, you will see 3 different coloured patches. "+
+                                    "you mentally choose one colour patch as the topic for our guessing game. ")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_text("Then, you tell me the colour category name of this tile by clicking on the corresponding button. ")
+            self.comm_expr.set_text("Then, you tell me the colour category name of this patch by clicking on the corresponding button. ")
             self.comm_expr.sendDB_waitReply()
 
             gaze_target = 2
-            self.comm_expr.set_text("When I hear the category name, I will try to guess which of the colour tiles you were thinking off. ")
+            self.comm_expr.set_text("When I hear the category name, I will try to guess which of the colour patches you were thinking off. ")
             self.comm_expr.send_datablock()     # we are not waiting for the text to finish
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
@@ -159,10 +159,10 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.look_at_target = True
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text("When I guessed right, you click on the colour tile to confirm")
+            self.comm_expr.set_text("When I guessed right, you click on the colour patch to confirm")
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text("When I guessed wrong, you click on the colour tile that you actually had in mind")
+            self.comm_expr.set_text("When I guessed wrong, you click on the colour patch that you actually had in mind")
             self.comm_expr.sendDB_waitReply()
             
             self.look_at_target = False
@@ -174,11 +174,29 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_text("Also, if you have any questions, you can ask them to the experimenter now. ")
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text("Otherwise, press the practice button to do a test round!")
+            self.comm_expr.set_text("Otherwise, press the practice button to do a practice round. " +
+                                    "when you are ready with the practice, press the practice done button to start the experiment")
             self.comm_expr.sendDB_waitReply()
+        
+            
+        if behaviour == "P_done": # starting
+            self.expect_user_input = False
+            self.comm_expr.set_text("Alright. Practice is done. When you are ready, press the start button to start the experiment.") 
+            self.comm_expr.set_gaze((0,10,0), duration=1.0)
+            self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
+            self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
+            self.comm_expr.sendDB_waitReply()
+            
+            
+        if behaviour == "thanks": # starting
+            if ran.randint(0,5) > 3:
+                self.comm_expr.set_text("thanks for teaching my choice")
+            self.comm_expr.sendDB_waitReply()
+        
         
         if behaviour == "1": # starting
             #self.comm_expr.set_text("let's get started") 
+            self.follow_face = True
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
             self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
@@ -243,7 +261,8 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
-            
+        
+            self.comm_expr.set_text(self.get_active_choice_statement())    # get speech
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
@@ -285,6 +304,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
             self.comm_expr.sendDB_waitReply()
             
+            self.follow_face = True
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
             self.comm_expr.sendDB_waitReply()
@@ -385,8 +405,8 @@ class LightHead_Behaviour(BehaviourBuilder):
             stats = ("I would like to learn another " + self.cat_text[1] + ", tell me its category",
                      "think of " + self.cat_text[2] + ", and tell me its category",
                      "picture " + self.cat_text[2] + " in your mind, and let me know which category it belongs to!",
-                     "mentally choose " + self.cat_text[2] + ", and click on the category it belongs to!",
-                     "choose " + self.cat_text[2] + " that you want to teach me, and click its category")
+                     "mentally select " + self.cat_text[2] + ", and click on the category it belongs to!",
+                     "decide upon " + self.cat_text[2] + " that you want to teach me, and click its category")
             statement = stats[ran.randint(0, len(stats)-1)]
         else:
             stats = ("Lets do another round",
@@ -402,6 +422,15 @@ class LightHead_Behaviour(BehaviourBuilder):
             statement = stats[ran.randint(0, len(stats)-1)]
         return statement
         
+        
+    def get_active_choice_statement(self):
+        stats = ("this one, I would like to learn",
+                 "could you teach me this one?",
+                 "this one looks interesting",
+                 "now, what about this one?")
+        return stats[ran.randint(0, len(stats)-1)]
+            
+            
     
     def get_dont_know_statement(self, teacher_word):
         stats = ("uum, I don't know what " + self.cat_text[4] + teacher_word + " is, click on the " + self.cat_text[1],
@@ -467,14 +496,14 @@ class LightHead_Behaviour(BehaviourBuilder):
     def get_wrong_statement(self):
         stats = ("ow!, I guessed wrong",
                  "um, too bad",
-                 "no, not wrong again", 
+                 "wrong guess again", 
                  "too bad, I thought I knew that one",
-                 "sadly, I am mistaken",
+                 "sadly, I guessed wrong",
                  "really? I thought otherwise, oh well",
                  "if you say so, I guess I was wrong",
                  "um, I guessed wrong",
-                 "is that not correct?",
-                 "are you sure, well, if you say so")
+                 "is that not the one you thought about?",
+                 "I didn't read your mind properly")
         return stats[ran.randint(0, len(stats)-1)]
 
 
