@@ -189,9 +189,10 @@ class LightHead_Behaviour(BehaviourBuilder):
             
             
         if behaviour == "thanks": # starting
-            if ran.randint(0,5) > 3:
-                self.comm_expr.set_text("thanks for teaching my choice")
-            self.comm_expr.sendDB_waitReply()
+            pass
+#            if ran.randint(0,5) > 3:
+#                self.comm_expr.set_text("thanks for teaching my choice")
+#            self.comm_expr.sendDB_waitReply()
         
         
         if behaviour == "1": # starting
@@ -262,7 +263,7 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
         
-            self.comm_expr.set_text(self.get_active_choice_statement())    # get speech
+            #self.comm_expr.set_text(self.get_active_choice_statement())    # get speech
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
@@ -376,7 +377,7 @@ class LightHead_Behaviour(BehaviourBuilder):
 
     def get_next_round_statement(self):
         if self.cycle < 6:
-            stats = ("mentally choose" + self.cat_text[2] + ", and tell me its category",
+            stats = ("mentally choose " + self.cat_text[2] + ", and tell me its category",
                      "think of " + self.cat_text[2] + ", and tell me its category",
                      "picture " + self.cat_text[2] + " in your mind, and let me know which category it belongs to!",
                      "decide on " + self.cat_text[2] + ", and click on the category it belongs to!",
@@ -455,9 +456,9 @@ class LightHead_Behaviour(BehaviourBuilder):
     def get_guessing1_statement(self, teacher_word):
         stats = ("right, lets see",
                  self.cat_text[4] + teacher_word + "?, em",
-                 teacher_word + "?, I should know",
+                 teacher_word + "?, I should be able to guess",
                  "I know what " + self.cat_text[4] + teacher_word + " is",
-                 teacher_word + "?, lets see which one that is",
+                 teacher_word + "?, lets see what you mean",
                  "ok, I should know",
                  self.cat_text[4] + teacher_word + "?, that should not be too hard",
                  "Yes, I am familiar with " + self.cat_text[4] + teacher_word,
@@ -467,15 +468,19 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     def get_guessing2_statement(self, teacher_word):
         stats = ("I'm guessing this is " + self.cat_text[5] + teacher_word + "?, click on the " + self.cat_text[1] + " that you had in mind",
-                 "is this " + self.cat_text[5] + teacher_word + "? tell me which " + self.cat_text[1] + " you had in mind",
-                 "I think this is " + self.cat_text[5] + teacher_word + "?, tell me if I am correct",
-                 "Am I correct in thinking " + self.cat_text[5] + teacher_word + " is this one?, tap on the " + self.cat_text[1] + " that you had in mind",
-                 "um, I think this is " + self.cat_text[5] + teacher_word + ", is that correct?",
-                 self.cat_text[4] + teacher_word + "?, that must be this one!",
-                 "um, I think this is " + self.cat_text[5] + teacher_word+ ", right?",
-                 "yes, I think this is " + self.cat_text[5] + teacher_word+ ", did I guess right?",
-                 "it is this one!, right?",
-                 teacher_word + "?, yes, thats this one")
+                 "is this " + self.cat_text[5] + teacher_word + " you were thinking off? tell me which " + self.cat_text[1] + " you had in mind",
+                 teacher_word + "?, yes, are you thinking off this one?",
+                 "um, with " + self.cat_text[5] + teacher_word + " you are thinking of this one" )
+#        stats = ("I'm guessing this is " + self.cat_text[5] + teacher_word + "?, click on the " + self.cat_text[1] + " that you had in mind",
+#                 "is this " + self.cat_text[5] + teacher_word + "? tell me which " + self.cat_text[1] + " you had in mind",
+#                 "I think this is " + self.cat_text[5] + teacher_word + "?, tell me if I am correct",
+#                 "Am I correct in thinking " + self.cat_text[5] + teacher_word + " is this one?, tap on the " + self.cat_text[1] + " that you had in mind",
+#                 "um, I think this is " + self.cat_text[5] + teacher_word + ", is that correct?",
+#                 self.cat_text[4] + teacher_word + "?, that must be this one!",
+#                 "um, I think this is " + self.cat_text[5] + teacher_word+ ", right?",
+#                 "yes, I think this is " + self.cat_text[5] + teacher_word+ ", did I guess right?",
+#                 "it is this one!, right?",
+#                 teacher_word + "?, yes, thats this one")
         return stats[ran.randint(0, len(stats)-1)]
     
     
