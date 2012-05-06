@@ -42,7 +42,8 @@ class LightHead_Behaviour(BehaviourBuilder):
     """
     """
     
-    def __init__(self, from_gq, to_gq, with_gui=True, with_vision=True):
+    def __init__(self, from_gq, to_gq, participant_nr, with_gui=True, with_vision=True):
+        self.participant_nr = participant_nr
         self.gaze_target = None
         self.faces = []
         self.follow_face = False
@@ -76,6 +77,13 @@ class LightHead_Behaviour(BehaviourBuilder):
                     self.vision.gui_create()
                     self.update_vision()
                 self.vision.enable_face_detection()
+                    
+                par_name = "par_" + str(self.participant_nr)
+                fname = time.strftime("/Users/joachim/Documents/workspace/LG_exp/exp_records/"+par_name+"/"+par_name+"-%H_%M_%S.avi")
+                
+                print "recording vision as "+fname
+                self.vision.toggle_record(fname, fps=13)    #fps=13 seems to correspond with camera capture
+                
             except vision.VisionException, e:
                 fatal(e)
         
@@ -467,7 +475,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     
     def get_guessing2_statement(self, teacher_word):
-        stats = ("I'm guessing this is " + self.cat_text[5] + teacher_word + "?, click on the " + self.cat_text[1] + " that you had in mind",
+        stats = (teacher_word + "? Are you thinking of this one?, click on the " + self.cat_text[1] + " that you had in mind",
                  "is this " + self.cat_text[5] + teacher_word + " you were thinking off? tell me which " + self.cat_text[1] + " you had in mind",
                  teacher_word + "?, yes, are you thinking off this one?",
                  "um, with " + self.cat_text[5] + teacher_word + " you are thinking of this one" )
