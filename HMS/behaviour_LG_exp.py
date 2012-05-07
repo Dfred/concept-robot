@@ -36,13 +36,12 @@ cat_text_animals = {1: "animal",
                     5: "the "}
 
 
-
-
 class LightHead_Behaviour(BehaviourBuilder):
     """
     """
     
-    def __init__(self, from_gq, to_gq, with_gui=True, with_vision=True):
+    def __init__(self, from_gq, to_gq, participant_nr, with_gui=True, with_vision=True):
+        self.participant_nr = participant_nr
         self.gaze_target = None
         self.faces = []
         self.follow_face = False
@@ -53,6 +52,8 @@ class LightHead_Behaviour(BehaviourBuilder):
         self.user_timer = 0
         self.var_user_time = 8
         self.cat_text = cat_text_colours
+        self.robot_speech = None
+        self.statement_history = []
 
         machines_def = [
           ('cog', (
@@ -76,6 +77,13 @@ class LightHead_Behaviour(BehaviourBuilder):
                     self.vision.gui_create()
                     self.update_vision()
                 self.vision.enable_face_detection()
+                    
+                par_name = "par_" + str(self.participant_nr)
+                fname = time.strftime("/Users/joachim/Documents/workspace/LG_exp/exp_records/"+par_name+"/"+par_name+"-%H_%M_%S.avi")
+                
+                print "recording vision as "+fname
+                self.vision.toggle_record(fname, fps=11)    #fps=11 seems to correspond with camera capture
+                
             except vision.VisionException, e:
                 fatal(e)
         
@@ -141,16 +149,16 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_text("Hello. I am the lightHead robot. This experiment is about teaching category names. "+
                                     "I will explain how we are going to do this. ")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_text("we are going to play a series off guessing games. First we are going to practice with some colour categories.")
+            self.comm_expr.set_text("we are going to play a guessing game. First we are going to practice with some colour categories.")
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_text("On the touchscreen, you will see 3 different coloured patches. "+
                                     "you mentally choose one colour patch as the topic for our guessing game. ")
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_text("Then, you tell me the colour category name of this patch by clicking on the corresponding button. ")
+            self.comm_expr.set_text("Then, you tell me the name of this colour by clicking on the corresponding button. ")
             self.comm_expr.sendDB_waitReply()
 
             gaze_target = 2
-            self.comm_expr.set_text("When I hear the category name, I will try to guess which of the colour patches you were thinking off. ")
+            self.comm_expr.set_text("When I hear the colour name, I will try to guess which of the colour patches you were thinking off. ")
             self.comm_expr.send_datablock()     # we are not waiting for the text to finish
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
@@ -168,14 +176,15 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.look_at_target = False
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
+            
+            self.comm_expr.set_text("If you have any questions, you can ask them to the experimenter. ")
+            self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_text("If you want to hear these instructions again, click on the tutorial button")
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text("Also, if you have any questions, you can ask them to the experimenter now. ")
-            self.comm_expr.sendDB_waitReply()
-            
-            self.comm_expr.set_text("Otherwise, press the practice button to do a practice round. " +
-                                    "when you are ready with the practice, press the practice done button to start the experiment")
+    
+            self.comm_expr.set_text("Otherwise, let's start a practice round. " +
+                                    "when you are ready with the practice, press the done button")
             self.comm_expr.sendDB_waitReply()
         
             
@@ -196,7 +205,6 @@ class LightHead_Behaviour(BehaviourBuilder):
         
         
         if behaviour == "1": # starting
-            #self.comm_expr.set_text("let's get started") 
             self.follow_face = True
             self.comm_expr.set_gaze((0,10,0), duration=1.0)
             self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
@@ -215,8 +223,13 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.7))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text(self.get_next_round_statement())    # get speech
-            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            if self.robot_speech:
+                self.statement_history.append(self.robot_speech)
+            self.robot_speech = []                                  # reset
+            statement = self.get_next_round_statement()             # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
+            self.comm_expr.send_datablock()                         # we are not waiting for the text to finish
             
             self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.5)
             self.comm_expr.set_spine('shoulderr',(0.0, .0, .0), 'o', duration=1.5)
@@ -248,8 +261,13 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -.6))" % (-.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
-            self.comm_expr.set_text(self.get_next_round_active_statement())    # get speech
-            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            if self.robot_speech:
+                self.statement_history.append(self.robot_speech)
+            self.robot_speech = []                                  # reset
+            statement = self.get_next_round_active_statement()      # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
+            self.comm_expr.send_datablock()                         # we are not waiting for the text to finish
             
             self.comm_expr.set_gaze((0.0,1.0,-PARAM_GAZE_Y), duration=1.5)
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=1.5)
@@ -263,7 +281,9 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.6))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
         
-            #self.comm_expr.set_text(self.get_active_choice_statement())    # get speech
+            statement = self.get_active_choice_statement()          # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
             self.comm_expr.set_fExpression("evil_grin", intensity=.8, duration=1.0)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
@@ -280,7 +300,9 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.expect_user_input = False
             self.look_at_target = False
             self.follow_face = True
-            self.comm_expr.set_text(self.get_dont_know_statement(teacher_word))    # get speech
+            statement = self.get_dont_know_statement(teacher_word)  # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
             self.comm_expr.set_fExpression("surprised", intensity=.6,)
             self.comm_expr.set_neck((.0, .1, .0), duration=.3)
             self.comm_expr.sendDB_waitReply()
@@ -294,8 +316,11 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
             self.comm_expr.sendDB_waitReply()
-            self.comm_expr.set_text(self.get_learning_statement(teacher_word))    # get speech
-            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+
+            statement = self.get_learning_statement(teacher_word)   # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
+            self.comm_expr.send_datablock()                         # we are not waiting for the text to finish
             self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
             self.comm_expr.sendDB_waitReply()
             self.comm_expr.set_gaze(self.gaze_around_target(tar_values) , duration=.3)
@@ -319,8 +344,10 @@ class LightHead_Behaviour(BehaviourBuilder):
             signs = [1.0, -1.0]
             sign_mod = signs[ran.randint(0,1)]
              
-            self.comm_expr.set_text(self.get_guessing1_statement(teacher_word))    # get speech
-            self.comm_expr.send_datablock()     # we are not waiting for the text to finish
+            statement = self.get_guessing1_statement(teacher_word)  # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
+            self.comm_expr.send_datablock()                         # we are not waiting for the text to finish
             self.comm_expr.set_gaze((PARAM_GAZE_X*sign_mod,1.0,-PARAM_GAZE_Y), duration=1.5)
             
             self.comm_expr.set_spine('shoulderr', (0.0, .0, .0), 'o', duration=1.5)
@@ -335,10 +362,13 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.comm_expr.set_instinct("gaze-control:target=((%2f, 0.0 , -0.7))"% (.6*sign_mod))
             self.comm_expr.sendDB_waitReply()
             
-            statement = self.get_guessing2_statement(teacher_word)
-            self.comm_expr.set_text(statement)    # get speech
+            statement = self.get_guessing2_statement(teacher_word)  # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
             dur = .5 + ((len(statement)-23)*.01)
             self.comm_expr.set_gaze(  ( -PARAM_GAZE_X + (gaze_target*PARAM_GAZE_X), 1.0, -PARAM_GAZE_Y), duration=dur)
+            
+            
             self.comm_expr.set_fExpression("neutral", intensity=.8, duration=.5)
             self.comm_expr.set_instinct("gaze-control:target=[[%2f, 0.0, -.4]]" % (.6 - (gaze_target*.6)))
             self.follow_face = True
@@ -352,7 +382,9 @@ class LightHead_Behaviour(BehaviourBuilder):
             
         if behaviour == "6": # guessed right
             self.look_at_target = False
-            self.comm_expr.set_text(self.get_correct_statement())    # get speech
+            statement = self.get_correct_statement()                # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=.5)
             self.comm_expr.set_fExpression("smiling", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
@@ -360,7 +392,9 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.to_gq.put(["done"], None)
         if behaviour == "7": # guessed wrong
             self.look_at_target = False
-            self.comm_expr.set_text(self.get_wrong_statement())
+            statement = self.get_wrong_statement()                  # get speech
+            self.robot_speech.append(statement)                     # record
+            self.comm_expr.set_text(statement)                      # speak
             self.comm_expr.set_gaze((0.0,1.0,0.0), duration=.5)
             self.comm_expr.set_fExpression("disgust1", 1.0, duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , -.3))")
@@ -368,22 +402,28 @@ class LightHead_Behaviour(BehaviourBuilder):
             self.to_gq.put(["done"], None)
         if behaviour == "8": # language game over
             print "LG over"
-            self.comm_expr.set_text("We are finished now. Thank you, and bye bye")
+            statement = "We are finished now. Thank you, and bye bye"    # get speech
+            if self.robot_speech:
+                self.robot_speech.append(statement)                      # record
+            self.comm_expr.set_text(statement)                           # speak
+            self.statement_history.append(self.robot_speech)
             self.comm_expr.set_fExpression("smiling", 1.0)
             self.comm_expr.set_neck((.0, .0, .0), duration=1.0)
             self.comm_expr.set_instinct("gaze-control:target=((0.0, 0.0 , 0.0))")
             self.comm_expr.sendDB_waitReply()
+            self.to_gq.put(["statement_hist", self.statement_history], None)
+            
 
 
     def get_next_round_statement(self):
         if self.cycle < 6:
-            stats = ("mentally choose " + self.cat_text[2] + ", and tell me its category",
-                     "think of " + self.cat_text[2] + ", and tell me its category",
+            stats = ("think of " + self.cat_text[2] + ", and tell me its category name",
+                     "mentally choose " + self.cat_text[2] + ", and tell me its category name",
                      "picture " + self.cat_text[2] + " in your mind, and let me know which category it belongs to!",
                      "decide on " + self.cat_text[2] + ", and click on the category it belongs to!",
                      "choose " + self.cat_text[2] + " that you want me to guess, and click its category")
             statement = stats[ran.randint(0, len(stats)-1)]
-        elif self.cycle < 50:
+        elif self.cycle < 30:
             stats = ("Lets do another round",
                      "Right, lets go again",
                      "here are some more " + self.cat_text[3],
@@ -392,9 +432,27 @@ class LightHead_Behaviour(BehaviourBuilder):
                      "another guessing round",
                      "let me do some more guessing",
                      "tell me the " + self.cat_text[1] + " category",
-                     "lets guess guess some more",
+                     "lets guess some more",
                      "here we go again",
                      "next round")
+        elif self.cycle < 50:
+            stats = ("Lets do another round",
+                     "Right, lets go again",
+                     "here are some more " + self.cat_text[3],
+                     "what about these?",
+                     "lets do some more!",
+                     "another guessing round",
+                     "I want to learn more",
+                     "tell me a category, and I will guess",
+                     "let me do some more guessing",
+                     "tell me the " + self.cat_text[1] + " category",
+                     "I think this is interesting",
+                     "Just wondering about this",
+                     "lets guess some more",
+                     "I hope you are not tired yet, lets guess some more",
+                     "so far so good. More to guess",
+                     "Here we go again",
+                     "Next round")
             statement = stats[ran.randint(0, len(stats)-1)]
         else:
             statement = "this is the last round"
@@ -409,26 +467,53 @@ class LightHead_Behaviour(BehaviourBuilder):
                      "mentally select " + self.cat_text[2] + ", and click on the category it belongs to!",
                      "decide upon " + self.cat_text[2] + " that you want to teach me, and click its category")
             statement = stats[ran.randint(0, len(stats)-1)]
-        else:
+        elif self.cycle < 30:
             stats = ("Lets do another round",
                      "Right, lets go again",
+                     "here are some more " + self.cat_text[3],
+                     "what about these?",
                      "lets do some more!",
                      "another guessing round",
-                     "tell me a category, and I will guess",
+                     "let me do some more guessing",
                      "tell me the " + self.cat_text[1] + " category",
+                     "lets guess some more",
+                     "here we go again",
+                     "next round")
+        elif self.cycle < 50:
+            stats = ("Lets do another round",
+                     "Right, lets go again",
+                     "here are some more " + self.cat_text[3],
+                     "what about these?",
+                     "lets do some more!",
+                     "another guessing round",
                      "I want to learn more",
+                     "tell me a category, and I will guess",
+                     "let me do some more guessing",
+                     "tell me the " + self.cat_text[1] + " category",
                      "I think this is interesting",
                      "Just wondering about this",
-                     "lets guess one more time")
+                     "lets guess some more",
+                     "I hope you are not tired yet, lets guess some more",
+                     "so far so good. More to guess",
+                     "Here we go again",
+                     "Next round")
             statement = stats[ran.randint(0, len(stats)-1)]
+        else:
+            statement = "this is the last round"
         return statement
         
         
     def get_active_choice_statement(self):
-        stats = ("this one, I would like to learn",
+        stats = ("I would like to learn this one",
                  "could you teach me this one?",
                  "this one looks interesting",
-                 "now, what about this one?")
+                 "now, what about this one?",
+                 "this is interesting",
+                 "em, what about this one?",
+                 "ok, what do we have here?",
+                 "yes, this looks interesting",
+                 "what about this one?",
+                 "em, I would like to know what this is")
         return stats[ran.randint(0, len(stats)-1)]
             
             
@@ -454,12 +539,12 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     
     def get_guessing1_statement(self, teacher_word):
-        stats = ("right, lets see",
+        stats = (self.cat_text[4] + teacher_word + ", right, lets see",
                  self.cat_text[4] + teacher_word + "?, em",
                  teacher_word + "?, I should be able to guess",
                  "I know what " + self.cat_text[4] + teacher_word + " is",
                  teacher_word + "?, lets see what you mean",
-                 "ok, I should know",
+                 "ok, I should know" + self.cat_text[4] + teacher_word,
                  self.cat_text[4] + teacher_word + "?, that should not be too hard",
                  "Yes, I am familiar with " + self.cat_text[4] + teacher_word,
                  "you have taught " + teacher_word + " so I should be able to guess")
@@ -467,10 +552,16 @@ class LightHead_Behaviour(BehaviourBuilder):
     
     
     def get_guessing2_statement(self, teacher_word):
-        stats = ("I'm guessing this is " + self.cat_text[5] + teacher_word + "?, click on the " + self.cat_text[1] + " that you had in mind",
+        stats = (teacher_word + "? Are you thinking of this one?, click on the " + self.cat_text[1] + " that you had in mind",
                  "is this " + self.cat_text[5] + teacher_word + " you were thinking off? tell me which " + self.cat_text[1] + " you had in mind",
                  teacher_word + "?, yes, are you thinking off this one?",
-                 "um, with " + self.cat_text[5] + teacher_word + " you are thinking of this one" )
+                 "um, " + self.cat_text[5] + teacher_word + "? You are thinking of this one?",
+                 "You are thinking of this one, right?", 
+                 "Is this the " + self.cat_text[1] +" you were thinking off?",
+                 "Is this the " + self.cat_text[1] +" you had in mind?",
+                 "Is this the topic of the guessing game?",
+                 "are you thinking of this one?",
+                 "Is this " + self.cat_text[1] +" the topic?")
 #        stats = ("I'm guessing this is " + self.cat_text[5] + teacher_word + "?, click on the " + self.cat_text[1] + " that you had in mind",
 #                 "is this " + self.cat_text[5] + teacher_word + "? tell me which " + self.cat_text[1] + " you had in mind",
 #                 "I think this is " + self.cat_text[5] + teacher_word + "?, tell me if I am correct",
