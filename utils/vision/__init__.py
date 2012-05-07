@@ -113,6 +113,7 @@ class CamCapture(object):
         self.camera = None
         self.frame = None
         self.gui = None
+        self.vid_writer = None
         sensor_name and self.use_camera(sensor_name)
 
     def set_device(self, dev_index=0, resolution=(800,600)):

@@ -291,7 +291,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.last_st_change_t = None
 
     try:
-      self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
+      self.vision = vision.CamUtils(conf.ROBOT['vision'])
       self.vision.update()
       LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
       if with_gui:
