@@ -181,33 +181,3 @@ def handle_exception(logger, msg=''):
 def round(iterable):
     """version for iterables, different signature from __builtins__.round"""
     return [ round(v, Spine_Server.PRECISION) for v in iterable ]
-
-# TODO: move this class elsewhere
-class Frame(object):
-    """Object with 2D coordinates and length for each dimension.
-    members: x, y, w, h
-    """
-
-    def __init__(self, values=(0,)*4):
-        """
-        values: 4 tuple for x,y,w,h members
-        """
-        for i, att in enumerate('xywh'):
-            setattr(self, att, values[i])
-
-    def __repr__(self):
-        return __repr__(tuple(self.x, self.y, self.w, self.h))
-
-    def get_inner(self, factor):
-        """Returns a Frame with dimensions cropped by 'factor'.
-        factor: normal value (float), e.g: 0.66 => 66% from width and height.
-        """
-        assert factor > 0, 'factor cannot be negative'
-        w,h = factor * self.w, factor * self.h
-        x,y = (self.w - w)/2, (self.h - h)/2
-        return Frame((x,y,w,h))
-
-    def is_within(self, x, y):
-        """Return True if coordinates are on or within the frame boundaries.
-        """
-        return self.w - self.x - x >= 0 and self.h - self.y - y >= 0
