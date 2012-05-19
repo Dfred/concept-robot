@@ -66,7 +66,7 @@ class BehaviourBuilder(object):
         parent = parent_name and getattr(self,'fsm_'+parent_name) or None
       except AttributeError:
         raise ValueError("machine %s: parent machine '%s' not found,"
-                         " check SPFSM definition." % (name, parent_name))
+                         " check machine definition." % (name, parent_name))
       fsm = fsm_class(name, rules, parent)
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
@@ -81,7 +81,7 @@ class BehaviourBuilder(object):
     self.comm_expr.done()
 
   def step_callback(self):
-    """Stops the FSM upon disconnection from expression.
+    """Stops the machines upon disconnection from expression.
     """
     if not self.comm_expr.connected:
       self.root_fsm.abort()

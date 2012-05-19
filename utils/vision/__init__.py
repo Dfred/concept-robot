@@ -44,7 +44,7 @@ from pyvision.types.Video import Webcam
 from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from utils import conf, get_logger, Frame, fps
+from utils import conf, get_logger, fps
 
 LOG = get_logger(__package__)
 
@@ -284,7 +284,7 @@ class CamUtils(CamCapture):
         """Returns an iterable of gaze vectors (right handeness) from detected
         faces, estimating depth from its width.
 
-        rects: utils.Frame instance (or iterable of).
+        rects: instances or iterable of pyvision Rects as returned by find_faces
 
         Poor's man calibration procedure for 'depth_fct' (valid for a specific
         aspect ratio):
