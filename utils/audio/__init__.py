@@ -16,7 +16,8 @@ class Audio(object):
     INFOS = [P.get_device_info_by_index(i) for i in range(P.get_device_count())]
     def __init__(self, sensor_name=None):
         self.streams = {}
-        self.datas = []
+        self.datas = [None,None]
+        self.fR = 1
         if sensor_name:
             devs = conf.lib_audition[sensor_name]['dev_index']
             if devs[0] == devs[1]:
@@ -44,63 +45,45 @@ class Audio(object):
         self.pa.terminate()
 
     def update_input(self, duration):
-        """Can raise IOError, if so device index is in e[0].
+        """Can raise IOError. Data is raw (doesn't account for factor).
         """
         if len(self.streams) == 1:
             dev, strm = self.streams.items()[0]
-            d = array('f', strm.read(int(duration*strm._frames_per_buffer)))
-            self.datas = zip( *( (d[i],d[i+1]) for i in range(0,len(d),2) ))
+            d = array('f', strm.read(int(duration * strm._frames_per_buffer)))
+            self.datas = zip( *((d[i],d[i+1]) for i in range(0,len(d),2)) )
             return
-        i = 0
-        for dev_i, stream in self.streams.items():
-            try:
-                self.datas[i] = bytestring2floats( stream.read(
-                    int(duration * stream._frames_per_buffer)) )
-            except IOError, e:
-                raise IOError(dev_i, e)
-            i += 1
+        for i, s in enumerate(self.streams.values()):
+            self.datas[i] = array('f',
+                                  s.read(int(duration * s._frames_per_buffer)))
+
 
     def set_factor(self, factor):
         LOG.debug("data factor now %f", factor)
-        self.f1 = factor
+        self.fR = factor
 
-    def get_datas(self):
-        return self.datas
-
-    def get_asymetry(self, duration):
+    def get_dBu(self, duration):
+        """Includes factor"""
         self.update_input(duration)
         dL, dR = self.datas
-        return (math.sqrt(sum( d         **2 for d in dL) / len(dL)) -
-                math.sqrt(sum((d*self.f1)**2 for d in dR) / len(dR)) )
+        return ( math.sqrt(sum( d         **2 for d in dL) / len(dL)),
+                 math.sqrt(sum((d*self.fR)**2 for d in dR) / len(dR)) )
 
 
 if __name__ == "__main__":
-    import sys
+    import sys, time, pylab
 
-    def plot_sig(sigs):
-        import pylab
-        pylab.plot(sigs)
-        pylab.show()
-
-    def calibrate(audio):
+    def calibrate(audio, step=.001):
         """Assumes audio input data has no offset.
         """
-        import time; print "Qeep quiet for a moment please!"; time.sleep(.5)
+        print "Qeep quiet for a moment please!"; time.sleep(.3)
         f = 1
         while True:
-            audio.update_input(.1)
-            s0, s1 = audio.get_datas()
-            fixed_d0 = [ s**2 for s in s0 ]
-            fixed_d1 = [ (s*f)**2 for s in s1 ]
-            dBu0 = math.sqrt( sum(fixed_d0) / len(s0) )
-            dBu1 = math.sqrt( sum(fixed_d1) / len(s1) )
-            print "fixed data diff %+.6f, factor %f, dBu diff: %.6f" % (
-                abs(sum(fixed_d0))-abs(sum(fixed_d1)), f, abs(dBu0 - dBu1) )
+            dBu0, dBu1 = audio.get_dBu(.1)
             if abs(dBu0 - dBu1) < .00001:
                 break
-            f *= dBu0>dBu1 and 1.05 or 0.95
-        return f
-            
+            f *= dBu0>dBu1 and 1+step or 1-step
+            audio.set_factor(f)
+             
     print '---'
     for dev in sorted(Audio.INFOS, key=lambda x: x['defaultLowInputLatency']):
         if dev['maxInputChannels']:
@@ -111,25 +94,49 @@ if __name__ == "__main__":
                 dev['defaultSampleRate'],
                 dev['name'], )
 
-    if 1 <= len(sys.argv) < 3:
+    if 1 <= len(sys.argv) <= 4:
         a = Audio()
         if len(sys.argv) == 2:
             a.use_device(int(sys.argv[1]), 2)
         else:
             a.use_device(int(sys.argv[1]), 1)
             a.use_device(int(sys.argv[2]), 1)
-        a.set_factor(calibrate(a))
-        i, diff = 1, []
-        while True:
-            if i % 100 == 0:
-                plot_sig(diff)
-                diff = []
+
+        calibrate(a, step=len(sys.argv)==4 and float(sys.argv[3]) or 0.001)
+
+        datas, dBu, diff = [[],[]], [], []
+        for i in range(1000):
             try:
-                diff.append(a.get_asymetry(.1))
+                dBu.append(a.get_dBu(.01))
+                datas[0].extend(a.datas[0])
+                datas[1].extend(a.datas[1])
+                diff.append(dBu[-1][0] - dBu[-1][1])
             except IOError, e:
                 LOG.critical("error reading stream %s", e)
                 exit(2)
-            print "asymetry: %+f\r" % diff[-1]
-            i += 1
+            print "%.3i asymetry: %+f\r" % (i, diff[-1])
+
+        datL, datR = datas
+        dBuL, dBuR = zip(*dBu)
+        datfR = [ d*a.fR for d in datR ]
+        XdatL, XdatR, XdBu = range(len(datL)),range(len(datR)),range(len(dBuL))
+
+        pylab.subplot(4,1,1)
+        pylab.plot(XdatL,datL,'b', XdatR,datfR,'r')
+        pylab.ylabel("adjusted")
+
+        pylab.subplot(4,1,2)
+        pylab.plot([datL[i] - datfR[i] for i in XdatL])
+        pylab.ylabel("signal diff")
+
+        pylab.subplot(4,1,3)
+        pylab.plot(XdBu,dBuL,'b', XdBu,dBuR,'r')
+        pylab.ylabel("dBuL/R")
+
+        pylab.subplot(4,1,4)
+        pylab.plot(diff)
+        pylab.ylabel("dBu diff")
+        pylab.show()
+        
     else:
         print sys.argv[0]+" [device index [device index]]"
