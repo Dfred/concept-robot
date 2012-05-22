@@ -157,7 +157,8 @@ def initialize(server):
   check_defects(owner, acts)
 
   # properties must be set to 'head' and 'Skeleton'.
-  # BEWARE to not set props to these objects before, they'll be included here.
+  # BEWARE to not set props to these objects before this line, or they will be
+  # included here.
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
           pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
@@ -212,6 +213,9 @@ def update():
     nval = values[VAL]
     # XXX: yes, 6 is an eye prefix (do better ?)
     if au.startswith('6'):
+      if au == "6pd":
+        G.eye_L['p6pd'] = nval * SH_ACT_LEN
+        G.eye_R['p6pd'] = nval * SH_ACT_LEN 
       if eyes_done:                                     # all in one pass
         continue
       ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
@@ -248,6 +252,8 @@ def update():
       cont.owner['p'+au] = SH_ACT_LEN * nval
       cont.activate(cont.actuators[au])
 
+    elif au.startswith('E'):
+      pass
     else:
       a_min, a_max = G.Skeleton.limits[au]
       if nval >= 0:
