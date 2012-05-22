@@ -63,7 +63,7 @@ BORED_TEXTS = ("wellll....","hello?","anybody here?","pop podommm.")
 
 # CONTEXTUAL RANGES
 F_EXPRS = {
-  ST_SEARCH     : ('slow_neutral', 'really_look', 'frown2', 'dummy_name4'),
+  ST_SEARCH     : ('neutral', 'really_look', 'frown2', 'dummy_name4'),
   ST_FOUND_USR  : ('simple_smile_wide1', 'surprised'),
 }
 AOI_RANGES = {           # in meters
@@ -142,7 +142,7 @@ class Action(object):
 _fct_rand_range = lambda x: [random.uniform(*a) for a in (x)]
 ACTIONS = {
   'AOI'     : Action(AOI_RANGES,        _fct_rand_range, (3, 10)),
-  'fexpr'   : Action(F_EXPRS,           random.choice, (1.2, 20)),
+  'fexpr'   : Action(F_EXPRS,           random.choice, (2.2, 20)),
   'gaze'    : Action(GAZE_RANGES,       _fct_rand_range, (1,5)),
   'spine'   : Action(SPINE_RANGES,      _fct_rand_range, (5,15)),
       }
@@ -155,13 +155,11 @@ class LightHead_Behaviour(BehaviourBuilder):
 
   def st_actuate_random(self):
     now = time.time()
-    fe, gz, nc, sp = (ACTIONS[k] for k in ('fexpr','gaze','spine'))
+    fe, gz, sp = ( ACTIONS[k] for k in ('fexpr','gaze','spine') )
     if fe.is_active(now):
       self.comm_expr.set_fExpression(fe.get_data(ST_SEARCH), duration=1.5)
     if gz.is_active(now):
       self.comm_expr.set_gaze(gz.get_data(ST_SEARCH))
-    if nc.is_active(now):
-      self.comm_expr.set_neck(nc.get_data(ST_SEARCH))
     if any(self.comm_expr.datablock):
       self.comm_expr.sendDB_waitReply()
 
@@ -202,10 +200,11 @@ class LightHead_Behaviour(BehaviourBuilder):
     return True
 
   def st_engage(self):
-    self.comm_expr.set_fExpression("surprised", intensity=.3)
+    self.comm_expr.set_fExpression("happy", intensity=.3)
     self.comm_expr.set_instinct("coactuate:attention=1")
     self.comm_expr.set_text("ohoh!")
     self.comm_expr.sendDB_waitReply()
+    self.interacting = True
     return True
   
   def st_disengage(self):
@@ -213,9 +212,12 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.comm_expr.sendDB_waitReply()    
     text = random.choice(BORED_TEXTS)
     self.comm_expr.set_text(text)
-    self.comm_expr.set_fExpression("bored", intensity=.5)
-    self.comm_expr.set_instinct("coactuate:attention=.1")
-    self.comm_expr.sendDB_waitReply()    
+    self.comm_expr.set_fExpression("sad", intensity=.5)
+    self.comm_expr.set_gaze((0,10,0))
+    self.comm_expr.set_instinct("coactuate:attention=.3")
+    self.comm_expr.sendDB_waitReply()
+    self.comm_expr.set_fExpression("sad", intensity=-.5)
+    self.interacting = False
     return True
 
   def st_keep_usr_vis(self):
@@ -223,14 +225,19 @@ class LightHead_Behaviour(BehaviourBuilder):
       return None
     target = self.vision.get_face_3Dfocus(self.faces)[0]
     self.comm_expr.set_instinct("gaze-control:target=%s" % 
-                                self.comm_expr.get_transform(target,'r'))
+                                (target[0]/50., 20, target[2]/50.))
+#                                self.comm_expr.get_transform(target,'r'))
     self.comm_expr.sendDB_waitReply(tag='KUV')
     return True
+
+  def st_gaze(self):
+    self.gaze_around(1, (0,10,0))
 
   def st_check_boredom(self):
     """Detects boredom.
     """
-    if time.time() - self.last_st_change_t > MAX_STABLE_DURATION:
+    self.st_gaze()
+    if time.time() - self.last_st_change_t > MAX_STABLE_DURATION and not self.interacting:
       self.on_state_update()
       return True
     time.sleep(.1)
@@ -266,6 +273,7 @@ class LightHead_Behaviour(BehaviourBuilder):
 #      ('cog', ((STARTED, self.st_actuate_random, None),), None)
       ('cog',   (
           (STARTED,             self.st_start,          ST_SEARCH),
+#          (ST_SEARCH,           self.st_gaze,           None),
           (ST_FOUND_USR,        self.st_engage,         ST_KEEP_USRVIS),
           (ST_BORED,            self.st_disengage,      ST_SEARCH), ),  None),
       ('att',   (
@@ -289,6 +297,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.egaze = [ None, None ]                                 # received/sent
     self.faces = None                                           # detected faces
     self.last_st_change_t = None
+    self.interacting = False
 
     try:
       self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
@@ -354,13 +363,13 @@ class LightHead_Behaviour(BehaviourBuilder):
 #      self.comm_expr.sendDB_waitReply()
     self.comm_expr.sendDB_waitReply(";;;;;", TAG)
 
-  def gaze_around(self, dist_range):
+  def gaze_around(self, dist_range, focus):
     """location: eye-gaze vector relative to center of eyes 
     """
     TAG = 'GA'
     for i in range(3):
       self.comm_expr.set_gaze([ (v-dist_range/2.0)+random.random()*dist_range
-                                for v in self.egaze[1] ])
+                                for v in focus ])
       self.comm_expr.sendDB_waitReply()
       time.sleep(1)
 

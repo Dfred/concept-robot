@@ -70,13 +70,17 @@ VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "33L","33R",
              "38L","38R",
              "39L","39R",
-             "51.5","53.5","55.5",
-             "61.5L","61.5R","63.5",
+             "51.5","53.5","55.5",              # Neck
+             "61.5L","61.5R","63.5",            # Eyes orientation
+             "6pd",                             # Pupil Dilatation
+             "93X","93Y","93Z","93mZ","93bT",   # Tongue position
+             "94","95",                         # Tongue shape
              "96","97","98",
-             "SYL","SYR",
-             "SZL","SZR",
+             "SYL","SYR", "SZL","SZR",          # Shoulders
              "Th",
-             "TX","TY","TZ")
+             "TX","TY","TZ",
+             "Ebs","Esw",                       # Effects
+             )
 
 
 class Face_Handler(ASCIIRequestHandler):
