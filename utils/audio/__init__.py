@@ -1,4 +1,5 @@
 import math
+import threading
 import pyaudio
 import logging
 from array import array
@@ -56,7 +57,6 @@ class Audio(object):
             self.datas[i] = array('f',
                                   s.read(int(duration * s._frames_per_buffer)))
 
-
     def set_factor(self, factor):
         LOG.debug("data factor now %f", factor)
         self.fR = factor
@@ -68,6 +68,30 @@ class Audio(object):
         return ( math.sqrt(sum( d         **2 for d in dL) / len(dL)),
                  math.sqrt(sum((d*self.fR)**2 for d in dR) / len(dR)) )
 
+    def snd_ev(self, time_window, threshold):
+        while self.monitoring:
+            dBuL, dBuR = self.get_dBu(time_window)
+            if dBuL > threshold or dBuR > threshold:
+                print '***** BANG BANG *****'
+                callback(dBuL, dBuR)
+        self.thread = None
+    def monitor_event(self, callback, ev_threshold=None, time_window=.01):
+        """Starts a thread monitoring sound events on available sound channels.
+        If ev_threshold is not specified, it's read from configuration.
+        Callback shall accept 2 arguments: left and right dBu (aka power RMS).
+        Callback will be called if the dBu is above threshold.
+        Set callback to None to stop the thread.
+        """
+        if callback is None and self.thread:
+            self.monitoring = False
+        else:
+            self.monitoring = True
+            if ev_threshold is None:
+                ev_threshold = conf.lib_audition[sensor_name]['ev_threshold']
+            self.thread = threading.Thread(target=self.snd_ev, 
+                                           name='sound_ev',
+                                           args=(time_window,ev_threshold))
+            self.thread.start()
 
 if __name__ == "__main__":
     import sys, time, pylab
