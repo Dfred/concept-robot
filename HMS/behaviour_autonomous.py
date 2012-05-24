@@ -39,7 +39,7 @@ from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
-from utils import vision, conf
+from utils import vision, audio, conf
 
 LOG = logging.getLogger(__package__)
 _CERVICALS = ('53.5','55.5','51.5')
@@ -57,7 +57,7 @@ ST_FOUND_USR    = 'user_visible'
 ST_GOODBYE      = 'disengage'
 ST_BORED        = 'bored'
 ST_ACTIVE       = 'active'
-#ST_  = ''
+ST_SND_EVENT  = 'sound'
 
 BORED_TEXTS = ("wellll....","hello?","anybody here?","pop podommm.")
 
@@ -200,7 +200,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     return True
 
   def st_engage(self):
-    self.comm_expr.set_fExpression("happy", intensity=.3)
+    self.comm_expr.set_fExpression("smiling", intensity=.3)
     self.comm_expr.set_instinct("coactuate:attention=1")
     self.comm_expr.set_text("ohoh!")
     self.comm_expr.sendDB_waitReply()
@@ -225,7 +225,7 @@ class LightHead_Behaviour(BehaviourBuilder):
       return None
     target = self.vision.get_face_3Dfocus(self.faces)[0]
     self.comm_expr.set_instinct("gaze-control:target=%s" % 
-                                (target[0]/50., 20, target[2]/50.))
+                                ((target[0]/50., 20, target[2]/50.),) )
 #                                self.comm_expr.get_transform(target,'r'))
     self.comm_expr.sendDB_waitReply(tag='KUV')
     return True
@@ -275,17 +275,26 @@ class LightHead_Behaviour(BehaviourBuilder):
           (STARTED,             self.st_start,          ST_SEARCH),
 #          (ST_SEARCH,           self.st_gaze,           None),
           (ST_FOUND_USR,        self.st_engage,         ST_KEEP_USRVIS),
-          (ST_BORED,            self.st_disengage,      ST_SEARCH), ),  None),
+          (ST_BORED,            self.st_disengage,      ST_SEARCH),
+        ), None),
       ('att',   (
-          (ST_SEARCH,           self.st_check_boredom,  ST_BORED),
-          (ST_ACTIVE,           self.st_check_boredom,  ST_BORED),
-          (ST_BORED,            self.st_check_activity, ST_ACTIVE), ),  'cog'),
+          ((ST_SEARCH,
+            ST_ACTIVE),         self.st_check_boredom,  ST_BORED),
+          (ST_BORED,            self.st_check_activity, ST_ACTIVE),
+        ), 'cog'),
       ('vis',   (
-          (ST_SEARCH,           self.st_detect_faces,   ST_FOUND_USR),
-          (ST_KEEP_USRVIS,      self.st_detect_faces,   None), ),       'cog'),
+          ((ST_SEARCH,
+            ST_SND_EVENT),      self.st_detect_faces,   ST_FOUND_USR),
+          (ST_KEEP_USRVIS,      self.st_detect_faces,   None),
+        ), 'cog'),
       ('spine', (
           (ST_SEARCH,           self.st_search,         None),
-          (ST_KEEP_USRVIS,      self.st_keep_usr_vis,   None), ),       'cog'),
+#          (ST_SND_EVENT,        self.st_gaze_sound,     None),
+          (ST_KEEP_USRVIS,      self.st_keep_usr_vis,   None),
+        ), 'cog'),
+ #     ('audio', (
+ #         (ST_SEARCH,           self.st_check_sound,    ST_SND_EVENT),
+#        ), 'cog'),
       ]
     super(LightHead_Behaviour,self).__init__(machines_def, FSM)
     # install boredom detection
@@ -309,6 +318,10 @@ class LightHead_Behaviour(BehaviourBuilder):
       self.vision.enable_face_detection()
     except vision.VisionException, e:
       fatal(e)
+
+#    try:
+#    self.audio = audio.Audio(conf.ROBOT['audition'])
+#    except 
 
     # --- OVERRIDING MOTHER CLASS TO DO OUR JOB
 #  def step_callback(self):

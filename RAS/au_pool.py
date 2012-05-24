@@ -139,7 +139,7 @@ class AUPool(dict):
 
   def Log_AUs(self, AUpool=None):
     AP = AUpool or self
-    for au,nval_row in AP.iteritems():
+    for au,nval_row in sorted(AP.iteritems(),key=lambda x: x[0]):
       LOG.info("%5s :"+" %.5f"*len(nval_row), au, *nval_row)
 
   def set_availables(self, AUs, values=None):

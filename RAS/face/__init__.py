@@ -44,7 +44,7 @@ LOG = get_logger(__package__)
 VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
              "04L","04R",
-             "05L","05R",
+             "05L","05R","05s",
              "06L","06R",
              "07L","07R",
              "08L","08R",
@@ -77,6 +77,7 @@ VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "94","95",                         # Tongue shape
              "96","97","98",
              "SYL","SYR", "SZL","SZR",          # Shoulders
+             "skB","skS",
              "Th",
              "TX","TY","TZ",
              "Ebs","Esw",                       # Effects

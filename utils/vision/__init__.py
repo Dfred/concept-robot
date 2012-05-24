@@ -38,12 +38,13 @@ pv.disableCommercialUseWarnings()
 
 from pyvision.face.CascadeDetector import CascadeDetector
 from pyvision.face.FilterEyeLocator import FilterEyeLocator
+from pyvision.surveillance.VideoStreamProcessor import VideoWriterVSP
 #, AVE_LEFT_EYE, AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
 from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from utils import conf, get_logger, Frame, fps
+from utils import conf, get_logger, fps
 
 LOG = get_logger(__package__)
 
@@ -110,7 +111,9 @@ class CamCapture(object):
         """sensor_name: if set, calls self.use_camera with that name.
         """
         self.camera = None
+        self.frame = None
         self.gui = None
+        self.vid_writer = None
         sensor_name and self.use_camera(sensor_name)
 
     def set_device(self, dev_index=0, resolution=(800,600)):
@@ -157,13 +160,15 @@ class CamCapture(object):
     def update(self):
         """
         """
+        if self.vid_writer and self.frame:
+            self.vid_writer.addFrame(self.frame)
         self.frame = self.camera.query()        # grab ?
 
-    def record(self, filename):
+    def toggle_record(self, filename, fourCodec=None):
         """
         """
-        raise NotImplementedError()
-        VideoWriterVSP(filename, size=self.camera.size)
+        self.vid_writer = VideoWriterVSP(filename, size=self.camera.size,
+                                         fourCC_str=(fourCodec or 'XVID'))
 
     def gui_create(self):
         """
@@ -246,7 +251,7 @@ class CamUtils(CamCapture):
         if not haar_cascade_path:
             try:
                 haar_cascade_path = conf.ROBOT['mod_vision']['haar_cascade']
-            except KeyError:
+            except (KeyError,TypeError):
                 pass
         if not haar_cascade_path:
             from os.path import dirname, join
@@ -279,7 +284,7 @@ class CamUtils(CamCapture):
         """Returns an iterable of gaze vectors (right handeness) from detected
         faces, estimating depth from its width.
 
-        rects: utils.Frame instance (or iterable of).
+        rects: instances or iterable of pyvision Rects as returned by find_faces
 
         Poor's man calibration procedure for 'depth_fct' (valid for a specific
         aspect ratio):
@@ -306,7 +311,7 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
         fw, fh = self.camera.XY_factors
         if not hasattr(rects, '__iter__'):
             rects = [rects]
-        return [( -(r.x/w-.5)*fw, self.camera.depth_fct(r.w/w), -(r.y/h-.5)*fh )
+        return [( -(r.x/w-.5)*fw, self.camera.depth_fct(r.w/w), -(r.y/h-.5)*fh)
                 for r in rects ]
 
     def get_motions(self):
@@ -316,17 +321,21 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
         #MotionDetector().detect()
 
 
-
+###############################################################################
+# TEST and XY_FACTORS creation
+#
 if __name__ == "__main__":
+    import sys, time
+    import argparse
+
     def run(cap):
-      import sys
       my_fps = fps.SimpleFPS( 30 * 2 )          # refresh period in frames
       while True:
         cap.update()
         faces = cap.find_faces()
         if faces:
             cap.mark_rects(faces)
-            print "W: {0:.6f} note camera-face distance (in meters).".format(
+            print "Width: {0:.6f} measure cam - face distance (in m.)".format(
                 faces[0].w/float(cap.camera.size[0]))
             try:
                 print cap.get_face_3Dfocus(faces)[0][2]
@@ -339,23 +348,24 @@ if __name__ == "__main__":
     conf.set_name('lightHead')
     conf.load()
 
-    import sys
-    if len(sys.argv) > 1:
-        try:
-            r = int(sys.argv[1]), int(sys.argv[2])
-        except Exception, e:
-            print sys.argv[0], ': [horiz_resolution] [vert_resolution]'
-            print e
-            exit(1)
-    else:
-        r = (640,480)
-
+    parser = argparse.ArgumentParser(description='test this vision module')
+    parser.add_argument('-c', help='camera resolution', type=int, nargs=2,
+                        metavar=('Width', 'Height'))
+    parser.add_argument('-r', help='enable record', action='store_true')
+    args = parser.parse_args(sys.argv[1:])
+ 
     import logging
     from utils import comm, conf, LOGFORMATINFO
     logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
 
     cap = CamUtils('laptop_camera')
-#    cap.set_device(resolution=r)
+    if args.c:
+        print "using camera resolution: %sx%s" % args.c
+        cap.set_device(resolution=args.c)
+    if args.r:
+        fname = time.strftime("vision-%H:%M:%S.avi")
+        print "recording vision as "+fname
+        cap.toggle_record(fname)
     cap.enable_face_detection()
     cap.gui_create()
     run(cap)

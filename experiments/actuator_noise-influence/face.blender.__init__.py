@@ -40,7 +40,7 @@ from math import cos, sin, pi
 
 import GameLogic as G
 
-from RAS.au_pool import VAL
+from RAS.au_pool import VAL, DVT
 from RAS.face import Face_Server
 
 
@@ -151,26 +151,25 @@ def initialize(server):
 
   # set available Action Units from the blender file (Blender Shape Actions)
   cont = G.getCurrentController()
-  owner = cont.owner
   acts = [act for act in cont.actuators if
           not act.name.startswith('-') and act.action]
+  owner = cont.owner
   check_defects(owner, acts)
 
   # properties must be set to 'head' and 'Skeleton'.
-  # BEWARE to not set props to these objects before this line, or they will be
-  # included here.
+  # BEWARE to not set props to these objects before, they'll be included here.
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
           pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
     return fatal('Check your .blend file for bad property names')
 
+  G.sound_exp = { au : G.getCurrentScene().objects['OBsound_exp'].actuators[0]
+                  for au in server.AUs.iterkeys() }
+
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
   # blender might issue a warning here, nvm as we add a member, not access it.
   G.Skeleton.limits = server.SW_limits
-
-  G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
-          G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
 
   # ok, startup
   G.initialized = True
@@ -211,14 +210,16 @@ def update():
   eyes_done, spine_done = False, False
   time_diff = time.time() - G.last_update_time
 
-  srv.AUs.update_time(time_diff)
+  srv.AUs.update_time(time_diff, with_speed=True)       # True for noise exp.
+  
   for au, values in srv.AUs.iteritems():
     nval = values[VAL]
+
+    G.sound_exp[au].volume = abs(values[DVT])
+    G.sound_exp[au].pitch = (values[DVT] + .5) +.5
+
     # XXX: yes, 6 is an eye prefix (do better ?)
     if au.startswith('6'):
-      if au == "6pd":
-        G.eye_L['p6pd'] = nval * SH_ACT_LEN
-        G.eye_R['p6pd'] = nval * SH_ACT_LEN 
       if eyes_done:                                     # all in one pass
         continue
       ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
@@ -255,10 +256,6 @@ def update():
       cont.owner['p'+au] = SH_ACT_LEN * nval
       cont.activate(cont.actuators[au])
 
-    elif au.startswith('E'):
-      if au.endswith('bs'):
-        G.BS[0].energy = nval * 3
-        G.BS[1].energy = nval * 3
     else:
       a_min, a_max = G.Skeleton.limits[au]
       if nval >= 0:

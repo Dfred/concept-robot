@@ -56,7 +56,7 @@ class SPFSM(object):
     def __init__(self, name, rules, parent_machine = None):
         """Creates a new behaviour based on given rules.
 
-        SMFSMs can share states if a parent SMFSM instance is given. Order of
+        SPFSMs can share states if a parent SPFSM instance is given. Order of
         instanciation sets priority for excution.
         name: string identifying this machine.
         rules: iterable of (state or (states,) , function).
