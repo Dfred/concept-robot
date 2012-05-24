@@ -39,7 +39,7 @@ from RAS.au_pool import VAL
 from HMS.behaviour_builder import BehaviourBuilder, fatal
 from HMS.communication import MTLightheadComm
 from utils.parallel_fsm import STARTED, STOPPED, MPFSM as FSM
-from utils import vision, audio, conf
+from utils import vision, audition, conf
 
 LOG = logging.getLogger(__package__)
 _CERVICALS = ('53.5','55.5','51.5')
@@ -233,6 +233,13 @@ class LightHead_Behaviour(BehaviourBuilder):
   def st_gaze(self):
     self.gaze_around(1, (0,10,0))
 
+  def st_check_sound(self):
+    if self.sound_event:
+      dBuL, dBuR = self.sound_event
+      self.gaze_around(3, (dBuL - dBuR, 10, 0))
+      self.sound_event = None
+      return True
+
   def st_check_boredom(self):
     """Detects boredom.
     """
@@ -262,10 +269,11 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.comm_expr.sendDB_waitReply()
     return True
 
-  def st_stopped(self, name):
-    print 'test stopped'
-    return
-
+  # ENERGY BASED BEHAVIOUR, TO TRY:
+  # minimise energy spent (=> less movements) 
+  # maximise visual feed events
+  # upon boredom, lower spendable energy threshold
+  # upon sound event, set spendable energy threshold close to 0
 
   # --- INSTANCE MANAGEMENT
   def __init__(self, with_gui=True):
@@ -292,9 +300,9 @@ class LightHead_Behaviour(BehaviourBuilder):
 #          (ST_SND_EVENT,        self.st_gaze_sound,     None),
           (ST_KEEP_USRVIS,      self.st_keep_usr_vis,   None),
         ), 'cog'),
- #     ('audio', (
- #         (ST_SEARCH,           self.st_check_sound,    ST_SND_EVENT),
-#        ), 'cog'),
+     ('audio', (
+         (ST_SEARCH,           self.st_check_sound,    ST_SND_EVENT),
+       ), 'cog'),
       ]
     super(LightHead_Behaviour,self).__init__(machines_def, FSM)
     # install boredom detection
@@ -309,7 +317,7 @@ class LightHead_Behaviour(BehaviourBuilder):
     self.interacting = False
 
     try:
-      self.vision = vision.CamUtils(conf.ROBOT['mod_vision']['sensor'])
+      self.vision = vision.CamUtils(conf.ROBOT['vision']['sensor'])
       self.vision.update()
       LOG.info('--- %sDISPLAYING CAMERA ---', '' if with_gui else 'NOT ') 
       if with_gui:
@@ -320,12 +328,17 @@ class LightHead_Behaviour(BehaviourBuilder):
       fatal(e)
 
 #    try:
-#    self.audio = audio.Audio(conf.ROBOT['audition'])
-#    except 
+    self.audio = audition.Audio(conf.ROBOT['audition'])
+#    except , e:
+#      fatal(e)
+    self.sound_event = None
+    def sound_callback(dBuL, dBuR):
+      self.sound_event = dBuL, dBuR
+    self.audio.monitor_event(sound_callback, .1)
 
-    # --- OVERRIDING MOTHER CLASS TO DO OUR JOB
-#  def step_callback(self):
-#    super(LightHead_Behaviour,self).step_callback()
+  #   # --- OVERRIDING MOTHER CLASS TO DO OUR JOB
+  # def step_callback(self):
+  #   super(LightHead_Behaviour,self).step_callback()
 
   def cleanUp(self):
     LOG.debug('--- cleaning up ---')
