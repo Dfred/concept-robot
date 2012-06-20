@@ -47,8 +47,8 @@ class MTLightheadComm(MTComm):
         """
         """
         super(MTLightheadComm, self).__init__(srv_addrPort,
-                                              connection_lost_fct,
-                                              connection_succeded_fct)
+                                              connection_succeded_fct,
+                                              connection_lost_fct)
         self.thread.name += '_LightHead'
         # information blocks
         self.lips_info = None
@@ -129,8 +129,8 @@ class MTExpressionComm(MTComm):
         connection_succeded_fct: function called on successful connection.
         """
         super(MTExpressionComm,self).__init__(srv_addrPort,
-                                              connection_lost_fct,
-                                              connection_succeded_fct)
+                                              connection_succeded_fct,
+                                              connection_lost_fct)
         self.thread.name += '_Expr2'
         self.tag = None
         self.tag_count = 0
