@@ -26,10 +26,14 @@ __license__ = "GPL"
 import time
 import math
 import random
+import logging
 
-from HMS.expression_player import Behaviour_Builder
-from utils import Frame, conf, LOGFORMATINFO
-from utils.FSMs import SMFSM
+from HMS.communication import MTExpressionComm
+from utils import conf, LOGFORMATINFO
+from utils.parallel_fsm import STARTED, STOPPED
+
+
+LOG = logging.getLogger(__package__)
 
 
 class Utterances(object):
@@ -38,7 +42,6 @@ class Utterances(object):
 
   def __init__(self, filepath):
     self.file = file(filepath, 'r', 1)
-    self.next_time = None
     self.buff = None
     self.lineno = 0
 
@@ -54,127 +57,95 @@ class Utterances(object):
     return line.strip()
 
   def next(self):
-    """Switch to next line. Also, check self.lock() for deferred reading.
+    """Switch to next line.
     """
-    if not self.next_time:
-      self.next_time = time.time()
-    if time.time() >= self.next_time:
-      line = self.read_line()
-      if line == None:
-        return 'EOF'
-      while line.startswith('#') or len(line) == 0:
+    line = self.read_line()
+    while line is not None:
+      if line.startswith('#') or len(line) == 0:
         line = self.read_line()
-        if line == None:
-          return 'EOF'
-      print "current time", time.time()
+        continue
       try:
-        min_dur, datablock = line.split(None,1)
+        pause, datablock = line.split(None,1)
+        pause = float(pause)
       except ValueError:
-        print "UTTERRANCES ERROR - line %i : '%s'" % (self.lineno, line)
+        LOG.error("BAD UTTERRANCES - line %i : '%s'", self.lineno, line)
         return None
-      return (float(min_dur), datablock[:datablock.rindex(';')+1],
-              datablock[datablock.rindex(';')+1:])
-    return None
-
-  def lock_for(self, duration):
-    """Lock iterating over the file for duration seconds.
-    """
-    self.next_time = time.time() + duration
-    print "next_time", self.next_time
+      return (pause, datablock)
+    return 'EOF'
 
 
-class MonologuePlayer(Behaviour_Builder):
+class MonologuePlayer(object):
   """A simple player reading monologue file.
   """
 
-  def read(self):
+  def run(self):
+    """Awaits connection, then processes all of the monologue file.
     """
-    Switches to: SMFSM.STOPPED
-    """
-    if self.wait_reply:
-      return
-    line = self.utterances.next()
-    if line == 'EOF':
-      return SMFSM.STOPPED
-    if line:
+    while not self.running:     # waiting for connection
+      time.sleep(.5)
+    while self.running:         # until disconnection or EOF
+      line = self.utterances.next()
+      if line == 'EOF':
+        return
+      if line:
+        pause, datablock = line
+        datablock, tag = datablock.rsplit(';', 1)
+        LOG.debug('waiting reply for tag "%s"', tag)
+        self.comm_expr.sendDB_waitReply(datablock+';', tag)
+        LOG.debug('reply received, pausing for %ss.', pause)
+        time.sleep(pause)
+      print self.running
 
-      def got_reply(status, tag):
-        self.wait_reply = False
-        self.comm_expr.on_reply_fct(self.tag, None)
-        self.utterances.lock_for(pause)
-
-      pause, datablock, self.tag = line
-      self.wait_reply = True
-      self.comm_expr.on_reply_fct(self.tag, got_reply)
-      self.comm_expr.send_my_datablock(datablock, self.tag)
-
-  def search_participant(self):
-    """
-    Switches to: 'FOUND_PART'
-    """
-    self.faces = self.vision.find_faces()
-    if self.vision.gui:
-      self.vision.mark_rects(self.faces)
-      self.vision.gui.show_frame(self.vision.frame)
-    return self.faces and 'FOUND_PART' or None
-
-  def adjust_gaze_neck(self):
-    """
-    Switches to: 'ADJUSTED'
-    """
-    eyes = self.vision.find_eyes([self.faces[0]])[0]
-    center = Frame(((eyes[0].x + eyes[1].x)/2, (eyes[0].y+eyes[1].y)/2,
-                    self.faces[0].w, self.faces[0].h))
-    gaze_xyz = self.vision.camera.get_3Dfocus(center)
-    neck = ((.0,.0,.0),(.0,.0,.0))
-    # TODO: ideally, we would not have to set the neck if gaze is enough to
-    #  drive the neck (an expr2 instinct could do it).
-    if not self.vision.camera.is_within_tolerance(center.x, center.y):
-      neck = (gaze_xyz,(.0,.0,.0))
-    self.comm_expr.set_gaze(gaze_xyz)
-    self.comm_expr.set_neck(*neck)
-    tag = self.comm_expr.send_datablock('gaze_neck')
-    self.comm_expr.wait_reply(tag)
-    return 'ADJUSTED'
-
-  def finish(self, name):
-    """Called on FSM.STOPPED state.
-    name: name of the machine.
-    """
+  def cleanup(self):
     del self.utterances
-    return None
+    self.comm_expr.done()
+
+  def on_bad_command(self, argline):
+    LOG.error("command with tag '%s' has an error", argline)
+    self.running = False
+    self.wait_reply = False
+
+  def connected(self):
+    self.running = True
+
+  def disconnected(self):
+    LOG.warning('disconnected from server')
+    self.running = False
 
   def __init__(self, filepath):
     """
     """
-    PLAYER_DEF= ( (SMFSM.STARTED, self.read),
-                  (SMFSM.STOPPED, self.finish),
-                )
-    if conf.ROBOT['mod_vision']:
-      FTRACKER_DEF = ( ((SMFSM.STARTED,'ADJUSTED'), self.search_participant),
-                       ('FOUND_PART', self.adjust_gaze_neck),
-                       (SMFSM.STOPPED, self.finish),
-                     )
-      Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),
-                                        ('tracker',FTRACKER_DEF,'player')],
-                                 with_vision=True)
-    else:
-      Behaviour_Builder.__init__(self, [('player',PLAYER_DEF,None),],
-                                 with_vision=False)
+    missing = conf.load(required_entries=('ROBOT','expression_server'))
+    if missing:
+      LOG.warning('\nmissing configuration entries: %s', missing)
+      exit(1)
 
+    self.running = False
+    self.comm_expr = MTExpressionComm(conf.expression_server,
+                                      connection_lost_fct=self.disconnected,
+                                      connection_succeded_fct=self.connected)
+    #XXX: on_bad_command() could miss the 1st datablocks (although unlikely).
+    setattr(self.comm_expr,'cmd_NACK',self.on_bad_command)
     self.utterances = Utterances(filepath)
     self.wait_reply = False
 
+
 if __name__ == '__main__':
-  conf.set_name('lightHead')
-  conf.load()
   import sys, logging
-  logging.basicConfig(level=logging.DEBUG,**LOGFORMATINFO)
+  debug = len(sys.argv) > 2 and sys.argv.pop(1)
+  logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),**LOGFORMATINFO)
+  conf.set_name('lightHead')
+
   try:
     m = MonologuePlayer(sys.argv[1])                          # also loads conf
   except IndexError:
     print 'usage: %s monologue_file' % sys.argv[0]
     exit(1)
-  m.run()
+  try:
+    m.run()
+  except KeyboardInterrupt:
+    print '\n--- user interruption ---'
+  else:
+    print '--- done ---'
   m.cleanup()
   print 'done'
