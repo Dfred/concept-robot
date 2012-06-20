@@ -36,7 +36,7 @@ from utils.parallel_fsm import STARTED, STOPPED
 LOG = logging.getLogger(__package__)
 
 
-class Utterances(object):
+class Script(object):
   """
   """
 
@@ -56,6 +56,10 @@ class Utterances(object):
     self.lineno += 1
     return line.strip()
 
+  def skip_to(self, lineno):
+    while self.lineno < lineno:
+      self.read_line()
+
   def next(self):
     """Switch to next line.
     """
@@ -68,9 +72,9 @@ class Utterances(object):
         pause, datablock = line.split(None,1)
         pause = float(pause)
       except ValueError:
-        LOG.error("BAD UTTERRANCES - line %i : '%s'", self.lineno, line)
+        LOG.error("BAD LINE #%i : '%s'", self.lineno, line)
         return None
-      return (pause, datablock)
+      return self.lineno, pause, datablock
     return 'EOF'
 
 
@@ -78,32 +82,32 @@ class MonologuePlayer(object):
   """A simple player reading monologue file.
   """
 
-  def run(self):
+  def run(self, skip_to=None):
     """Awaits connection, then processes all of the monologue file.
     """
+    skip_to and self.script.skip_to(skip_to)
     while not self.running:     # waiting for connection
       time.sleep(.5)
+    pause = 0
     while self.running:         # until disconnection or EOF
-      line = self.utterances.next()
+      time.sleep(pause)
+      line = self.script.next()
       if line == 'EOF':
         return
       if line:
-        pause, datablock = line
+        lineno, pause, datablock = line
         datablock, tag = datablock.rsplit(';', 1)
-        LOG.debug('waiting reply for tag "%s"', tag)
+        LOG.debug('sending line #%i and waiting reply for tag "%s"', lineno, tag)
         self.comm_expr.sendDB_waitReply(datablock+';', tag)
-        LOG.debug('reply received, pausing for %ss.', pause)
-        time.sleep(pause)
-      print self.running
+        LOG.debug('pausing for %ss.', pause)
 
   def cleanup(self):
-    del self.utterances
+    del self.script
     self.comm_expr.done()
 
   def on_bad_command(self, argline):
     LOG.error("command with tag '%s' has an error", argline)
     self.running = False
-    self.wait_reply = False
 
   def connected(self):
     self.running = True
@@ -126,23 +130,28 @@ class MonologuePlayer(object):
                                       connection_succeded_fct=self.connected)
     #XXX: on_bad_command() could miss the 1st datablocks (although unlikely).
     setattr(self.comm_expr,'cmd_NACK',self.on_bad_command)
-    self.utterances = Utterances(filepath)
+    self.script = Script(filepath)
     self.wait_reply = False
 
 
 if __name__ == '__main__':
   import sys, logging
-  debug = len(sys.argv) > 2 and sys.argv.pop(1)
-  logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),**LOGFORMATINFO)
+  debug = len(sys.argv) > 2 and sys.argv[1].startswith('-v') and sys.argv.pop(1)
+  logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
+                      **LOGFORMATINFO)
+
+  skip = len(sys.argv) > 2 and sys.argv[1].startswith('-s') and sys.argv.pop(1)
+  noACK = len(sys.argv) > 2 and sys.argv[1].startswith('-n') and sys.argv.pop(1)
   conf.set_name('lightHead')
 
   try:
+    #TODO: don't wait for ACK (-n)
     m = MonologuePlayer(sys.argv[1])                          # also loads conf
   except IndexError:
     print 'usage: %s monologue_file' % sys.argv[0]
     exit(1)
   try:
-    m.run()
+    m.run(int(skip[2:]))
   except KeyboardInterrupt:
     print '\n--- user interruption ---'
   else:
