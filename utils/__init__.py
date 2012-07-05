@@ -181,3 +181,16 @@ def handle_exception(logger, msg=''):
 def round(iterable):
     """version for iterables, different signature from __builtins__.round"""
     return [ round(v, Spine_Server.PRECISION) for v in iterable ]
+
+def weighted_choice(weights):
+    """Returns random index biased by relative value of weights.
+
+    weights: iterable of numbers. Faster if sorted with descending ordering.
+             Weights don't need to sum to 1.
+    """
+    r = random.random() * sum(weights)
+    for i, w in enumerate(weights):
+        r -= w
+        if r < 0:
+            return i
+        
