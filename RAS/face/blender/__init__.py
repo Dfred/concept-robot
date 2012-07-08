@@ -140,6 +140,8 @@ def check_defects(owner, acts):
 
 def initialize(server):
   """Initialiazes and configures facial subsystem (blender specifics...)"""
+  global INFO_PERIOD
+
   print "loaded module from", __path__[0]
 
   # get driven objects
@@ -187,6 +189,8 @@ def initialize(server):
   cam = G.getCurrentScene().active_camera
   try:
     from utils import conf
+    if conf.VERBOSITY < 2:
+      INFO_PERIOD = None
     if conf.ROBOT['mod_face'].has_key('blender_proj'):
       cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
   except StandardError, e:
