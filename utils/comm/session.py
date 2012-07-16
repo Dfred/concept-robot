@@ -69,7 +69,7 @@ from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
 FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
-DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF ]
+DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF, errno.ETIMEDOUT ]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
 

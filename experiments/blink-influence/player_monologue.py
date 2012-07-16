@@ -24,13 +24,10 @@ __credits__ = [""]
 __license__ = "GPL"
 
 import time
-import math
-import random
 import logging
 
 from HMS.communication import MTExpressionComm
 from utils import conf, LOGFORMATINFO
-from utils.parallel_fsm import STARTED, STOPPED
 
 
 LOG = logging.getLogger(__package__)
@@ -151,7 +148,7 @@ if __name__ == '__main__':
     print 'usage: %s monologue_file' % sys.argv[0]
     exit(1)
   try:
-    m.run(int(skip[2:]))
+    m.run(skip and int(skip[2:]))
   except KeyboardInterrupt:
     print '\n--- user interruption ---'
   else:

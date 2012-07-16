@@ -140,13 +140,18 @@ def check_defects(owner, acts):
 
 def initialize(server):
   """Initialiazes and configures facial subsystem (blender specifics...)"""
+  global INFO_PERIOD
+
   print "loaded module from", __path__[0]
 
   # get driven objects
   objs = G.getCurrentScene().objects
+  print "Blender file objects:"
   for obj_name in REQUIRED_OBJECTS:
     if OBJ_PREFIX+obj_name not in objs:
       return fatal("Object '%s' not found in blender scene" % obj_name)
+    print "%s, props: %s" % (obj_name, 
+                             objs[OBJ_PREFIX+obj_name].getPropertyNames())
     setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
   # set available Action Units from the blender file (Blender Shape Actions)
@@ -159,7 +164,8 @@ def initialize(server):
   # properties must be set to 'head' and 'Skeleton'.
   # BEWARE to not set props to these objects before this line, or they will be
   # included here.
-  AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in (owner, G.Skeleton) for
+  objects = [owner] + [ getattr(G,name) for name in REQUIRED_OBJECTS ]
+  AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in objects for
           pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
     return fatal('Check your .blend file for bad property names')
@@ -183,6 +189,8 @@ def initialize(server):
   cam = G.getCurrentScene().active_camera
   try:
     from utils import conf
+    if conf.VERBOSITY < 2:
+      INFO_PERIOD = None
     if conf.ROBOT['mod_face'].has_key('blender_proj'):
       cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
   except StandardError, e:
@@ -214,19 +222,20 @@ def update():
   srv.AUs.update_time(time_diff)
   for au, values in srv.AUs.iteritems():
     nval = values[VAL]
-    # XXX: yes, 6 is an eye prefix (do better ?)
+
+    #TODO: profiling, then figure out if we need a quicker switch method
+
     if au.startswith('6'):
-      if au == "6pd":
-        G.eye_L['p6pd'] = nval * SH_ACT_LEN
-        G.eye_R['p6pd'] = nval * SH_ACT_LEN 
       if eyes_done:                                     # all in one pass
         continue
       ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
       G.eye_L.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5L'][VAL]))
       G.eye_R.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5R'][VAL]))
       eyes_done = True
+    elif au == "ePS":
+      G.eye_L['pePS'] = nval * SH_ACT_LEN
+      G.eye_R['pePS'] = nval * SH_ACT_LEN 
 
-    # XXX: yes, T is a thorax prefix (do better ?)
     elif au.startswith('T'):
       if au[-1] == '0':
         cont.owner['p'+au] = SH_ACT_LEN * nval
@@ -236,11 +245,9 @@ def update():
         a_bound = nval < 0 and a_min or a_max
         G.Skeleton['p'+au] = (abs(nval)/a_bound +1) * SH_ACT_LEN/2
 
-    # XXX: yes, 9 is a tongue prefix (do better ?)
     elif au.startswith('9'):
       G.tongue[au] = SH_ACT_LEN * nval
 
-    # XXX: yes, 5 is a head prefix (do better ?)
     elif au.startswith('5'):
       if float(au) <= 55.5:                             # pan, tilt, roll
         a_min, a_max = G.Skeleton.limits[au]
@@ -255,10 +262,11 @@ def update():
       cont.owner['p'+au] = SH_ACT_LEN * nval
       cont.activate(cont.actuators[au])
 
-    elif au.startswith('E'):
-      if au.endswith('bs'):
+    elif au.startswith('sk'):
+      if au.endswith('B'):
         G.BS[0].energy = nval * 3
         G.BS[1].energy = nval * 3
+
     else:
       a_min, a_max = G.Skeleton.limits[au]
       if nval >= 0:
