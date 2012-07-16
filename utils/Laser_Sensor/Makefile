@@ -16,16 +16,6 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-################################################################################
-
-#  Makefile for our custom KNI wrapper.
-#  This will build a (big) shared object including all required KNI libs. Hence,
-#  your applications just need to be linked with LH_KNI_wrapper.so .
-
-#
-#  Builds optimized version by default. Use `make debug` for unstripped version.
-#  You need a properly configured gcc toolchain.
-#
 
 LIBNAME = URG_motionDetect
 SOURCES = src/detection_motion.c $(wildcard src/URG_sdk/src/*.c)
