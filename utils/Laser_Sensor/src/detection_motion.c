@@ -70,9 +70,12 @@ int init(int CaptureTimes)
     memset(MyStruct, 0, sizeof(internal_t));
 
 
+    MyStruct->CaptureTimes = CaptureTimes;
+
+
     /* To get data continuously for more than 100 times, set capture times equal to infinity times (UrgInfinityTimes)
        urg_setCaptureTimes(&urg, UrgInfinityTimes); */
-    assert(CaptureTimes < 100);
+    assert(MyStruct->CaptureTimes < 100);
 
 
     /* We print an error message if the connection is not established */
@@ -98,7 +101,7 @@ int init(int CaptureTimes)
 
     MyStruct->scan_msec = urg_scanMsec(&MyStruct->urg);
 
-    urg_setCaptureTimes(&MyStruct->urg, CaptureTimes);
+    urg_setCaptureTimes(&MyStruct->urg, MyStruct->CaptureTimes);
 
 
     /* We print an error message if the request is invalid */
@@ -151,7 +154,7 @@ void save(long* array1, long* array2, int size)
 
 /***************************** Ths function allows the detection of motions ***********************************/
 
-int detection(event_t array[5],int CaptureTimes)
+int detection(event_t array[5])
 {
 
     int i,ind,p,k;
@@ -178,7 +181,7 @@ int detection(event_t array[5],int CaptureTimes)
     struct event ev; /* This structure is used for storage the three characteristics of the object */
 
 
-    for (i = 0; i < CaptureTimes; i++)
+    for (i = 0; i < MyStruct->CaptureTimes; i++)
     {
         nb = 0;
         stepMin = 0;
@@ -286,7 +289,7 @@ int detection(event_t array[5],int CaptureTimes)
     }
 
     /*It is necessary to explicitly stop the data acquisition to get data for more than 99 times */
-    if (CaptureTimes > 99)
+    if (MyStruct->CaptureTimes > 99)
     {
         urg_laserOff(&MyStruct->urg);
     }

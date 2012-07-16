@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
         printf("init fail\n");
 
     /* Detection of motions */
-    else if (detection(array,49) != OK)
+    else if (detection(array) != OK)
         printf("detect fail\n");
 
     /* Disconnects URG sensor and frees the memory */

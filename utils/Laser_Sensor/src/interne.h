@@ -36,6 +36,7 @@ typedef struct internal_s {
     int   data_max;               /* size of the array data */
     long* data_copy;              /* the array storing former distances */
     long* diff_dist;              /* the array containing the differences of distance */
+    int CaptureTimes;             /* Number of scans */
 } internal_t;
 
 #endif // INTERNE_H

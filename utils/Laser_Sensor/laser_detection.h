@@ -33,7 +33,7 @@ typedef struct
 #define OK 1
 #define KO 0
 
-extern int detection(event_t array[5],int CaptureTimes);
+extern int detection(event_t array[5]);
 
 extern int init(int CaptureTimes);
 
