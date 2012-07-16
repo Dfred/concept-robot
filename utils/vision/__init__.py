@@ -32,7 +32,8 @@ import numpy
 import cv
 try:
     import pyvision as pv
-except ImportError:
+except ImportError, e:
+    print "python import error: %s" % e
     raise ImportError('path to pyvision should be included in PYTHONPATH')
 pv.disableCommercialUseWarnings()
 
