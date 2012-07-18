@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/select.h>
 
 //#include <ctype.h>
 
@@ -217,7 +218,7 @@ int serial_recv(serial_t *serial, char* data, int data_size_max, int timeout)
     return 0;
   }
 
-  /* ‘‚«–ß‚µ‚½‚P•¶Žš‚ª‚ ‚ê‚ÎA‘‚«o‚· */
+  /* ‘‚«–ß‚µ‚½‚P•¶Žš‚ª‚ ‚ê‚ÎA‘‚«o‚· */
   filled = 0;
   if (serial->has_last_ch_ != False) {
     data[0] = serial->last_ch_;

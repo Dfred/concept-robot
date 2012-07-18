@@ -34,7 +34,7 @@
   * defining classes in toplevel scripts (like here) leads to scope problems
 """
 
-import sys, time, atexit
+import sys, time
 import site                                     # Blender has its own python.
 from math import cos, sin, pi
 
@@ -107,7 +107,11 @@ def exiting():
   if hasattr(G, "server") and G.server.is_started():
     G.server.shutdown()
 
-atexit.register(exiting)
+try:
+  import atexit
+  atexit.register(exiting)
+except ImportError:
+  print "Couldn't import atexit"
 
 def fatal(error):
   """Common function to gracefully quit."""
