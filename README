@@ -39,7 +39,7 @@ To set this up properly, change to the extern folder, then get pyvision svn:
 svn co https://pyvision.svn.sourceforge.net/svnroot/pyvision/trunk pyvision-svn
 
 The symlink extern/pyvision is already provided and points to pyvision sources.
-
+Under windows, 
 
 Running the software:
 =====================
@@ -47,20 +47,20 @@ Running the software:
 Windows:
 -------
 
-Foreword: avoid using MinGW (if you can). Python doesn't like minGW or cygWin
- paths (ie: starting with /c/..).
- On a similar note, Python26/Lib/ and Python26/lib point at the same location
- *but* is considered different (FYI, the PIL package will crash python if the
- path has both Python26/lib/ and Python26/Lib/)
 
-1) Make sure you have a PYTHONPATH environment variable containing
- Lib\site-packages.
+1) Make sure you have a PATH and PYTHONPATH environment variables:
+ PATH containing the path to your python executable, and
+ PYTHONPATH containing Lib\site-packages.
 Otherwise, importing Numpy in a python shell could work, but not from the
  blender backend.
 
-2) Try to achieve step 2.2 using blender. File to load is in HRI/face/blender/.
-Then run start.bat. If it fails, backtrack in the terminal window to check the
- first error message. You may need to edit your configuration file.
+2) Perform step 2.2 (cf. next section, you don't need edit-face)
+ starting blender: File to open is in RAS/face/blender/.
+Then run start-fullscreen.bat (for fullscreen), or
+         start-windowed.bat (for windowed mode). 
+If it fails:
+* for missing dll, copy all dll files from Blender directory to this directory,
+* with an error message in the terminal, check the first error message. You may need to edit your configuration file.
 
 
 Open source people would:
