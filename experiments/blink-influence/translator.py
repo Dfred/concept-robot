@@ -27,6 +27,7 @@ import sys
 import math
 
 FOCAL_DIST = 2                                          # in meters
+FPS = 24
 
 
 class Script(object):
@@ -103,10 +104,10 @@ class CF_Translator(object):
     element = ''
     topic, t, dur, intens, att, sus, dec, dsc, nbr, garbage = line
     dsc = dsc.strip()
-    t = float(t) / 25
+    t = float(t) / FPS
     key = topic.upper()
     if ' -' not in (t,dur):
-      dur = float(dur) / 25
+      dur = float(dur) / FPS
     else:
       print "--- ignoring line:", line
       return
