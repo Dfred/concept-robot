@@ -28,7 +28,11 @@ import math
 
 FOCAL_DIST = 2                                          # in meters
 FPS = 24
-
+E_AFIX = (                                              # eye affine fix
+  (.35, .0),                                            # cos (horizontal)
+  (.30, .1) )                                           # sin (vertical)
+H_AFIX = (                                              # head affine fix
+  (1,0), (1,0) )
 
 class Script(object):
   """
@@ -87,16 +91,41 @@ class CF_Translator(object):
   def cleanup(self):
     del self.script
 
-  def get_transform(self, factor, direction):
+  def get_Etransform_str(self, factor, direction):
+    """Tries to match the *visual* rendering of the face with the participant's.
+    CF uses visual analysis of eye gaze considering a front-facing face, so an
+    affine fixing of cos&sin is used to match character/participant visuals.
+    
+    factor: normalized distance from the maximum position of eye gaze
+    direction: 0: up, 270: right, 45: up-left..
+    """
     if not direction:
-#      print self.focus
       self.focus = 0,0,0                                        #XXX: check
       return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(direction -90)
+    a = math.radians(direction - 90)
     x,z = math.cos(a)*factor, math.sin(a)*factor
+    x,z = E_AFIX[0][0]*x+E_AFIX[0][1], E_AFIX[1][0]*z+E_AFIX[1][1]
     focus = x*FOCAL_DIST, FOCAL_DIST, z*FOCAL_DIST
     self.focus = [ self.focus[i]+v for i,v in enumerate(focus) ]    #XXX: same
-    return "[%s,%s,%s]" % focus
+    return "[%.3f,%.3f,%.3f]" % focus
+
+  def get_Stransform_str(self, factor, direction):
+    """Tries to match the *visual* rendering of the face with the participant's.
+    CF uses visual analysis of head gaze considering a front-facing face, so an
+    affine fixing of cos&sin is used to match character/participant visuals.
+    
+    factor: normalized distance from the maximum position of head gaze
+    direction: 0: up, 270: right, 45: up-left..
+    """
+    if not direction:
+      self.focus = 0,0,0                                        #XXX: check
+      return "((0,%s,0))" % FOCAL_DIST
+    a = math.radians(direction - 90)
+    x,z = math.sin(a)*factor, math.cos(a)*factor
+    x,z = H_AFIX[0][0]*x+H_AFIX[0][1], H_AFIX[1][0]*z+H_AFIX[1][1]
+    focus = x,0,z
+    self.focus = [ self.focus[i]+v for i,v in enumerate(focus) ]    #XXX: same
+    return "(%.3f,%.3f,%.3f)" % focus
 
   def get_values(self, line):
     """Returns a single dict indexed by time of occurrence.
@@ -118,9 +147,12 @@ class CF_Translator(object):
       i = 1
       element = dsc
     elif key.endswith("MOVE"):
-      i = key.startswith("eye")+2
+      i = key.startswith("HEAD")+2
       direction = None if dsc.endswith("Center)") else int(dsc[:-3])
-      element = self.get_transform(float(intens), direction)
+      element = ( self.get_Etransform_str(float(intens), direction) if i==2 else
+                  self.get_Stransform_str(float(intens), direction) )
+      if i==2:                                  # eye gaze
+        self.data.setdefault(t,['',]*5)[4] += '|disable:chat-gaze'
     elif key == "HEAD STATE":
       i = 4
       words = dsc.split()
@@ -144,6 +176,7 @@ class CF_Translator(object):
         self.get_values(line[1])
       except StandardError,e:
         print "\n-- ERROR with line %i %s:" % line, e
+        import pdb; pdb.set_trace()
 #        exit(3)
       line = self.script.next()
     self.write_player_script()
