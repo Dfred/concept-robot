@@ -50,7 +50,6 @@ class FaceHW(Face_Server):
   
   Indeed, no hardware implementation is needed in this case.
   """
-  global G
 
   def __init__(self):
     """Just sets this backend's name.
@@ -68,7 +67,7 @@ class FaceHW(Face_Server):
     inc = float(args[2])
     m[row][col] += inc
     print "new projection matrix:", m
-    G.getCurrentScene().active_camera.setProjectionMatrix(m)
+    G.getCurrentScene().active_camera.projection_matrix = m
 
   def cam_mview(self, *args):
     m = G.getCurrentScene().active_camera.modelview_matrix
@@ -106,7 +105,6 @@ def exiting():
   # server may not have been successfully created
   if hasattr(G, "server") and G.server.is_started():
     G.server.shutdown()
-
 try:
   import atexit
   atexit.register(exiting)
@@ -177,7 +175,7 @@ def initialize(server):
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
   # blender might issue a warning here, nvm as we add a member, not access it.
-  G.Skeleton.limits = server.SW_limits
+  G.Skeleton['limits'] = server.SW_limits
 
   G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
           G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
@@ -196,7 +194,7 @@ def initialize(server):
     if conf.VERBOSITY < 2:
       INFO_PERIOD = None
     if conf.ROBOT['mod_face'].has_key('blender_proj'):
-      cam.setProjectionMatrix(conf.ROBOT['mod_face']['blender_proj'])
+      cam.projection_matrix = conf.ROBOT['mod_face']['blender_proj']
   except StandardError, e:
     print "ERROR: Couldn't set projection matrix (%s)" % e
   print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
@@ -233,8 +231,8 @@ def update():
       if eyes_done:                                     # all in one pass
         continue
       ax  = -srv.AUs['63.5'][VAL]               # Eye_L: character's left eye.
-      G.eye_L.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5L'][VAL]))
-      G.eye_R.setOrientation(get_orientation_XZ(ax,srv.AUs['61.5R'][VAL]))
+      G.eye_L.orientation = get_orientation_XZ(ax,srv.AUs['61.5L'][VAL])
+      G.eye_R.orientation = get_orientation_XZ(ax,srv.AUs['61.5R'][VAL])
       eyes_done = True
     elif au == "ePS":
       G.eye_L['pePS'] = nval * SH_ACT_LEN
@@ -315,3 +313,4 @@ def main():
       update()
     except Exception,e:
       fatal("runtime error")
+>>>>>>> Stashed changes
