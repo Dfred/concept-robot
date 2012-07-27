@@ -313,4 +313,3 @@ def main():
       update()
     except Exception,e:
       fatal("runtime error")
->>>>>>> Stashed changes
