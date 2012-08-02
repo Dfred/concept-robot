@@ -31,7 +31,7 @@ from utils import conf, LOGFORMATINFO
 
 
 LOG = logging.getLogger(__package__)
-
+noACK = False
 
 class Script(object):
   """
@@ -85,18 +85,30 @@ class MonologuePlayer(object):
     skip_to and self.script.skip_to(skip_to)
     while not self.running:     # waiting for connection
       time.sleep(.5)
-    pause = 0
+    pause, sent_t, recv_t = 0, 0, 0
     while self.running:         # until disconnection or EOF
-      time.sleep(pause)
+      if pause:
+        delay = pause - (recv_t - sent_t)
+        if delay < 0:
+          LOG.warning("cannot match %ss pause (action took %.3fs, diff: %.3fs)",
+                      pause, recv_t-sent_t, delay)
+        else:
+          LOG.debug('pausing for %.3fs (pause: %ss - action duration: %.3fs).',
+                    delay , pause, recv_t - sent_t)
+          time.sleep(delay)
       line = self.script.next()
       if line == 'EOF':
         return
       if line:
         lineno, pause, datablock = line
         datablock, tag = datablock.rsplit(';', 1)
-        LOG.debug('sending line #%i and waiting reply for tag "%s"', lineno, tag)
-        self.comm_expr.sendDB_waitReply(datablock+';', tag)
-        LOG.debug('pausing for %ss.', pause)
+        LOG.debug('sending line #%i and waiting reply for tag "%s"', lineno,tag)
+        sent_t = time.time()
+        if noACK:
+          self.comm_expr.send_my_datablock(datablock+';'+tag)
+        else:
+          self.comm_expr.sendDB_waitReply(datablock+';', tag)
+        recv_t = time.time()
 
   def cleanup(self):
     del self.script
@@ -138,11 +150,11 @@ if __name__ == '__main__':
                       **LOGFORMATINFO)
 
   skip = len(sys.argv) > 2 and sys.argv[1].startswith('-s') and sys.argv.pop(1)
+  # noACK is global
   noACK = len(sys.argv) > 2 and sys.argv[1].startswith('-n') and sys.argv.pop(1)
   conf.set_name('lightHead')
 
   try:
-    #TODO: don't wait for ACK (-n)
     m = MonologuePlayer(sys.argv[1])                          # also loads conf
   except IndexError:
     print 'usage: %s monologue_file' % sys.argv[0]
