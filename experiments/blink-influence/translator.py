@@ -26,13 +26,13 @@ __license__ = "GPL"
 import sys
 import math
 
-FOCAL_DIST = 2                                          # in meters
+FOCAL_DIST = .8                                         # in meters
 FPS = 24
 E_AFIX = (                                              # eye affine fix
   (.35, .0),                                            # cos (horizontal)
   (.30, .1) )                                           # sin (vertical)
 H_AFIX = (                                              # head affine fix
-  (1,0), (1,0) )
+  (.75,0), (.5,0) )
 
 class Script(object):
   """
@@ -99,10 +99,10 @@ class CF_Translator(object):
     factor: normalized distance from the maximum position of eye gaze
     direction: 0: up, 270: right, 45: up-left..
     """
-    if not direction:
+    if direction is None:
       self.focus = 0,0,0                                        #XXX: check
       return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(direction - 90)
+    a = math.radians(direction + 90)
     x,z = math.cos(a)*factor, math.sin(a)*factor
     x,z = E_AFIX[0][0]*x+E_AFIX[0][1], E_AFIX[1][0]*z+E_AFIX[1][1]
     focus = x*FOCAL_DIST, FOCAL_DIST, z*FOCAL_DIST
@@ -117,14 +117,15 @@ class CF_Translator(object):
     factor: normalized distance from the maximum position of head gaze
     direction: 0: up, 270: right, 45: up-left..
     """
-    if not direction:
+    if direction is None:
       self.focus = 0,0,0                                        #XXX: check
       return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(direction - 90)
+    a = math.radians(direction + 90)
     x,z = math.sin(a)*factor, math.cos(a)*factor
     x,z = H_AFIX[0][0]*x+H_AFIX[0][1], H_AFIX[1][0]*z+H_AFIX[1][1]
     focus = x,0,z
     self.focus = [ self.focus[i]+v for i,v in enumerate(focus) ]    #XXX: same
+#    print direction, "*", factor, "->", focus
     return "(%.3f,%.3f,%.3f)" % focus
 
   def get_values(self, line):
@@ -146,6 +147,8 @@ class CF_Translator(object):
     elif key.startswith("SPEECH"):
       i = 1
       element = dsc
+      if nbr.endswith('"'):
+        element += nbr
     elif key.endswith("MOVE"):
       i = key.startswith("HEAD")+2
       direction = None if dsc.endswith("Center)") else int(dsc[:-3])
@@ -153,6 +156,7 @@ class CF_Translator(object):
                   self.get_Stransform_str(float(intens), direction) )
       if i==2:                                  # eye gaze
         self.data.setdefault(t,['',]*5)[4] += '|disable:chat-gaze'
+      element += "/%.3f" % dur
     elif key == "HEAD STATE":
       i = 4
       words = dsc.split()
@@ -184,11 +188,11 @@ class CF_Translator(object):
   def write_player_script(self):
     last_t = 0
     sorted_keys = sorted(self.data.keys())
-    print "0 neutral/.001;;;;enable:chat-gaze;INIT"
+    print "0 neutral;;((0,%s,0));((0,0,0));enable:chat-gaze;INIT" % FOCAL_DIST
     for i,t in enumerate(sorted_keys):
       assert t - last_t >= 0, "negative time diff (%s - %s)" % (t,last_t)
       infos = tuple([t-last_t]+self.data[t]+[i])
-      print '%.3f %s;"%s";%s;%s;%s;tag%i' % infos
+      print '%.3f %s;%s;%s;%s;%s;tag%i' % infos
       if last_t != t:
         last_t = t
 
