@@ -90,9 +90,14 @@ class PoseManager(object):
     self.infos = hardware_infos
     LOG.debug("Hardware infos:")
     for AU, infos in hardware_infos.iteritems():
-      LOG.debug("AU %4s factor %8s offset %6s, Hard[%6s %6s] Soft[%+.5f %+.5f]",
-                AU,*infos)
-      rmin, rmax = [ self.get_rawFromNval(AU,i) for i in infos[4:6] ]
+      p_f, off, HWmin, HWmax, SWmin, SWmax = infos
+      rmin,rmax = self.get_rawFromNval(AU,SWmin), self.get_rawFromNval(AU,SWmax)
+      LOG.debug("""AU %4s factor %8s offset %6s
+Hard[%6s/%+.5f %6s/%+.5f]
+Soft[%6s/%+.5f %6s/%+.5f]""",
+                AU, p_f, off,
+                HWmin, (HWmin-off)/p_f, HWmax, HWmax*p_f+off,
+                rmin, SWmin, rmax, SWmax)
       if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
         raise SpineError("AU %s: Software %s %s out of Hardware %s."%
                          (AU, infos[4:6], (rmin, rmax), infos[2:4]), AU)
@@ -132,7 +137,7 @@ class PoseManager(object):
   def is_inHWlimits(self, AU, rvalue):
     """rvalue: raw (hardware) value
     """
-    LOG.debug("checking raw %s against %s", rvalue, self.infos[AU][2:4])
+#    LOG.debug("checking raw %s against %s", rvalue, self.infos[AU][2:4])
     return self.infos[AU][2] <= rvalue <= self.infos[AU][3]
 
   def is_inSWlimits(self, AU, nvalue):
