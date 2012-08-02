@@ -138,6 +138,9 @@ def check_defects(owner, acts):
     if act.mode != G.KX_ACTIONACT_PROPERTY:
       raise StandardError('Actuator %s shall use Shape Action Playback of'
                           'type property' % act.name)
+    if act.propName != 'p'+act.name:
+      raise StandardError("Actuator %s shall use Shape Action property '%s' "
+                          "not '%s'" % (act.name, 'p'+act.name, act.propName) )
   return False
 
 def initialize(server):
