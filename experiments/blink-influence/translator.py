@@ -26,13 +26,13 @@ __license__ = "GPL"
 import sys
 import math
 
-FOCAL_DIST = .8                                         # in meters
+FOCAL_DIST = 1.2                                        # in meters
 FPS = 24
 E_AFIX = (                                              # eye affine fix
   (.35, .0),                                            # cos (horizontal)
   (.30, .1) )                                           # sin (vertical)
 H_AFIX = (                                              # head affine fix
-  (.75,0), (.5,0) )
+  (.25,0), (.25,0) )
 
 class Script(object):
   """
@@ -86,7 +86,7 @@ class CF_Translator(object):
     self.fpath = filepath
     self.script = Script(filepath, utf8=True)
     self.data = {}
-    self.focus = 0,0,0
+    self.roll = 0                               # hack to keep head roll
 
   def cleanup(self):
     del self.script
@@ -100,14 +100,11 @@ class CF_Translator(object):
     direction: 0: up, 270: right, 45: up-left..
     """
     if direction is None:
-      self.focus = 0,0,0                                        #XXX: check
       return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(direction + 90)
+    a = math.radians(int(direction) + 90)
     x,z = math.cos(a)*factor, math.sin(a)*factor
-    x,z = E_AFIX[0][0]*x+E_AFIX[0][1], E_AFIX[1][0]*z+E_AFIX[1][1]
-    focus = x*FOCAL_DIST, FOCAL_DIST, z*FOCAL_DIST
-    self.focus = [ self.focus[i]+v for i,v in enumerate(focus) ]    #XXX: same
-    return "[%.3f,%.3f,%.3f]" % focus
+    x,z = E_AFIX[0][0]*x + E_AFIX[0][1], E_AFIX[1][0]*z + E_AFIX[1][1]
+    return "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, FOCAL_DIST, z*FOCAL_DIST)
 
   def get_Stransform_str(self, factor, direction):
     """Tries to match the *visual* rendering of the face with the participant's.
@@ -118,15 +115,16 @@ class CF_Translator(object):
     direction: 0: up, 270: right, 45: up-left..
     """
     if direction is None:
-      self.focus = 0,0,0                                        #XXX: check
-      return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(direction + 90)
+      return "((0,0,0))"
+    y = 0
+    if '/' in direction:                                        # roll's after /
+      direction, roll = direction.split('/')
+      direction = direction[:-3]                                        # 'deg'
+      y = math.radians(int(roll))
+    a = math.radians(int(direction) + 90)
     x,z = math.sin(a)*factor, math.cos(a)*factor
-    x,z = H_AFIX[0][0]*x+H_AFIX[0][1], H_AFIX[1][0]*z+H_AFIX[1][1]
-    focus = x,0,z
-    self.focus = [ self.focus[i]+v for i,v in enumerate(focus) ]    #XXX: same
-#    print direction, "*", factor, "->", focus
-    return "(%.3f,%.3f,%.3f)" % focus
+    x,z = H_AFIX[0][0]*x + H_AFIX[0][1], H_AFIX[1][0]*z + H_AFIX[1][1]
+    return "((%.3f,%.3f,%.3f))" % (x, y, z)
 
   def get_values(self, line):
     """Returns a single dict indexed by time of occurrence.
@@ -146,12 +144,14 @@ class CF_Translator(object):
       element = '%s*%.3f' % (dsc, 1)
     elif key.startswith("SPEECH"):
       i = 1
+#      print dsc, nbr, nbr.endswith('"')
       element = dsc
-      if nbr.endswith('"'):
-        element += nbr
+      if nbr.endswith('"'):                             # if speech contains "
+        element += (', '+nbr)
+      self.data.setdefault(t,['',]*5)[4] += '|chat-gaze:speaking'
     elif key.endswith("MOVE"):
       i = key.startswith("HEAD")+2
-      direction = None if dsc.endswith("Center)") else int(dsc[:-3])
+      direction = None if dsc.endswith("Center)") else dsc[:-3]         # 'deg'
       element = ( self.get_Etransform_str(float(intens), direction) if i==2 else
                   self.get_Stransform_str(float(intens), direction) )
       if i==2:                                  # eye gaze
@@ -159,8 +159,8 @@ class CF_Translator(object):
       element += "/%.3f" % dur
     elif key == "HEAD STATE":
       i = 4
-      words = dsc.split()
-      element = "chat-gaze:"+words[1].lower()
+      if dsc.split()[0].lower() == 'stare':
+        self.data.setdefault(t,['',]*5)[4] += '|disable:chat-gaze'
     elif key == "MENTAL STATE":
       i = 4
       element = "blink:"+dsc.lower()
