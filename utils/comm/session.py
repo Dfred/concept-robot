@@ -149,7 +149,7 @@ class BaseServer(object):
     self.polling_sockets = [self.socket]
     self.update_poll_timeout()
     if self.threaded:
-      self.thread = Thread(target=G.server.serve_forever, name='server')
+      self.thread = Thread(target=self.serve_forever, name='server')
       self.thread.start()
     LOG.info("%s> %s started in %s thread.", id(self), self.__class__.__name__,
              self.threaded and 'its' or 'main')
