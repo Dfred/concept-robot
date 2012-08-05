@@ -282,17 +282,19 @@ def update():
   G.last_update_time = time.time()
   G.info_duration += time_diff
   if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
-    print "--- RENDERING INFO ---"
-    print "BGE logic running at", G.getLogicTicRate(), "fps."
-#        print "BGE physics running at", G.getPhysicsTicRate(), "fps."
-    print "BGE graphics currently at", G.getAverageFrameRate(), "fps."
+    print "*RENDERING INFO*:\nBGE logic running at %sfps." % G.getLogicTicRate()
+#    print "BGE physics running at %sfps." % G.getPhysicsTicRate()
+    print "BGE graphics currently at %sfps." % G.getAverageFrameRate()
     G.info_duration = 0
+
+#    print "------------------------ PROFILING --------------"
+#    yappi.print_stats()
 
 
 #
 # Main loop
 #
-
+#import yappi
 def main():
   if not hasattr(G, "initialized"):
     try:
@@ -307,6 +309,9 @@ def main():
       fatal("initialization error")
     else:
       print '--- initialization OK ---'
+      
+#    yappi.start()
+
   else:
     # server handles channels explicitly
     try:
