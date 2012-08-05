@@ -170,10 +170,7 @@ class AUPool(dict):
     """
     for AU, target, attack in iterable:
       curr_val = self[AU][VAL]
-      try:
-        self[AU][0:DVT] = curr_val, target-curr_val, attack, attack
-      except IndexError:
-        LOG.warning("AU '%s' not found", AU)
+      self[AU][0:DVT] = curr_val, target-curr_val, attack, attack
 
   #TODO: optimize returning { AU, updated value }
   def update_time(self, time_interval, with_speed=False):
