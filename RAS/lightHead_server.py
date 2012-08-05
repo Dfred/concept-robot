@@ -34,6 +34,7 @@ SERVER MODULE
 """
 
 import sys
+from collections import deque
 import cPickle as pickle
 
 from utils.comm.meta_server import MetaRequestHandler
@@ -43,6 +44,45 @@ from RAS.au_pool import FeaturePool
 
 LOG = get_logger(__package__)
 ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords
+VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
+             "02L","02R",
+             "04L","04R",
+             "05L","05R",
+             "06L","06R",
+             "07L","07R",
+             "08L","08R",
+             "09L","09R",
+             "10L","10R",
+             "11L","11R",
+             "12L","12R",
+             "13L","13R",
+             "14L","14R",
+             "15L","15R",
+             "16L","16R",
+             "17",
+             "18L","18R",
+             "20L","20R",
+             "21L","21R",
+             "22L","22R",
+             "23L","23R",
+             "24L","24R",
+             "25","26","27",
+             "28L","28R",
+             "31",
+             "32L","32R",
+             "33L","33R",
+             "38L","38R",
+             "39L","39R",
+             "51.5","53.5","55.5",              # Neck
+             "61.5L","61.5R","63.5",            # Eyes orientation
+             "93X","93Y","93Z","93mZ","93bT",   # Tongue position
+             "94","95",                         # Tongue shape
+             "SYL","SYR", "SZL","SZR",          # Shoulders
+             "ePS",                             # Eye, Pupil Stretcher
+             "skB","skS",                       # Skin Effects
+             "thB",                             # Thorax Breather
+             "TX","TY","TZ",
+             )
 
 
 class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
@@ -52,10 +92,13 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
     """
     """
     super(LightHeadHandler,self).__init__(server, sock, client_addr)
+    self.fifos = {}                                 # for cmd_AU
     self.handlers = {}                              # {origin : subhandler}
     self.transacting = []                           # transacting origins
-    for origin, srv_hclass in self.server.origins.iteritems():
-      self.handlers[origin] = self.create_subhandler(*srv_hclass)
+    for origin, (srv,hnd_class) in self.server.origins.iteritems():
+      self.handlers[origin] = self.create_subhandler(srv,hnd_class)
+      if not self.fifos.has_key(srv):
+        self.fifos[srv] = deque()
 
   def cmd_origin(self, argline):
     """Set or replies with current origin/subhandler"""
@@ -69,11 +112,38 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
     else:
       self.send_msg("%s" % self.curr_handler.__class__.__name__)
 
+  def cmd_AU(self, argline):
+    """Updates an AU. Careful: origin is not taken into account here!
+    argline: AU_name  target_value  duration.
+    """
+    try:
+      au_name, value, duration = argline.split()[:3]
+    except ValueError:
+      LOG.error("[AU] wrong number of arguments (%s)", argline)
+      return
+    try:
+      value, duration = float(value), float(duration)
+    except ValueError,e:
+      LOG.error("[AU] invalid float (%s)", e)
+      return
+    for server, fifo in self.fifos.iteritems():
+      if server.AUs.has_key(au_name):
+        fifo.append([au_name, value, duration])
+        return
+      elif server.AUs.has_key(au_name+'R'):
+        fifo.extend([ [au_name+'R',value,duration], [au_name+'L',value,duration] ])
+        return
+    LOG.warning("[AU] invalid AU (%s)", au_name)
+    return
+
   def cmd_commit(self, argline):
     """Marks end of a transaction"""
+    for srv, fifo in self.fifos.iteritems():
+      srv.commit_AUs(fifo)
     for origin in self.transacting:
-      self.handlers[origin].cmd_commit(argline)
-      self.transacting = []
+      if hasattr(self.handlers[origin], 'cmd_commit'):
+        self.handlers[origin].cmd_commit(argline)
+    self.transacting = []
 
   # TODO: implement a reload of modules ?
   def cmd_reload(self, argline):
@@ -161,8 +231,6 @@ class LightHeadServer(object):
     LOG.debug("registering server %s & handler class %s for origin '%s'",
               server, req_handler_class, origin)
     self.origins[origin] = server, req_handler_class
-    #self.origins[origin] = server, super(LightHeadServer,self).register(
-    #    server, req_handler_class)
 
   def create_protocol_handlers(self):
     """Bind individual servers and their handler to the meta server.

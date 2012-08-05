@@ -32,7 +32,6 @@ backend provides required functions, the end-result should be similar.
 """
 
 #TODO: from abc import ABCMeta, abstractmethod
-from collections import deque
 import time
 import math
 import numpy
@@ -146,39 +145,13 @@ Soft[%6s/%+.5f %6s/%+.5f]""",
     return self.infos[AU][4] <= nvalue <= self.infos[AU][5]
 
 
+#XXX: ideally, inherit from a class with support for cmd_AU and cmd_commit
 class Spine_Handler(ASCIIRequestHandler):
   """
   """
 
   def setup(self):
-    self.fifo = deque()
-
-  def cmd_AU(self, argline):
-    """Absolute rotations. arg: AU(name), target_value(rad), attack_duration(s).
-    """
-    try:
-      au_name, value, duration = argline.split()[:3]
-    except ValueError:
-      LOG.error("[AU] wrong number of arguments (%s)", argline)
-      return
-    try:
-      value, duration = float(value), float(duration)
-    except ValueError,e:
-      LOG.error("[AU] invalid float (%s)", e)
-      return
-    if self.server.AUs.has_key(au_name):
-      self.fifo.append((au_name, value/math.pi, duration))
-    else:
-      LOG.warning("[AU] invalid AU (%s)", au_name)
-      return
-
-  def cmd_commit(self, argline):
-    """Commit valid buffered updates"""
-    try:
-      self.server.set_targetTriplets(self.fifo.__copy__())      # thread safe
-    except StandardError, e:                                    #TODO:SpineError
-      LOG.warning("can't set pose %s (%s)", list(self.fifo), e)
-    self.fifo.clear()
+    pass
 
   def cmd_switch(self, argline):
     """Special function for test purposes (not documented - non official).
@@ -210,11 +183,19 @@ class Spine_Server(object):
     self._motors_on = False
     self._lock_handler = None
     self._new_pt = None                                 # pose and triplets
-    self.AUs = AUPool('spine', DYNAMICS, threaded=True)
     self.HWready  = None                                # Hardware action ready
     self.HWrest   = None                                # Hardware switch-off ok
     self.configure()
     self.pmanager = None                                # to be set by backend
+    #XXX: keep 'AUs' attribute name! see LightHeadHandler.__init__()
+    self.AUs = AUPool('spine',DYNAMICS,threaded=True)
+
+  def commit_AUs(self, fifo):
+    """Checks and commits AU updates."""
+    try:
+      self.set_targetTriplets(fifo.__copy__())                  # thread safe
+    except StandardError, e:                                    #TODO:SpineError
+      LOG.warning("can't set pose %s (%s)", list(fifo), e)
 
   # Note: property decorators are great but don't allow child class to define
   #       just the setter...
@@ -276,7 +257,9 @@ class Spine_Server(object):
     raise NotImplementedError()
 
   def set_targetTriplets(self, triplets):
-    """Sets the targets, waiting until the previous are processed by backend."""
+    """Sets the targets (a Pose), waiting until the previous are processed by
+    backend. Here the backend updates the AU pool to allow speed control.
+    """
     while self._new_pt != None:
       time.sleep(.05)
     AU_nval = [ (AU,nval) for AU,nval,att_dur in triplets if att_dur >= 0 ]
