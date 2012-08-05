@@ -32,7 +32,9 @@ E_AFIX = (                                              # eye affine fix
   (.35, .0),                                            # cos (horizontal)
   (.30, .1) )                                           # sin (vertical)
 H_AFIX = (                                              # head affine fix
-  (.25,0), (.25,0) )
+  (.15,0), (.25,0) )
+H_Y_FACTOR = .5
+
 
 class Script(object):
   """
@@ -120,7 +122,7 @@ class CF_Translator(object):
     if '/' in direction:                                        # roll's after /
       direction, roll = direction.split('/')
       direction = direction[:-3]                                        # 'deg'
-      y = math.radians(int(roll))
+      y = math.radians(int(roll)) * H_Y_FACTOR
     a = math.radians(int(direction) + 90)
     x,z = math.sin(a)*factor, math.cos(a)*factor
     x,z = H_AFIX[0][0]*x + H_AFIX[0][1], H_AFIX[1][0]*z + H_AFIX[1][1]
@@ -202,11 +204,10 @@ class CF_Translator(object):
     print "0 neutral;;((0,%s,0));((0,0,0));enable:chat-gaze;INIT" % FOCAL_DIST
     for i,t in enumerate(sorted_keys):
       assert t - last_t >= 0, "negative time diff (%s - %s)" % (t,last_t)
-      infos = tuple([t-last_t]+self.data[t]+[i])
-      print '%.3f %s;%s;%s;%s;%s;tag%i' % infos
+      print '%.3f %s;%s;%s;%s;%s;tag%i' % tuple([t-last_t]+self.data[t]+[i])
       if last_t != t:
         last_t = t
-
+    print '0 neutral/1.2;;[[0,%s,0]];((0,0,0));;END' % FOCAL_DIST
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:
