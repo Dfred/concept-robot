@@ -133,22 +133,26 @@ class CF_Translator(object):
     topic, t, dur, intens, att, sus, dec, dsc, nbr, garbage = line
     dsc = dsc.strip()
     t = float(t) / FPS
-    key = topic.upper()
-    if ' -' not in (t,dur):
-      dur = float(dur) / FPS
+    key = topic.strip().upper()
+
+    if t != ' -' :
+      dur = float(dur) / FPS if dur != ' -' else None
     else:
       print "--- ignoring line:", line
       return
+
     if key.startswith("EXPRESSION"):
       i = 0
       element = '%s*%.3f' % (dsc, 1)
+      self.data.setdefault(t,['',]*5)[4] += '|blink:expression-on'
+      
     elif key.startswith("SPEECH"):
       i = 1
 #      print dsc, nbr, nbr.endswith('"')
       element = dsc
-      if nbr.endswith('"'):                             # if speech contains "
+      if nbr.endswith('"'):                             # if speech contains a ,
         element += (', '+nbr)
-      self.data.setdefault(t,['',]*5)[4] += '|chat-gaze:speaking'
+      self.data.setdefault(t,['',]*5)[4] += '|chat-gaze:speaking|blink:self-speech-on'
     elif key.endswith("MOVE"):
       i = key.startswith("HEAD")+2
       direction = None if dsc.endswith("Center)") else dsc[:-3]         # 'deg'
@@ -161,9 +165,16 @@ class CF_Translator(object):
       i = 4
       if dsc.split()[0].lower() == 'stare':
         self.data.setdefault(t,['',]*5)[4] += '|disable:chat-gaze'
+      elif dsc == "Looking Away":
+        self.data.setdefault(t,['',]*5)[4] += '|blink:look-away-face'
+      elif dsc == "Looking At":
+        self.data.setdefault(t,['',]*5)[4] += '|blink:look-at-face'
     elif key == "MENTAL STATE":
       i = 4
-      element = "blink:"+dsc.lower()
+      if dsc in ('on-locutor-speech', 'expression-off'):
+        element = "blink:"+dsc
+      else:
+        element = "blink:new-mental-state"
     else:
       print "--- unused:", dsc
       return
