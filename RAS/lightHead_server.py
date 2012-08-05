@@ -139,7 +139,9 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
   def cmd_commit(self, argline):
     """Marks end of a transaction"""
     for srv, fifo in self.fifos.iteritems():
-      srv.commit_AUs(fifo)
+      if fifo:
+        srv.commit_AUs(fifo)
+        fifo.clear()
     for origin in self.transacting:
       if hasattr(self.handlers[origin], 'cmd_commit'):
         self.handlers[origin].cmd_commit(argline)
