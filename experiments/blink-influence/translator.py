@@ -89,7 +89,6 @@ class CF_Translator(object):
   def __init__(self, filepath):
     self.fpath = filepath
     self.ofpath = filepath[:filepath.rfind('.')]+'.player'
-    print self.ofpath
     self.script = Script(filepath, utf8=True)
     self.data = {}
     self.roll = 0                               # hack to keep head roll
@@ -222,6 +221,8 @@ class CF_Translator(object):
         last_t = t
     out.write('0 neutral/1.2;;[[0,%s,0]];((0,0,0));;END\n' % FOCAL_DIST)
     out.close()
+    print "wrote file:", self.ofpath
+
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:
