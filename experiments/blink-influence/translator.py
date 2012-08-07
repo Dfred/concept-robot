@@ -29,10 +29,10 @@ import math
 FOCAL_DIST = 1.2                                        # in meters
 FPS = 24
 E_AFIX = (                                              # eye affine fix
-  (.35, .0),                                            # cos (horizontal)
-  (.30, .1) )                                           # sin (vertical)
+  .3,                                                   # cos (horizontal)
+  .3, )                                                 # sin (vertical)
 H_AFIX = (                                              # head affine fix
-  (.15,0), (.25,0) )
+  (.15,0), (.25,0))
 H_Y_FACTOR = .5
 
 
@@ -57,10 +57,12 @@ class Script(object):
     line = self.file.readline()
     if not line:
       return None
+    if self.utf8:
+      line = line.decode("utf-8")
+      if line[0] == u'\ufeff':
+        line = line[1:]
     self.lineno += 1
     line = line.strip()
-    if self.utf8:
-      line = line.decode("utf-8").encode("ascii","ignore")
     return line
 
   def skip_to(self, lineno):
@@ -86,6 +88,8 @@ class CF_Translator(object):
 
   def __init__(self, filepath):
     self.fpath = filepath
+    self.ofpath = filepath[:filepath.rfind('.')]+'.player'
+    print self.ofpath
     self.script = Script(filepath, utf8=True)
     self.data = {}
     self.roll = 0                               # hack to keep head roll
@@ -102,11 +106,11 @@ class CF_Translator(object):
     direction: 0: up, 270: right, 45: up-left..
     """
     if direction is None:
-      return "((0,%s,0))" % FOCAL_DIST
-    a = math.radians(int(direction) + 90)
-    x,z = math.cos(a)*factor, math.sin(a)*factor
-    x,z = E_AFIX[0][0]*x + E_AFIX[0][1], E_AFIX[1][0]*z + E_AFIX[1][1]
-    return "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, FOCAL_DIST, z*FOCAL_DIST)
+      return "[[0,%s,0]]" % FOCAL_DIST
+    a = math.radians(int(direction))
+    x,z = E_AFIX[0]*math.cos(a)*factor, E_AFIX[1]*math.sin(a)*factor
+#    print direction,  factor, "->", "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, 0, z*FOCAL_DIST)
+    return "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, 0, z*FOCAL_DIST) # relative
 
   def get_Stransform_str(self, factor, direction):
     """Tries to match the *visual* rendering of the face with the participant's.
@@ -150,18 +154,26 @@ class CF_Translator(object):
       
     elif key.startswith("SPEECH"):
       i = 1
-#      print dsc, nbr, nbr.endswith('"')
       element = dsc
-      if nbr.endswith('"'):                             # if speech contains a ,
-        element += (', '+nbr)
+      remains = [nbr,]
+      remains.extend(garbage.split(','))
+      while not element.endswith(u'”'):
+        element += (', '+remains.pop(0))
+      element = u'"%s"' % element[1:-1]
       self.data.setdefault(t,['',]*5)[4] += '|chat-gaze:speaking|blink:self-speech-on'
     elif key.endswith("MOVE"):
       i = key.startswith("HEAD")+2
-      direction = None if dsc.endswith("Center)") else dsc[:-3]         # 'deg'
+      element2 = None
+      if dsc.endswith("(Re-Center)"):
+        element2 = self.get_Etransform_str(float(intens), None)
+        dsc = dsc[:-12]                                 # remove "(Re-Center)"
+        self.data.setdefault(t+dur,['',]*5)[i] += element2
+        self.data.setdefault(t+dur,['',]*5)[4] += '|enable:chat-gaze'
+      direction = dsc[:-3]                              # remove 'deg'
       element = ( self.get_Etransform_str(float(intens), direction) if i==2 else
                   self.get_Stransform_str(float(intens), direction) )
       if i==2:                                  # eye gaze
-        self.data.setdefault(t,['',]*5)[4] += '|disable:chat-gaze'
+        self.data.setdefault(t,['',]*5)[4] +=  '|disable:chat-gaze'
       element += "/%.3f" % dur
     elif key == "HEAD STATE":
       i = 4
@@ -178,7 +190,7 @@ class CF_Translator(object):
       else:
         element = "blink:new-mental-state"
     else:
-      print "--- unused:", dsc
+      print "--- unused line %i:" % self.script.lineno, dsc
       return
     if i == 4 and self.data.has_key(t) and self.data[t][i]:
       self.data[t][i] += '|'+element
@@ -189,11 +201,11 @@ class CF_Translator(object):
     skip_to and self.script.skip_to(skip_to)
     line = self.script.next()
     while line != 'EOF':
-      try:
-        self.get_values(line[1])
-      except StandardError,e:
-        print "\n-- ERROR with line %i %s:" % line, e
-        import pdb; pdb.set_trace()
+#      try:
+      self.get_values(line[1])
+#      except StandardError,e:
+#        print "\n-- ERROR with line %i %s:" % line, e
+#        import pdb; pdb.set_trace()
 #        exit(3)
       line = self.script.next()
     self.write_player_script()
@@ -201,13 +213,15 @@ class CF_Translator(object):
   def write_player_script(self):
     last_t = 0
     sorted_keys = sorted(self.data.keys())
-    print "0 neutral;;((0,%s,0));((0,0,0));enable:chat-gaze;INIT" % FOCAL_DIST
+    out = file(self.ofpath, "w")
+    out.write("0 neutral;;[[0,%s,0]];((0,0,0));enable:chat-gaze;INIT\n" % FOCAL_DIST)
     for i,t in enumerate(sorted_keys):
       assert t - last_t >= 0, "negative time diff (%s - %s)" % (t,last_t)
-      print '%.3f %s;%s;%s;%s;%s;tag%i' % tuple([t-last_t]+self.data[t]+[i])
+      out.write(('%.3f %s;%s;%s;%s;%s;tag%i\n' % tuple([t-last_t]+self.data[t]+[i])).encode("utf8"))
       if last_t != t:
         last_t = t
-    print '0 neutral/1.2;;[[0,%s,0]];((0,0,0));;END' % FOCAL_DIST
+    out.write('0 neutral/1.2;;[[0,%s,0]];((0,0,0));;END\n' % FOCAL_DIST)
+    out.close()
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:
