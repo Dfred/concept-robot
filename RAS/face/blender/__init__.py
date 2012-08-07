@@ -62,6 +62,8 @@ class FaceHW(Face_Server):
 
   def cam_proj(self, *args):
     m = G.getCurrentScene().active_camera.projection_matrix
+    if not len(args):
+	return str(m)
     col = int(args[0])
     row = int(args[1])
     inc = float(args[2])
@@ -71,6 +73,8 @@ class FaceHW(Face_Server):
 
   def cam_mview(self, *args):
     m = G.getCurrentScene().active_camera.modelview_matrix
+    if not len(args):
+	return str(m)
     col = int(args[0])
     row = int(args[1])
     inc = float(args[2])
