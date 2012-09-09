@@ -28,11 +28,11 @@ import math
 
 FOCAL_DIST = 1.2                                        # in meters
 FPS = 24
-E_AFIX = (                                              # eye affine fix
+E_FIX = (                                              # eye fix
   .3,                                                   # cos (horizontal)
   .3, )                                                 # sin (vertical)
-H_AFIX = (                                              # head affine fix
-  (.15,0), (.25,0))
+H_FIX = (                                              # head affine fix
+  .075, .25)
 H_Y_FACTOR = .5
 
 
@@ -107,7 +107,7 @@ class CF_Translator(object):
     if direction is None:
       return "[[0,%s,0]]" % FOCAL_DIST
     a = math.radians(int(direction))
-    x,z = E_AFIX[0]*math.cos(a)*factor, E_AFIX[1]*math.sin(a)*factor
+    x,z = E_FIX[0]*math.cos(a)*factor, E_FIX[1]*math.sin(a)*factor
 #    print direction,  factor, "->", "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, 0, z*FOCAL_DIST)
     return "[%.3f,%.3f,%.3f]" % (x*FOCAL_DIST, 0, z*FOCAL_DIST) # relative
 
@@ -128,7 +128,7 @@ class CF_Translator(object):
       y = math.radians(int(roll)) * H_Y_FACTOR
     a = math.radians(int(direction) + 90)
     x,z = math.sin(a)*factor, math.cos(a)*factor
-    x,z = H_AFIX[0][0]*x + H_AFIX[0][1], H_AFIX[1][0]*z + H_AFIX[1][1]
+    x,z = H_FIX[0] * x, H_FIX[1] * z 
     return "((%.3f,%.3f,%.3f))" % (x, y, z)
 
   def get_values(self, line):
@@ -188,6 +188,12 @@ class CF_Translator(object):
         element = "blink:"+dsc
       else:
         element = "blink:new-mental-state"
+    elif key == "BLINK":
+      i = 4
+      element = "blink:%s=[%s,%s,%s]" % (dsc,
+                                         round(float(att)/FPS,3),
+                                         round(float(sus)/FPS,3),
+                                         round(float(dec)/FPS,3))
     else:
       print "--- unused line %i:" % self.script.lineno, dsc
       return
@@ -200,12 +206,11 @@ class CF_Translator(object):
     skip_to and self.script.skip_to(skip_to)
     line = self.script.next()
     while line != 'EOF':
-#      try:
-      self.get_values(line[1])
-#      except StandardError,e:
-#        print "\n-- ERROR with line %i %s:" % line, e
-#        import pdb; pdb.set_trace()
-#        exit(3)
+      try:
+        self.get_values(line[1])
+      except StandardError,e:
+        print "\n-- ERROR with line %i %s:" % line, e
+        #import pdb; pdb.set_trace()
       line = self.script.next()
     self.write_player_script()
 
