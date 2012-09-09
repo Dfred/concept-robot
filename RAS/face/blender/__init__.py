@@ -151,6 +151,11 @@ def check_defects(owner, acts):
       print PREFIX+"actuator %s need Shape Action property '%s' not '%s'" % (
         act.name, 'p'+act.name, act.propName)
       errors = True
+  if owner.has_key('pskB') and not (
+    G.getCurrentScene().lights.has_key('OBBlush_R') and
+    G.getCurrentScene().lights.has_key('OBBlush_L') ):
+    print PREFIX+"AU skB enabled, but Blush_R or Blush_L light(s) missing."
+    errors = True
   return errors
 
 def initialize(server):
@@ -191,8 +196,9 @@ def initialize(server):
   # blender might issue a warning here, nvm as we add a member, not access it.
   G.Skeleton['limits'] = server.SW_limits
 
-  G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
-          G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
+  if owner.has_key('pskB'):
+    G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
+            G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
 
   # ok, startup
   G.initialized = True
