@@ -62,6 +62,8 @@ class FaceHW(Face_Server):
 
   def cam_proj(self, *args):
     m = G.getCurrentScene().active_camera.projection_matrix
+    if not len(args):
+	return str(m)
     col = int(args[0])
     row = int(args[1])
     inc = float(args[2])
@@ -71,6 +73,8 @@ class FaceHW(Face_Server):
 
   def cam_mview(self, *args):
     m = G.getCurrentScene().active_camera.modelview_matrix
+    if not len(args):
+	return str(m)
     col = int(args[0])
     row = int(args[1])
     inc = float(args[2])
@@ -128,20 +132,31 @@ def shutdown(cont):
   sys.exit( not hasattr(G, 'server') and 1 or 0)            # see exiting()
 
 def check_defects(owner, acts):
-  """Check if actuators have their property set and are in proper mode ."""
+  """Check if actuators have their property set and are in proper mode.
+  Return True if any error found.
+  """
   keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
-
+  errors = False
+  PREFIX = "BLENDER FILE ERROR: "
   for name in keys:
     if not owner.has_key('p'+name):
-      raise StandardError('missing property p%s' % name)
+      print PREFIX+"missing property p%s" % name
+      errors = True
   for act in acts :
     if act.mode != G.KX_ACTIONACT_PROPERTY:
-      raise StandardError('Actuator %s shall use Shape Action Playback of'
-                          'type property' % act.name)
+      print PREFIX+"actuator %s need Shape Action Playback of type property" % \
+          act.name
+      errors = True
     if act.propName != 'p'+act.name:
-      raise StandardError("Actuator %s shall use Shape Action property '%s' "
-                          "not '%s'" % (act.name, 'p'+act.name, act.propName) )
-  return False
+      print PREFIX+"actuator %s need Shape Action property '%s' not '%s'" % (
+        act.name, 'p'+act.name, act.propName)
+      errors = True
+  if owner.has_key('pskB') and not (
+    G.getCurrentScene().lights.has_key('OBBlush_R') and
+    G.getCurrentScene().lights.has_key('OBBlush_L') ):
+    print PREFIX+"AU skB enabled, but Blush_R or Blush_L light(s) missing."
+    errors = True
+  return errors
 
 def initialize(server):
   """Initialiazes and configures facial subsystem (blender specifics...)"""
@@ -151,12 +166,12 @@ def initialize(server):
 
   # get driven objects
   objs = G.getCurrentScene().objects
-  print "Blender file objects:"
+#  print "Blender file objects:"
   for obj_name in REQUIRED_OBJECTS:
     if OBJ_PREFIX+obj_name not in objs:
       return fatal("Object '%s' not found in blender scene" % obj_name)
-    print "%s, props: %s" % (obj_name, 
-                             objs[OBJ_PREFIX+obj_name].getPropertyNames())
+#    print "%s, props: %s" % (obj_name, 
+#                             objs[OBJ_PREFIX+obj_name].getPropertyNames())
     setattr(G, obj_name, objs[OBJ_PREFIX+obj_name])
 
   # set available Action Units from the blender file (Blender Shape Actions)
@@ -164,7 +179,8 @@ def initialize(server):
   owner = cont.owner
   acts = [act for act in cont.actuators if
           not act.name.startswith('-') and act.action]
-  check_defects(owner, acts)
+  if check_defects(owner, acts):
+    return fatal("Errors found in the .blend file must be addressed.")
 
   # properties must be set to 'head' and 'Skeleton'.
   # BEWARE to not set props to these objects before this line, or they will be
@@ -180,8 +196,9 @@ def initialize(server):
   # blender might issue a warning here, nvm as we add a member, not access it.
   G.Skeleton['limits'] = server.SW_limits
 
-  G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
-          G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
+  if owner.has_key('pskB'):
+    G.BS = (G.getCurrentScene().lights[OBJ_PREFIX+'Blush_L'] ,
+            G.getCurrentScene().lights[OBJ_PREFIX+'Blush_R'] )
 
   # ok, startup
   G.initialized = True
