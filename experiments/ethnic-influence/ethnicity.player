@@ -1,0 +1,16 @@
+0 neutral;;[[0,2,0]];((0,0,0));enable:chat-gaze;INIT
+0 neutral;;;;chat-gaze:face=[[0,2,0]];INIT+
+
+0 smile1_bmt/1;"Welcome to robot-pizza take away.";;;;blocking_tag
+0 ;;;((-.03,0,.05))/.3;chat-gaze:face=[0,0,-.03];tag
+1 smile1_bmt*-1/2;;;(.03,0,0);chat-gaze:face=[[0,2,0]];tag
+3 raise_brows;"I am LightHead v4, ready to serve you.";;((0,0,0))/.4;;blocking_tag
+1 raise_brows*-1;;;((.05,0,0))/.3;chat-gaze:face=[0,0,-.03];tag
+0 ;;;((0,0,0))/.4;chat-gaze:face=[[0,2,0]];tag
+4 smile2_bmt;"What would you like to your order today?";;;;blocking_tag
+3 nod3_bmt;"Yes..";;;;tag3
+4.5 ;"Would you be tempted by your favorite drink as well?";;;;tag4
+1 ;"Excellent!";;;;tag5
+4 ;"Anything else?";;((-.03,0,0))/.3;;tag6
+1 nod3_bmt;"Alright then! Your pizza will be ready in just 6 minutes.";;;;tag7
+
