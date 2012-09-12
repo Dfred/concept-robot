@@ -182,14 +182,15 @@ def initialize(server):
   if check_defects(owner, acts):
     return fatal("Errors found in the .blend file must be addressed.")
 
-  # properties must be set to 'head' and 'Skeleton'.
+  # properties must be set to 'head', 'tongue' and 'Skeleton'.
   # BEWARE to not set props to these objects before this line, or they will be
   # included here.
   objects = [owner] + [ getattr(G,name) for name in REQUIRED_OBJECTS ]
   AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in objects for
           pAU in obj.getPropertyNames() ]
   if not server.set_available_AUs(AUs):
-    return fatal('Check your .blend file for bad property names')
+    return fatal('Check your .blend file for bad property names in objects %s'%
+                 objects)
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
@@ -268,7 +269,8 @@ def update():
         G.Skeleton['p'+au] = (abs(nval)/a_bound +1) * SH_ACT_LEN/2
 
     elif au.startswith('9'):
-      G.tongue[au] = SH_ACT_LEN * nval
+      #TODO: negative nvals
+      (au[-1] in 'XYZ' and G.Skeleton or G.tongue)['p'+au] = SH_ACT_LEN * nval
 
     elif au.startswith('5'):
       if float(au) <= 55.5:                             # pan, tilt, roll
