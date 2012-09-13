@@ -1,16 +1,44 @@
-0 neutral;;[[0,2,0]];((0,0,0));enable:chat-gaze;INIT
+1 neutral;;[[0,2,0]];((0,0,0))/1;disable:chat-gaze;INIT
 0 neutral;;;;chat-gaze:face=[[0,2,0]];INIT+
 
-0 smile1_bmt/1;"Welcome to robot-pizza take away.";;;;blocking_tag
-0 ;;;((-.03,0,.05))/.3;chat-gaze:face=[0,0,-.03];tag
-1 smile1_bmt*-1/2;;;(.03,0,0);chat-gaze:face=[[0,2,0]];tag
-3 raise_brows;"I am LightHead v4, ready to serve you.";;((0,0,0))/.4;;blocking_tag
-1 raise_brows*-1;;;((.05,0,0))/.3;chat-gaze:face=[0,0,-.03];tag
-0 ;;;((0,0,0))/.4;chat-gaze:face=[[0,2,0]];tag
-4 smile2_bmt;"What would you like to your order today?";;;;blocking_tag
-3 nod3_bmt;"Yes..";;;;tag3
-4.5 ;"Would you be tempted by your favorite drink as well?";;;;tag4
-1 ;"Excellent!";;;;tag5
-4 ;"Anything else?";;((-.03,0,0))/.3;;tag6
-1 nod3_bmt;"Alright then! Your pizza will be ready in just 6 minutes.";;;;tag7
+2 smiling/.3;"Hello there! and welcome to robot-land!";[0,0,-.03];((-.03,0,0))/.3;;blocking_tag
+1 raise_brows*.8/.2;;[0,0,-.03];(.03,0,0)/.4;;tag
+1 neutral_welcome/.3;;;;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+
+4 smiling*.4/.3;"My name is LightHead, and I'll do my best to guide you during your visit to the museum.";;((0,0,0))/.4;;tag_museum
+1 ;;;((.05,0,0))/.3;chat-gaze:face=[0,0,-.3];tag
+1 ;;;((0,0,0))/.4;chat-gaze:face=[[0,2,0]];tag
+0 ;;;;disable:chat-gaze;tag
+
+3 ;"From here, on your left, you'll see the restaurant.";[[-.5,2,.05]];((0,0,.1))/.3;;tag_restaurant
+1 ;;[[0,2,0]];((0,.01,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+
+1 eyes_closed;"Ask any sort of dish, to our robot chef!";[[0,2,0]];;;tag_chef
+1 head_pan;;;;;tag
+0 nod3_bmt;;;;disable:chat-gaze;tag
+
+0 ;;;;disable:chat-gaze;tag
+3 ;"Then, on your right, is the top 30, most famous robots gallery.";[[.4,2,0]];((0,0,-.11))/.6;;tag_gallery
+1 ;;;((0,0,-.09))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+
+0 ;;;;disable:chat-gaze;tag
+6 ;"Further, the next exhibit is the robot playground, next to which, is the robot football team!";[[-.2,2,0]];(-.015,0,0)/.6;;tag_football
+2 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+
+4 ;"You'll surely have lots of fun watching all the tricks they can perform!";;;;tag_tricks
+1 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+
+0 ;;;;disable:chat-gaze;tag
+3 ;"Then, behind you, the science laboratory. This is where you'll learn everything about robots, how they are made, and how they work...";;((-.03,0,.01))/.3;;tag_labo
+4 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+.8 ;;;((0,.03,0))/.3;;tag
+.8 ;;;((0,-.03,0))/.3;;tag
+
+1 ;;;;;tag
+5 nod3_bmt;"Before we start the tour... Feel free to ask for another robot guide, unless - of course - you think I'm the best!";;((0,0,0));;tag_another
+.2 smiling*.4;;;;;tag
+.3 ;;;;disable:blink;tag
+0.4 wink_right/.4;;;((0,.02,0))/.4;;tag
+2 ;;;;enable:blink;tag
+0 neutral;;[[0,2,0]];((0,0,0));enable:chat-gaze;FINAL
 
