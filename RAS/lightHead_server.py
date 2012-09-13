@@ -133,8 +133,7 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
       elif server.AUs.has_key(au_name+'R'):
         fifo.extend([ [au_name+'R',value,duration], [au_name+'L',value,duration] ])
         return
-    LOG.warning("[AU] invalid AU (%s)", au_name)
-    return
+    LOG.warning("[AU] %s isn't supported", au_name)
 
   def cmd_commit(self, argline):
     """Marks end of a transaction"""

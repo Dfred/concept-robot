@@ -95,8 +95,8 @@ class Face_Server(object):
     """Checks and commits AU updates."""
     for i,(AU, val, duration) in enumerate(fifo):
       if duration < self.MIN_ATTACK_TIME:
-        LOG.warning("attack time (%s) too short, setting at %s.",
-                    duration, self.MIN_ATTACK_TIME)
+        LOG.warning("%s attack time (%s) too short, setting at %s.",
+                    AU, duration, self.MIN_ATTACK_TIME)
         fifo[i][2] = self.MIN_ATTACK_TIME
     try:
       self.AUs.update_targets(fifo)
