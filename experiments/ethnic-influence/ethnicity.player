@@ -1,44 +1,52 @@
+0 neutral;;;;chat-gaze:face=[[0,2,0]];INIT0
 1 neutral;;[[0,2,0]];((0,0,0))/1;disable:chat-gaze;INIT
-0 neutral;;;;chat-gaze:face=[[0,2,0]];INIT+
 
-2 smiling/.3;"Hello there! and welcome to robot-land!";[0,0,-.03];((-.03,0,0))/.3;;blocking_tag
-1 raise_brows*.8/.2;;[0,0,-.03];(.03,0,0)/.4;;tag
-1 neutral_welcome/.3;;;;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+1 smiling/.3;"Hello there! and welcome to robot-land!";[0,0,-.03]/.3;((-.03,0,0))/.3;;blocking_tag
+1 raise_brows*.6/.2;;[[0,2,0]]/.4;((0,0,0))/.4;;tag
+2 raise_brows*.01/.8;;;;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
 
-4 smiling*.4/.3;"My name is LightHead, and I'll do my best to guide you during your visit to the museum.";;((0,0,0))/.4;;tag_museum
-1 ;;;((.05,0,0))/.3;chat-gaze:face=[0,0,-.3];tag
-1 ;;;((0,0,0))/.4;chat-gaze:face=[[0,2,0]];tag
+3 neutral_welcome/.3;"My name is LightHead, and I'll do my best to guide you during your visit to the museum.";;;;tag_museum
+0   ;;[0,0,.15]/.3;((.05,0,0))/.3;;tag
+1   ;;;;chat-gaze:face=[0,0,.15];tag
+0   ;;[[0,2,0]]/.4;((0,0,0))/.4;;tag
+1.8 ;;;;chat-gaze:face=[[0,2,0]];tag
+
 0 ;;;;disable:chat-gaze;tag
-
-3 ;"From here, on your left, you'll see the restaurant.";[[-.5,2,.05]];((0,0,.1))/.3;;tag_restaurant
+3.3 raise_brows*.3;"From here, on your left, you'll see the restaurant.";[[-.5,3,.05]];((0,0,.1))/.3;;tag_restaurant
 1 ;;[[0,2,0]];((0,.01,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
 
-1 eyes_closed;"Ask any sort of dish, to our robot chef!";[[0,2,0]];;;tag_chef
-1 head_pan;;;;;tag
-0 nod3_bmt;;;;disable:chat-gaze;tag
+.3 nod3_bmt;;;;disable:chat-gaze;tag
+1 head_pan/1.2;"Ask for any sort of dish, from our robot chef!";[[0,2,0]];;;tag_chef
+.8 ;;[[0,2,0]];((0,0,0))/.5;;tag
+2.4 nod3_bmt;;;;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
 
 0 ;;;;disable:chat-gaze;tag
-3 ;"Then, on your right, is the top 30, most famous robots gallery.";[[.4,2,0]];((0,0,-.11))/.6;;tag_gallery
-1 ;;;((0,0,-.09))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+2 ;"Then, on your right, is the top 30, most famous robots gallery.";[[.4,4,0]];((0,0,-.11))/.6;blink:full=[0.083,0.042,0.292];tag_gallery
+3 ;;;((0,0,-.09))/.4;enable:chat-gaze|chat-gaze:face=[[.4,4,0]];tag
+
+0 ;;[[-.2,2,0]];;;tag
+1.4 ;;;;chat-gaze:face=[[-.2,2,0]];tag
+0 ;;;;disable:chat-gaze;tag
+1 ;"Further, the next exhibit is the robot playground, next to which, is the robot football team!";[[1,7,-.1]];(-.015,0,0)/.4;;tag_football
+6 ;;;((0,0,0))/1;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
 
 0 ;;;;disable:chat-gaze;tag
-6 ;"Further, the next exhibit is the robot playground, next to which, is the robot football team!";[[-.2,2,0]];(-.015,0,0)/.6;;tag_football
-2 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+.6 smiling/1;"You'll surely have lots of fun watching all the tricks they can perform!";[[-.1,4,1]]/.6;((-.05,-.01,0))/.6;;tag_tricks
+#0 ;;;((0,0,0))/1;;tricks_restore
+4 nod2_bmt/3;;;;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+1 smiling*.01/1;;;((0,0,0))/.4;;tag
 
-4 ;"You'll surely have lots of fun watching all the tricks they can perform!";;;;tag_tricks
-1 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+.5 ;;;;disable:chat-gaze;tag
+3 ;"Then, behind you, the science laboratory. This is where you'll learn everything about robots, how they are made, and how they work...";[[0,7,0]];((-.03,0,.01))/.3;blink:Full=[.120,.15,.150];tag_labo
+3 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
+1 ;;;((0,.03,0))/.3;;tag
+1.2 ;;;((0,-.03,0))/.3;;tag
+1 ;;;((0,0,0))/.3;;tag
 
-0 ;;;;disable:chat-gaze;tag
-3 ;"Then, behind you, the science laboratory. This is where you'll learn everything about robots, how they are made, and how they work...";;((-.03,0,.01))/.3;;tag_labo
-4 ;;;((0,0,0))/.4;enable:chat-gaze|chat-gaze:face=[[0,2,0]];tag
-.8 ;;;((0,.03,0))/.3;;tag
-.8 ;;;((0,-.03,0))/.3;;tag
-
-1 ;;;;;tag
-5 nod3_bmt;"Before we start the tour... Feel free to ask for another robot guide, unless - of course - you think I'm the best!";;((0,0,0));;tag_another
-.2 smiling*.4;;;;;tag
-.3 ;;;;disable:blink;tag
-0.4 wink_right/.4;;;((0,.02,0))/.4;;tag
-2 ;;;;enable:blink;tag
-0 neutral;;[[0,2,0]];((0,0,0));enable:chat-gaze;FINAL
-
+.2 ;;;;;tag
+5 nod2_bmt/5.5;"Before we start the tour... Feel free to ask for another robot guide, unless - of course - you think I'm the best!";;;;tag_another
+1 ;;[[0,2,0]];;disable:blink|disable:chat-gaze;tag
+.6 neutral_welcome/.2;;[.2,0,.02];((0,.1,.1))/.3;;tag
+.5 wink_right/.5;;;;;tag
+1.5 ;;;;enable:blink;tag
+0 neutral/.9;;[[0,2,0]]/.4;((0,0,0))/.4;enable:chat-gaze;FINAL
