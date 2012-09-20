@@ -38,7 +38,6 @@ from utils import conf, get_logger
 from utils.comm import ASCIIRequestHandler
 from RAS.au_pool import AUPool
 from RAS.dynamics import INSTANCE as DYNAMICS
-from RAS.lightHead_server import VALID_AUS
 import RAS
 
 LOG = get_logger(__package__)
@@ -105,17 +104,16 @@ class Face_Server(object):
       LOG.warning("can't set facial expression %s (%s)", list(fifo), e)
 
 
-  def set_available_AUs(self, available_AUs):
+  def set_available_AUs(self, available_AUs, init_values=None):
     """Define list of AUs available for a specific face.
-    available_AUs: list of AUs (floats) OR list of tuples (AU, init_value)
+
+    available_AUs: list of str.
+    init_values: list of floats, ordered similar to available_AUs.
     Returns: True if no error detected, False otherwise.
     """
-    available_AUs.sort()
-    if type(available_AUs[0]) == tuple:
-      available_AUs, init_values = zip(*available_AUs)
-    invalids = [ au for au in available_AUs if au not in VALID_AUS ]
-    if invalids:
-      LOG.error('invalid AU(s): %s' % ' '.join(invalids))
+    check = set(self.AUs).intersection(set(available_AUs))
+    if check:
+      LOG.error("AU(s) already registered: %s", check)
       return False
     self.AUs.set_availables(available_AUs, init_values)
     return True

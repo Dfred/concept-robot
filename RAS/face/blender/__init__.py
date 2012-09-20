@@ -42,6 +42,7 @@ import GameLogic as G
 
 from RAS.au_pool import VAL
 from RAS.face import Face_Server
+from RAS.lightHead_server import VALID_AUS
 
 
 class FaceHW(Face_Server):
@@ -186,11 +187,18 @@ def initialize(server):
   # BEWARE to not set props to these objects before this line, or they will be
   # included here.
   objects = [owner] + [ getattr(G,name) for name in REQUIRED_OBJECTS ]
-  AUs = [ (pAU[1:], obj[pAU]/SH_ACT_LEN) for obj in objects for
-          pAU in obj.getPropertyNames() ]
+  aiov = [(pAU[1:], obj[pAU]/SH_ACT_LEN, obj.name[2:], pAU[1:] in VALID_AUS) for
+          obj in objects for pAU in obj.getPropertyNames()]
+  aiov.sort(key=lambda x: x[0])
+  AUs, init_vals, objs, validated = zip(*aiov)
+  invalids = [ "%s (object %s)" % (AUs[i],objs[i]) for i in range(len(AUs)) if
+               not validated[i] ]
+  if invalids:
+    fatal('invalid AU(s): %s' % ', '.join(invalids))
+    return False
+
   if not server.set_available_AUs(AUs):
-    return fatal('Check your .blend file for bad property names in objects %s'%
-                 objects)
+    return fatal('Check your .blend file for bad property names.')
 
   # load axis limits for the Skeleton regardless of the configuration: if the
   # spine mod is loaded (origin head), no spine AU should be processed here.
