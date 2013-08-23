@@ -42,10 +42,10 @@ from pyvision.face.FilterEyeLocator import FilterEyeLocator
 from pyvision.surveillance.VideoStreamProcessor import VideoWriterVSP
 #, AVE_LEFT_EYE, AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
-from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from utils import conf, get_logger, fps
+from utils import conf, get_logger
+from utils.fps import SimpleFPS
 
 LOG = get_logger(__package__)
 
@@ -61,11 +61,12 @@ class CamGUI(object):
     """
     """
 
-    def __init__(self, name='Camera'):
+    def __init__(self, name='Camera', with_fps=True):
         """
         """
         self.name = name
         self.quit_request = None
+        self.fps = with_fps and SimpleFPS(30*2) # refresh period in frames
         cv.NamedWindow(self.name, cv.CV_WINDOW_AUTOSIZE)
 
     def destroy(self):
@@ -73,15 +74,20 @@ class CamGUI(object):
         """
         cv.DestroyWindow(self.name)
 
-    def show_frame(self, camFrame, delay = 30):
-        """
-        camFrame:
+    def show_frame(self, camFrame, delay = 30, mirrored=True):
+        """Shows up the camera.
+        
+        Users can escape pressing an
+        camFrame: the pyvision camera frame
         delay: in ms.
         """
         # cv.WaitKey processes GUI events. value in ms.
-        if cv.WaitKey(delay) == 1048603:
+        if cv.WaitKey(delay) == 1048603:        # ESC key (at least on linux)
+            print "quit request"
             self.quit_request = True
 
+        if self.fps:
+            camFrame.annotateLabel(Point(), "FPS: %.2f" % self.fps.fps)
         pil = camFrame.asAnnotated()    # get image with annotations (PIL)
         rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
         cv.SetData(rgb, pil.tostring())
@@ -90,7 +96,8 @@ class CamGUI(object):
         if frame is None:
             print "error creating openCV frame for gui"
         cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
-        cv.Flip(frame, None, 1)
+        if mirrored:
+            cv.Flip(frame, None, 1)
         cv.ShowImage(self.name, frame)
 
     def add_slider(self, label, min_v, max_v, callback):
@@ -139,8 +146,9 @@ class CamCapture(object):
             raise VisionException("Camera '%s' has no definition in your"
                                    " configuration file." % name)
         except KeyError, e:
-            raise VisionException("Definition of camera '%s' has no %s property"
-                                  " in your configuration file." % (name, e))
+            raise VisionException("Definition of camera '%s' is lacking %s"
+                                  "property in your configuration file." %
+                                  (name, e))
         self.set_device(*cam_props_req)
         self.cam_props = cam_props
 
@@ -328,23 +336,23 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
 if __name__ == "__main__":
     import sys, time
     import argparse
+    
+    from pyvision.types.Point import Point
 
     def run(cap):
-      my_fps = fps.SimpleFPS( 30 * 2 )          # refresh period in frames
-      while True:
+      while ! cap.gui.quit_request:
         cap.update()
         faces = cap.find_faces()
         if faces:
             cap.mark_rects(faces)
-            print "Width: {0:.6f} measure cam - face distance (in m.)".format(
-                faces[0].w/float(cap.camera.size[0]))
             try:
-                print cap.get_face_3Dfocus(faces)[0][2]
+                z_str= "estim. dist: %.2fm" % cap.get_face_3Dfocus(faces)[0][2]
             except AssertionError:
-                pass
+                z_str= "failed to estimate"
+            print "face width %.6f %s" % (faces[0].w/float(cap.camera.size[0]),
+                                          z_str)
+        cap.gui.fps.update()
         cap.gui_show()                          # slashes fps by half...
-        my_fps.update()
-#        my_fps.show()
 
     conf.set_name('lightHead')
     conf.load()
@@ -359,7 +367,7 @@ if __name__ == "__main__":
     from utils import comm, conf, LOGFORMATINFO
     logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
 
-    cap = CamUtils('laptop_camera')
+    cap = CamUtils('laptop')
     if args.c:
         print "using camera resolution: %sx%s" % args.c
         cap.set_device(resolution=args.c)
