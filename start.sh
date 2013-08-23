@@ -25,8 +25,10 @@
 #
 
 export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
-BGE_PYTHON_VERS=2.6
+BGE_PYTHON_VERS=2.5
 PROJECT_NAME=lightHead
+#DIST_PACKS_P=/usr/lib/python$BGE_PYTHON_VERS/
+DIST_PACKS_P=$HOME/opt/lib/python$BGE_PYTHON_VERS/
 
 if ! python -c 'print'; then
     echo "python not found. Did you set your PATH ?"
@@ -37,11 +39,31 @@ if ! test -d "./common"; then
 	echo "could not find directory $CONCEPT_DIR/common . Aborting ..."
 	exit 1
 fi
+
+PREFIX="./"
+
+OPTIONS="wiW"
+OPT="-"
+while [ "$OPT" != "?" ]
+do getopts $OPTIONS OPT
+case "$OPT" in
+    "w")
+        WINDOW_MODE=1
+	;;
+    "i")
+    	PREFIX="optirun ./"
+	;;
+    "W")
+        WITH_REDWINE=1
+        PATH_S_=";z:\\"
+	;;
+esac
+done
+
+
 # set environment
 . ./common/source_me_to_set_env.sh
 
-
-PREFIX="./"
 
 # handle MinGW and Windows suffix
 case `uname -s` in
@@ -57,35 +79,29 @@ case `uname -s` in
         ;;
 esac
 
-OPTIONS="wi"
-OPT="-"
-while [ "$OPT" != "?" ]
-do getopts $OPTIONS OPT
-case "$OPT" in
-    "w")
-    	PROJECT_NAME=$PROJECT_NAME-window
-	;;
-    "i")
-	PREFIX="optirun ./"
-	;;
-esac
-done
-
-if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
-    echo "Could not find executable file '$PROJECT_NAME' in this directory."
-    exit 2
+# edit some variables
+if test -n "$WINDOW_MODE"; then
+    PROJECT_NAME=$PROJECT_NAME-window
+fi
+if test -n "$WITH_REDWINE"; then
+    echo "PYTHONPATH="$PYTHONPATH
+    PREFIX="wine ./"
+    BIN_SUFFIX=".exe"
 fi
 
+# sanity checks
 if test -z "$CONF_FILE"; then
     echo "Missing config file."
     exit 3
 fi
 
-# Now launch
+if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
+    echo "Could not find executable file '$PROJECT_NAME$BIN_SUFFIX' in this directory."
+    exit 2
+fi
 
-echo -n "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX " #$@"
-#if [ $# -ge 1 ]; then echo "using options: $@"; else echo "";
-#fi
+# Now launch
+echo "--- launching face --- : $PREFIX$PROJECT_NAME$BIN_SUFFIX " #$@"
+#if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
 
 $PREFIX$PROJECT_NAME$BIN_SUFFIX
-

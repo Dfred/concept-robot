@@ -33,20 +33,28 @@ else
     CONCEPT_DIR=$(get_CWD)
 
     # Platform dependent paths (handles the famous nagger thanks to minGW)
-    case `uname -s` in
-	MINGW*)
+    if test -z "$PATH_S_"; then
+        case `uname -s` in
+	    MINGW*)
             PATH_S_=';'
-#            DIST_PACKS_P='c:\Python26\lib\site-packages'
             ;;
-	*)
+	    *)
             PATH_S_=':'
-#            DIST_PACKS_P='/usr/lib/python2.6/dist-packages'
-	    ;;
-    esac
+	        ;;
+        esac
+    fi
+
     EXTRA="$CONCEPT_DIR/RAS/face/$PATH_S_$CONCEPT_DIR/extern"
     MODULES_PATH="$CONCEPT_DIR/$PATH_S_$EXTRA"
-    export PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
-
+    PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
+    if test "$PATH_S_" = ";z:\\"; then
+        echo "$PYTHONPATH" | sed 's/\//\\/g' > /tmp/pwet
+        PYTHONPATH=`cat /tmp/pwet`
+        echo "$PYTHONHOME" | sed 's/\//\\/g' > /tmp/pwet
+        PYTHONHOME=`cat /tmp/pwet`
+    fi
+    export PYTHONPATH
+    
     CONF_FILE=$(get_python_conf $PROJECT_NAME)
     if test "$?" != 0 ; then
 	echo "$CONF_FILE"
