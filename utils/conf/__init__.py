@@ -144,9 +144,11 @@ def load(raise_exception=True, reload=False, required_entries=(), name=None):
                     raise LoadException(conf_file, msg)
 
     if __LOADED_FILE and not reload:
+        print get_name(), __LOADED_FILE
         return []
     else:
         __LOADED_FILE = load_from_candidates()
+        print "loaded configuration file", __LOADED_FILE
 
     if not __LOADED_FILE and raise_exception:
         raise LoadException(None,
