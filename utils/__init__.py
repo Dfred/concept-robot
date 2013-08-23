@@ -25,15 +25,19 @@ import logging
 LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
                         "%(lineno)-4d-%(levelname)s-\t%(message)s",
                'datefmt':"%H:%M:%S"}
-VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
+VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG,
+                3: logging.DEBUG-1      # USR1
+                }
 
-def get_logger(name):
+
+def get_logger(name = None):
     return logging.getLogger(name)
 
 def set_logger_debug(logger, lvl):
     logger.setLevel(lvl and logging.DEBUG or logging.INFO)
 
 def set_logging_default(verbosity_level=0):
+    verbosity_level = min(verbosity_level,len(VFLAGS2LOGLVL))
     logging.basicConfig(level=VFLAGS2LOGLVL[verbosity_level], **LOGFORMATINFO)
 
 # now we patch Python code to add color support to logging.StreamHandler
@@ -100,6 +104,8 @@ def add_colors_windows(fn):
             color = FOREGROUND_GREEN
         elif(levelno>=10):
             color = FOREGROUND_MAGENTA
+        elif(levelno==9):
+            color = FOREGROUND_CYAN
         else:
             color =  FOREGROUND_WHITE
         args[0]._set_color(color)
@@ -115,18 +121,20 @@ def add_colors_ansi(fn):
     def new(*args):
         levelno = args[1].levelno
         if(levelno>=50):
-            color = '\x1b[31m' # red
+            color = COLORS['RED'][0]
         elif(levelno>=40):
-            color = '\x1b[31m' # red
+            color = COLORS['RED'][0]
         elif(levelno>=30):
-            color = '\x1b[33m' # yellow
+            color = COLORS['YELLOW'][0]
         elif(levelno>=20):
-            color = '\x1b[32m' # green
+            color = COLORS['GREEN'][0]
         elif(levelno>=10):
-            color = '\x1b[35m' # pink
+            color = COLORS['MAGENTA'][0]
+        elif(levelno==9):
+            color = COLORS['CYAN'][0]
         else:
-            color = '\x1b[0m' # normal
-        args[1].msg = color + args[1].msg +  '\x1b[0m'  # normal
+            color = COLORS['NORMAL']
+        args[1].msg = color + args[1].msg + COLORS['NORMAL']
         #print "after"
         return fn(*args)
     return new
@@ -136,6 +144,19 @@ if platform.system()=='Windows':
     # Windows does not support ANSI escapes
     logging.StreamHandler.emit = add_colors_windows(logging.StreamHandler.emit)
 else:
+    #XXX: Non portable.
+    COLORS = {
+        'NORMAL'     : '\x1b[0m',
+        # color_key: (FOREGROUND, BACKGROUND)
+        'BLACK'      : ('\x1b[31m', '\x1b[40m'),
+        'RED'        : ('\x1b[31m', '\x1b[41m'),
+        'GREEN'      : ('\x1b[32m', '\x1b[42m'),
+        'YELLOW'     : ('\x1b[33m', '\x1b[43m'),
+        'BLUE'       : ('\x1b[34m', '\x1b[44m'),
+        'MAGENTA'    : ('\x1b[35m', '\x1b[45m'),
+        'CYAN'       : ('\x1b[36m', '\x1b[46m'),
+        'WHITE'      : ('\x1b[37m', '\x1b[47m'),
+}
     logging.StreamHandler.emit = add_colors_ansi(logging.StreamHandler.emit)
 #
 #                       --- end of code copy ---
@@ -172,7 +193,7 @@ def handle_exception(logger, msg=''):
     """
     if not logger:
         logger = logging.getLogger('root')
-    if logger.getEffectiveLevel() != logging.DEBUG:
+    if 0 > logger.getEffectiveLevel() >= logging.DEBUG:
       handle_exception_simple(logger)
       print 'FYI: loggers with debug level spawn post-mortem analysis with pdb'
     else:
