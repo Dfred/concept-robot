@@ -31,7 +31,6 @@ from utils import conf, LOGFORMATINFO
 
 
 LOG = logging.getLogger(__package__)
-noACK = False
 
 class Script(object):
   """
@@ -104,10 +103,10 @@ class MonologuePlayer(object):
         datablock, tag = datablock.rsplit(';', 1)
         LOG.debug('sending line #%i and waiting reply for tag "%s"', lineno,tag)
         sent_t = time.time()
-        if noACK:
-          self.comm_expr.send_my_datablock(datablock+';'+tag)
-        else:
+        if self.wait_reply:
           self.comm_expr.sendDB_waitReply(datablock+';', tag)
+        else:
+          self.comm_expr.send_my_datablock(datablock+';'+tag)
         recv_t = time.time()
 
   def cleanup(self):
@@ -116,6 +115,8 @@ class MonologuePlayer(object):
 
   def on_bad_command(self, argline):
     LOG.error("command with tag '%s' has an error", argline)
+    if self.no_fail:
+      return
     self.running = False
 
   def connected(self):
@@ -140,7 +141,8 @@ class MonologuePlayer(object):
     #XXX: on_bad_command() could miss the 1st datablocks (although unlikely).
     setattr(self.comm_expr,'cmd_NACK',self.on_bad_command)
     self.script = Script(filepath)
-    self.wait_reply = False
+    self.wait_reply = True
+    self.no_fail = False
 
 
 if __name__ == '__main__':
@@ -148,10 +150,12 @@ if __name__ == '__main__':
   debug = len(sys.argv) > 2 and sys.argv[1].startswith('-v') and sys.argv.pop(1)
   logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
                       **LOGFORMATINFO)
-
+  # skip to line
   skip = len(sys.argv) > 2 and sys.argv[1].startswith('-s') and sys.argv.pop(1)
-  # noACK is global
+  # don't wait for ACK
   noACK = len(sys.argv) > 2 and sys.argv[1].startswith('-n') and sys.argv.pop(1)
+  # don't stop on NACK
+  deaf = len(sys.argv) > 2 and sys.argv[1].startswith('-d') and sys.argv.pop(1)
   conf.set_name('lightHead')
 
   try:
@@ -159,8 +163,19 @@ if __name__ == '__main__':
   except IndexError:
     print 'usage: %s monologue_file' % sys.argv[0]
     exit(1)
+
+  if skip:
+    skip = int(skip[2:])
+    print "-- will start from line %i --" % skip
+  if noACK:
+    m.wait_reply = False
+    print "-- won't wait for ACK --"
+  if deaf:
+    m.no_fail = True
+    print "-- won't stop on NACK --"
+
   try:
-    m.run(skip and int(skip[2:]))
+    m.run(skip and skip)
   except KeyboardInterrupt:
     print '\n--- user interruption ---'
   else:
