@@ -35,7 +35,10 @@
 """
 
 import sys, time
-import site                                     # Blender has its own python.
+if sys.version_info[0] > 2:
+  raise importError("""this version is for python >= 2.5,
+ use an alternate version supporting python3.""")
+  sys.exit(2)
 from math import cos, sin, pi
 
 import GameLogic as G
@@ -64,7 +67,7 @@ class FaceHW(Face_Server):
   def cam_proj(self, *args):
     m = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
-	return str(m)
+      return str(m)
     col = int(args[0])
     row = int(args[1])
     inc = float(args[2])
