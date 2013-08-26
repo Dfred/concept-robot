@@ -340,7 +340,7 @@ if __name__ == "__main__":
     from pyvision.types.Point import Point
 
     def run(cap):
-      while ! cap.gui.quit_request:
+      while not cap.gui.quit_request:
         cap.update()
         faces = cap.find_faces()
         if faces:
