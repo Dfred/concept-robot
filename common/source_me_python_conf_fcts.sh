@@ -1,19 +1,28 @@
 #!/bin/bash
 
+if test -z "$PYTHON" ; then 
+PYTHON=python
+fi
+
 # just checks if conf can be loaded automatically (env / filepath)
 get_CWD ()
 {
-python -c 'import os; print os.getcwd()'
+$PYTHON -c 'import os; print os.getcwd()'
+}
+
+get_version ()
+{
+$PYTHON -c 'import sys; print sys.version'
 }
 
 get_paths ()
 {
-    python -c 'import sys; print sys.path'
+$PYTHON -c 'import sys; print sys.path'
 }
 
 get_python_conf ()
 {
-python -c 'from utils import conf;
+$PYTHON -c 'from utils import conf;
 conf.set_name("'$1'")
 try:
  missing = conf.load()
@@ -28,7 +37,7 @@ exit(0)'
 # checks if there's missing definitions in the conf file
 check_python_conf ()
 {
-python -c 'from utils import conf;
+$PYTHON -c 'from utils import conf;
 conf.set_name("'$1'")
 try:
  missing = conf.load()
@@ -45,7 +54,7 @@ exit(0)'
 # get search path and files checked for conf
 get_python_conf_candidates ()
 {
-python -c 'import conf;
+$PYTHON -c 'import conf;
 conf.set_name("'$1'")
 print " ".join(conf.build_candidates())'
 }
