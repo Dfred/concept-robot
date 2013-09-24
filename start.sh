@@ -24,22 +24,25 @@
 # Starter script for LightHead-bot.
 #
 
-export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
 BGE_PYTHON_VERS=2.7
-PROJECT_NAME=lightHead
-PROJECT_DIR=`pwd`
 # TODO: array so path separator is set later on
-PROJECT_EXTRA_PATHS="/usr/lib/python$BGE_PYTHON_VERS/dist-packages:./RAS/face/:./extern"
-BLEND_DIR=~/opt/blender-2.49b-linux-glibc236-py26-x86_64
+PYTHONPATH=$PYTHONPATH:/usr/lib/python$BGE_PYTHON_VERS
+#PYTHONPATH=$PYTHONPATH:~/opt/lib/python$BGE_PYTHON_VERS
+
+
+export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
+PROJECT_DIR=`pwd`
+PROJECT_NAME=lightHead
+PROJECT_EXTRA_PATHS="$PROJECT_DIR/RAS/face/"
 
 if test -z "$PYTHON"; then
     PYTHON=python$BGE_PYTHON_VERS	#/usr/bin/python3
     echo "unset \$PYTHON, now set to: $PYTHON"
 fi
-if test -z "$PYTHONHOME"; then
-    PYTHONHOME=/usr/lib/python$BGE_PYTHON_VERS
-    echo "unset \$PYTHONHOME, now set to: $PYTHONHOME"
-fi
+# if test -z "$PYTHONHOME"; then
+#     PYTHONHOME=/usr/lib/python$BGE_PYTHON_VERS
+#     echo "unset \$PYTHONHOME, now set to: $PYTHONHOME"
+# fi
 
 if ! $PYTHON -c 'print'; then
     echo "python has an issue. Did you set \$PYTHON ?"
@@ -52,12 +55,22 @@ if ! test -d "./common"; then
 fi
 
 # parsing options
-OPTIONS="widW"
+OPTIONS="hdiwW"
 OPT="-"
-PREFIX="$BLEND_DIR/blenderplayer "
+PREFIX=""
 while [ "$OPT" != "?" ]
 do getopts $OPTIONS OPT
 case "$OPT" in
+    "h")
+	echo "options for $0:
+-h : this help
+-d : debug mode
+-i : ironhide mode; for dual graphic card configurations under Linux
+-w : window mode; soon: ability to set resolution
+-W : wine mode; use wine to start the application
+   All options can be set in one go, such as: $0 -idw"
+	exit 1
+	;;
     "w")
         WINDOW_MODE=1
 	if test -z "$2" || test -z "$3"; then
@@ -80,7 +93,7 @@ esac
 done
 
 # shortcuts
-alias edit_face="blender $PROJECT_DIR/RAS/face/blender/lightHead.blend"
+export alias edit_face="blender $PROJECT_DIR/RAS/face/blender/lightHead.blend"
 
 
 #
@@ -90,7 +103,6 @@ alias edit_face="blender $PROJECT_DIR/RAS/face/blender/lightHead.blend"
 
 # debugging info
 echo "Python version:" $(get_version)
-#echo "\$PYTHONPATH=$PYTHONPATH"
 
 # handle MinGW and Windows suffix
 case `uname -s` in
@@ -128,7 +140,7 @@ fi
 
 # Now launch
 echo "--- launching face --- "
-echo "running: '$PREFIX$PROJECT_NAME$BIN_SUFFIX' " #$@"
+echo "running: 'PYTHONPATH=$PYTHONPATH $PREFIX$PROJECT_NAME$BIN_SUFFIX' " #$@"
 #if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
 
-$PREFIX$PROJECT_NAME$BIN_SUFFIX
+PYTHONPATH=$PYTHONPATH $PREFIX./$PROJECT_NAME$BIN_SUFFIX
