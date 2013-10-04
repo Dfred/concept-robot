@@ -68,7 +68,8 @@ class FaceHW(Face_Server):
   def cleanUp(self):
     shutdown(G.getCurrentController())
 
-  def cam_proj(self, *args):
+  def cam_projInc(self, *args):
+    """Update projection matrix with relative values"""
     m = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
       return str(m)
@@ -78,6 +79,15 @@ class FaceHW(Face_Server):
     m[row][col] += inc
     print "new projection matrix:", m
     G.getCurrentScene().active_camera.projection_matrix = m
+
+  def cam_proj(self, *args):
+    """Update projection matrix with absolute values"""
+    projMatrix = G.getCurrentScene().active_camera.projection_matrix
+    if not len(args):
+      return str(projMatrix)
+    projMatrix[ int(args[1]) ][ int(args[0]) ] += float(args[2])
+    print "new projection matrix:", projMatrix
+    G.getCurrentScene().active_camera.projection_matrix = projMatrix
 
   def cam_mview(self, *args):
     m = G.getCurrentScene().active_camera.modelview_matrix
