@@ -82,6 +82,7 @@ def set_name(project_name):
     """Sets the project name and returns the filtered version of it."""
     global __NAME
     __NAME = filter(lambda x: x.isalnum() and x or '_', project_name)
+#    print "Project name set to " + __NAME
     return __NAME
 
 def get_name():
@@ -152,7 +153,7 @@ def load(raise_exception=True, reload=False, required_entries=(), name=None):
 
     if not __LOADED_FILE and raise_exception:
         raise LoadException(None,
-                            "No configuration file found for project {0}. "
+                            "** NO CONFIGURATION FILE FOUND FOR PROJECT {0} **"
                             "Aborting!\nYou can define the environment variable"
                             " '{0}' for complete configuration file path "
                             "definition.".format(__NAME) )
