@@ -192,10 +192,10 @@ def handle_exception(logger, msg=''):
     logger: a logging.logger instance, or None.
     """
     if not logger:
-        logger = logging.getLogger('root')
-    if 0 > logger.getEffectiveLevel() >= logging.DEBUG:
+        logger = logging.getLogger()
+    if logger.getEffectiveLevel() > logging.DEBUG:
       handle_exception_simple(logger)
-      print 'FYI: loggers with debug level spawn post-mortem analysis with pdb'
+      print '\t*** debug level loggers spawn allow post-mortem analysis ***'
     else:
       handle_exception_debug(logger, force_debugger=True)
 
