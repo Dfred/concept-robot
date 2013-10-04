@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
-#  of Plymouth. LightHead is a Robotic Animation System including face, eyes,
+# ARAS is a programm part of CONCEPT, a HRI PhD project at the University
+#  of Plymouth. ARAS is a Robotic Animation System including face, eyes,
 #   head and other supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
 
@@ -85,13 +85,13 @@ VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              )
 
 
-class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
+class ARASHandler(MetaRequestHandler, ASCIICommandProto):
   """Handles high level protocol transactions: origin and commit"""
 
   def __init__(self, server, sock, client_addr):
     """
     """
-    super(LightHeadHandler,self).__init__(server, sock, client_addr)
+    super(ARASHandler,self).__init__(server, sock, client_addr)
     self.fifos = {}                                 # for cmd_AU
     self.handlers = {}                              # {origin : subhandler}
     self.transacting = []                           # transacting origins
@@ -194,12 +194,12 @@ class LightHeadHandler(MetaRequestHandler, ASCIICommandProto):
       return
 
 
-class LightHeadServer(object):
+class ARASServer(object):
   """Sets and regroups subservers of the lightHead system."""
 
   def __init__(self):
     """All subServers will receive a reference to the Feature Pool"""
-    super(LightHeadServer,self).__init__()
+    super(ARASServer,self).__init__()
     self.origins = {}           # { origin: self.server and associed handler }
     self.FP = FeaturePool()     # the feature pool for context queries
 

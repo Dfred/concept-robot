@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# LightHead programm is a HRI PhD project at the University of Plymouth,
+# Lighty programm is a HRI PhD project at the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.
 # Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
@@ -21,7 +21,7 @@
 """
  FACE MODULE: blender backend
 
- This module uses the Blender Game Engine as a backend for animating LightHead.
+ This module uses the Blender Game Engine as a backend for animating Lighty.
  To make this work, you need to let the initialization routine list the AU you
   support: define a property per AU in your .blend. Also, for most AUs you need
   a Shape Action actuator which provides the relative basic facial animation.
@@ -34,18 +34,22 @@
   * defining classes in toplevel scripts (like here) leads to scope problems
 """
 
-import sys, time
+import sys
 if sys.version_info[0] > 2:
+  print(sys.version_info)
   raise importError("""this version is for python >= 2.5,
- use an alternate version supporting python3.""")
+ use an alternate version supporting python3 series.""")
   sys.exit(2)
+print sys.version_info
+
+import site, time
 from math import cos, sin, pi
 
 import GameLogic as G
 
 from RAS.au_pool import VAL
 from RAS.face import Face_Server
-from RAS.lightHead_server import VALID_AUS
+from RAS.ARAS_server import VALID_AUS
 
 
 class FaceHW(Face_Server):
@@ -121,7 +125,7 @@ except ImportError:
 
 def fatal(error):
   """Common function to gracefully quit."""
-  print '   *** Fatal: %s ***' % error
+  print '\t*** Fatal: %s ***' % error
   if sys.exc_info() != (None,None,None):
     from utils import handle_exception
     handle_exception(None,error)
@@ -197,8 +201,11 @@ def initialize(server):
   invalids = [ "%s (object %s)" % (AUs[i],objs[i]) for i in range(len(AUs)) if
                not validated[i] ]
   if invalids:
-    fatal('invalid AU(s): %s' % ', '.join(invalids))
-    return False
+#    fatal('WARNING: the following detected propert%s are invalid: %s' %
+#          (len(invalids)>1 and 'ies' or 'y', ', '.join(invalids)))
+#    return False
+    print ('\n*** WARNING: the following detected propert%s are invalid: %s' %
+           (len(invalids)>1 and 'ies' or 'y', ', '.join(invalids)))
 
   if not server.set_available_AUs(AUs):
     return fatal('Check your .blend file for bad property names.')
@@ -225,8 +232,8 @@ def initialize(server):
     from utils import conf
     if conf.VERBOSITY < 2:
       INFO_PERIOD = None
-    if conf.ROBOT['mod_face'].has_key('blender_proj'):
-      cam.projection_matrix = conf.ROBOT['mod_face']['blender_proj']
+    if conf.ROBOT['mod_face'].has_key('proj_matrix'):
+      cam.projection_matrix = conf.ROBOT['mod_face']['proj_matrix']
   except StandardError, e:
     print "ERROR: Couldn't set projection matrix (%s)" % e
   print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
@@ -304,10 +311,13 @@ def update():
 
     else:
       a_min, a_max = G.Skeleton.limits[au]
-      if nval >= 0:
-        G.Skeleton['p'+au] = (nval/a_max + 1) * SH_ACT_LEN/2
-      if nval < 0:
-        G.Skeleton['p'+au] = (-nval/a_min +1) * SH_ACT_LEN/2
+      try:
+        if nval >= 0:
+          G.Skeleton['p'+au] = (nval/a_max + 1) * SH_ACT_LEN/2
+        if nval < 0:
+          G.Skeleton['p'+au] = (-nval/a_min +1) * SH_ACT_LEN/2
+      except KeyError, e:
+        print e
 
   G.last_update_time = time.time()
   G.info_duration += time_diff
@@ -329,7 +339,7 @@ def main():
   if not hasattr(G, "initialized"):
     try:
       import RAS
-      G.server = RAS.initialize(THREAD_INFO)
+      G.server = RAS.initialize(THREAD_INFO, "lighty")
       G.face_server = G.server['face']
 
       cont = initialize(G.face_server)
