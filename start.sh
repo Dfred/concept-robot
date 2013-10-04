@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Lighthead-bot programm is a HRI PhD project at
+# lighty programm is a HRI PhD project at
 #  the University of Plymouth,
 #  a Robotic Animation System including face, eyes, head and other
 #  supporting algorithms for vision and basic emotions.  
@@ -21,18 +21,18 @@
 
 
 #
-# Starter script for LightHead-bot.
+# Starter script for Lighty.
 #
 
 BGE_PYTHON_VERS=2.7
 # TODO: array so path separator is set later on
 PYTHONPATH=$PYTHONPATH:/usr/lib/python$BGE_PYTHON_VERS
 #PYTHONPATH=$PYTHONPATH:~/opt/lib/python$BGE_PYTHON_VERS
-
+BLENDERPLAYER=blenderplayer.blender2.4
 
 export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
 PROJECT_DIR=`pwd`
-PROJECT_NAME=lightHead
+PROJECT_NAME=lighty
 PROJECT_EXTRA_PATHS="$PROJECT_DIR/RAS/face/"
 
 if test -z "$PYTHON"; then
@@ -55,7 +55,7 @@ if ! test -d "./common"; then
 fi
 
 # parsing options
-OPTIONS="hdiwW"
+OPTIONS="bdhiwW"
 OPT="-"
 PREFIX=""
 while [ "$OPT" != "?" ]
@@ -63,6 +63,7 @@ do getopts $OPTIONS OPT
 case "$OPT" in
     "h")
 	echo "options for $0:
+-b : use blenderplayer
 -h : this help
 -d : debug mode
 -i : ironhide mode; for dual graphic card configurations under Linux
@@ -70,6 +71,10 @@ case "$OPT" in
 -W : wine mode; use wine to start the application
    All options can be set in one go, such as: $0 -idw"
 	exit 1
+	;;
+
+    "b")
+	PREFIX="$PREFIX $BLENDERPLAYER "
 	;;
     "w")
         WINDOW_MODE=1
@@ -119,7 +124,9 @@ case `uname -s` in
 esac
 
 # edit some variables
-if test -n "$WINDOW_MODE"; then
+result=`echo "'$PREFIX'" | grep "$BLENDERPLAYER"` 
+if test -n "$WINDOW_MODE" && test -z result; then
+	    PREFIX="$PREFIX -w $2 $"
     PROJECT_NAME=$PROJECT_NAME-window
 fi
 if test -n "$WITH_REDWINE"; then
