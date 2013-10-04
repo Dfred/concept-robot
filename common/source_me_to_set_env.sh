@@ -4,11 +4,11 @@
 #  * checks folders
 #  * checks which configuration file is loadable
 #
-#  * relies on PROJECT_NAME environment variable
+#  * relies on $PROJECT_NAME
+#  * relies on $PROJECT_EXTRA_PATHS
 #
-#  * sets the PYTHONPATH environment variable
-#  * sets the CONF_FILE environment variable
-#  * sets the edit_face alias
+#  * sets the $PYTHONPATH
+#  * sets the $CONF_FILE
 #
 if test -z "$CONCEPT_DIR"; then
     echo '$CONCEPT_DIR' not set, assuming $PWD
@@ -33,21 +33,20 @@ else
     CONCEPT_DIR=$(get_CWD)
 
     # Platform dependent paths (handles the famous nagger thanks to minGW)
-    if test -z "$PATH_S_"; then
+    if test -z "$_SEP_"; then
         case `uname -s` in
 	    MINGW*)
-            PATH_S_=';'
+            _SEP_=';'
             ;;
 	    *)
-            PATH_S_=':'
+            _SEP_=':'
 	        ;;
         esac
     fi
 
-    EXTRA="$CONCEPT_DIR/RAS/face/$PATH_S_$CONCEPT_DIR/extern"
-    MODULES_PATH="$CONCEPT_DIR/$PATH_S_$EXTRA"
-    PYTHONPATH="$PYTHONPATH$PATH_S_$DIST_PACKS_P$PATH_S_$MODULES_PATH"
-    if test "$PATH_S_" = ";z:\\"; then
+    MODULES_PATH="$CONCEPT_DIR$_SEP_$PROJECT_EXTRA_PATHS"
+    PYTHONPATH="$PYTHONPATH$_SEP_$DIST_PACKS_P$_SEP_$MODULES_PATH"
+    if test "$_SEP_" = ";z:\\"; then
         echo "$PYTHONPATH" | sed 's/\//\\/g' > /tmp/pwet
         PYTHONPATH=`cat /tmp/pwet`
         echo "$PYTHONHOME" | sed 's/\//\\/g' > /tmp/pwet
