@@ -55,7 +55,7 @@ class BehaviourBuilder(object):
     """machine_defs: iterable of (name, FSM rules, parent machine)
     fsm_class: allows you to change from SPFSM to any of its derivate, e.g:MPFSM.
     """
-    missing = conf.load(required_entries=('ROBOT','expression_server'))
+    missing = conf.load(required_entries=('ROBOT','CHLAS_server'))
     if missing:
       LOG.warning('\nmissing configuration entries: %s', missing)
       sys.exit(1)
@@ -71,7 +71,7 @@ class BehaviourBuilder(object):
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
-    self.comm_expr = MTExpressionComm(conf.expression_server,
+    self.comm_expr = MTExpressionComm(conf.CHLAS_server,
                                       connection_succeded_fct=self.connected)
     
   def connected(self):
