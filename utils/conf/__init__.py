@@ -41,10 +41,10 @@ Configuration file search path order:
    $<NAME>_CONF. eg: MY_PROJECT_CONF='/opt/my_project/my_project.conf'
 
  2) current user's home directory:
-   for POSIX systems: $HOME/.<NAME>.conf
+   for POSIX systems: $HOME/.<NAME>.conf ; for Windows there's no leading '.'
 
  3) global system configuration file:
-   for POSIX: /etc/<NAME>.conf
+   for POSIX: /etc/<NAME>.conf ; for Windows C:\\ is used instead
 
 
 Important Point:  there's only one value for NAME per python process (VM).
@@ -61,6 +61,7 @@ __maintainer__ = "Frédéric Delaunay"
 __status__ = "Prototype" # , "Development" or "Production"
 
 import sys
+import platform
 from os import path, environ
 
 __NAME = None
@@ -94,25 +95,30 @@ def get_name():
         raise LoadException('project name has not been set; use conf.set_name.')
 
 def build_candidates():
-    """Creates locations where conf file could be.
-    Checks for a environment variable, name being built from build_env()
+    """Returns locations where conf file could be, ie:
+    1/ from environmnent variable built from project name (see build_env())
+    2/ in user home folder (for SysV and co.: hidden file with leading '.')
+    3/ in system's configuration folder (for SysV and co.: /etc , Windows: C:\\)
     """
     locs=[]
     try:
         locs.append(environ[__NAME])
     except (OSError,KeyError):
         pass
+    lead = '.' if platform.uname()[0] != 'Windows' else ''
+    sysWide_confFolder = '/etc' if platform.uname()[0] != 'Windows' else r'C:\\'
     try:
-        locs.append(path.join(path.expanduser('~/'),'.'+__NAME+'.conf'))
+        locs.append(path.join(path.expanduser('~/'),lead+__NAME+'.conf'))
     except OSError, err:
         raise LoadException(None, 'Cheesy OS error: %s' % err)
     else:
-        locs.append(path.join('/etc', __NAME+'.conf'))
+        locs.append(path.join(sysWide_confFolder, __NAME+'.conf'))
     return locs
 
-def load(raise_exception=True, reload=False, required_entries=(), name=None):
+def load(raise_exception=True, reload_=False, required_entries=(), name=None,
+         silent=True):
     """Try to load 1st available configuration file, ignoring Subsequent calls
-    unless reload is set to True.
+    unless reload_ is set to True.
     required_names: iterable of strings specifying variable names to be found.
     Returns: [missing_definitions]
     """
@@ -131,27 +137,30 @@ def load(raise_exception=True, reload=False, required_entries=(), name=None):
 
     def load_from_candidates():
         for conf_file in build_candidates():
-            if path.isfile(conf_file):
-                msg = None
-                try:
-                    execfile(conf_file, globals())
-                except SyntaxError, err:
-                    msg = "error line %i." % err.lineno
-                except Exception, e:
-                    msg = e
-                else:
-                    return conf_file
-                if msg and raise_exception:
-                    raise LoadException(conf_file, msg)
+            if not path.isfile(conf_file):
+                continue
+            msg = None
+            try:
+                execfile(conf_file, globals())
+            except SyntaxError, err:
+                msg = "error line %i." % err.lineno
+            except Exception, e:
+                msg = e
+            else:
+                return conf_file
+            if msg and raise_exception:
+                raise LoadException(conf_file, msg)
 
-    if __LOADED_FILE and not reload:
-        print get_name(), __LOADED_FILE
+    if __LOADED_FILE and not reload_:
         return []
-    else:
-        __LOADED_FILE = load_from_candidates()
-        print "loaded configuration file", __LOADED_FILE
 
-    if not __LOADED_FILE and raise_exception:
+    __LOADED_FILE = load_from_candidates()
+    if __LOADED_FILE:
+        if not silent:
+            print "loaded configuration file", __LOADED_FILE
+    elif raise_exception:
+        if not silent:
+            print "no config file found in any of %s" % build_candidates()
         raise LoadException(None,
                             "** NO CONFIGURATION FILE FOUND FOR PROJECT {0} **"
                             "Aborting!\nYou can define the environment variable"
