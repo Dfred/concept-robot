@@ -36,10 +36,10 @@ __status__ = "Prototype" # , "Development" or "Production"
 import sys
 print "Lighty's Abstract Robotic Animation System, python version:", sys.version_info
 
-
+import tempfile, os
 import logging
 
-#_REQUIRED_CONF_ENTRIES = ('lightHead_server','expression_server',
+_TEMPPIDFILE = os.path.join(tempfile.gettempdir(), 'pid.ARAS')
 _REQUIRED_CONF_ENTRIES = ('ARAS_server', 'ROBOT', 'lib_vision', 'lib_spine')
 
 #LOG = logging.getLogger(__package__)                  # updated in initialize()
@@ -75,6 +75,11 @@ def initialize(thread_info, project_name):
                                  threading_info=thread_info,
                                  server_mixin=ARASServer)
   server.create_protocol_handlers()       # inits face and all other subservers.
+  try:
+    with file(_TEMPPIDFILE, 'w') as f:
+      f.write(str(os.getpid()))
+  except StandardError,e:
+    LOG.error("Couldn't write PID file (%s), expect issues with the SDK.",e)
   return server
 
 def cleanUp(server):
@@ -83,4 +88,8 @@ def cleanUp(server):
   """
   server.cleanUp()
   server.shutdown()
+  try:
+    os.remove(_TEMPPIDFILE)
+  except StandardError,e:
+    LOG.error("Couldn't remove PID file (%s), expect issues with the SDK.",e)
   print "LIGHTHEAD terminated"
