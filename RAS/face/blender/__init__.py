@@ -35,12 +35,13 @@
 """
 
 import sys
+print "*** BlenderPlayer's python is:", \
+  filter(lambda x: x not in "\r\n", sys.version) 
+
 if sys.version_info[0] > 2:
-  print(sys.version_info)
   raise importError("""this version is for python >= 2.5,
  use an alternate version supporting python3 series.""")
   sys.exit(2)
-print sys.version_info
 
 import site, time
 from math import cos, sin, pi
@@ -65,8 +66,8 @@ class FaceHW(Face_Server):
     super(FaceHW,self).__init__()
     self.name = 'blender'
 
-  def cleanUp(self):
-    shutdown(G.getCurrentController())
+#  def cleanUp(self):
+#    shutdown(G.getCurrentController())
 
   def cam_projInc(self, *args):
     """Update projection matrix with relative values"""
@@ -123,7 +124,7 @@ INFO_PERIOD = 10
 REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
 
-def exiting():
+def exiting():                                  #TODO: any reliable way to this?
   # server may not have been successfully created
   if hasattr(G, "server") and G.server.is_started():
     G.server.shutdown()

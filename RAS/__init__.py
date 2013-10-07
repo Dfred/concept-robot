@@ -34,10 +34,13 @@ __maintainer__ = "Frédéric Delaunay"
 __status__ = "Prototype" # , "Development" or "Production"
 
 import sys
-print "Lighty's Abstract Robotic Animation System, python version:", sys.version_info
+print "*** Lighty's ARAS python is:", \
+  filter(lambda x: x not in "\r\n", sys.version)
 
 import tempfile, os
 import logging
+
+from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
 
 _TEMPPIDFILE = os.path.join(tempfile.gettempdir(), 'pid.ARAS')
 _REQUIRED_CONF_ENTRIES = ('ARAS_server', 'ROBOT', 'lib_vision', 'lib_spine')
@@ -52,9 +55,10 @@ def initialize(thread_info, project_name):
   """
   # check configuration
   try:
-    from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
+    logging.basicConfig(level=VFLAGS2LOGLVL[1], **LOGFORMATINFO)        # info
+    LOG = logging.getLogger()
     conf.set_name(project_name)
-    missing = conf.load(required_entries=_REQUIRED_CONF_ENTRIES)
+    missing = conf.load(required_entries=_REQUIRED_CONF_ENTRIES, logger=LOG)
     if missing:
       print '\nmissing configuration entries: %s' % missing
       sys.exit(1)
@@ -64,7 +68,8 @@ def initialize(thread_info, project_name):
     sys.exit(2)
   if not hasattr(conf, 'VERBOSITY'):
     conf.VERBOSITY = 0
-  print 'verbosity level is', conf.VERBOSITY
+  LOG.info('ARAS verbosity level is now %s', 
+           ['0 (BASIC)','1 (INFO)','2 (DEBUG)'][conf.VERBOSITY])
   logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
   LOG = logging.getLogger()
 

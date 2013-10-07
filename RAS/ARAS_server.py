@@ -43,7 +43,7 @@ from utils import get_logger, conf
 from RAS.au_pool import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'gaze', 'lips', 'spine', 'dynamics') # protocol keywords
+ORIGINS = ('face', 'spine', 'dynamics') # protocol keywords
 VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
              "04L","04R",
@@ -227,7 +227,8 @@ class ARASServer(object):
     origin: origin identifier
     """
     if origin not in ORIGINS:
-      LOG.error("rejecting unknown origin '%s'", origin)
+      LOG.error("rejecting registration of handler for unknown origin '%s'",
+                origin)
       return
     LOG.debug("registering server %s & handler class %s for origin '%s'",
               server, req_handler_class, origin)

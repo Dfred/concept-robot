@@ -51,16 +51,8 @@ class MTLightheadComm(MTComm):
                                               connection_lost_fct)
         self.thread.name += '_LightHead'
         # information blocks
-        self.lips_info = None
-        self.gaze_info = None
         self.face_info = None
         self.snapshot = None
-
-    def cmd_lips(self, argline):
-        self.lips_info = argline
-
-    def cmd_gaze(self, argline):
-        self.gaze_info = argline
 
     def cmd_face(self, argline):
         self.face_info = argline

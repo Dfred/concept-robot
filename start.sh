@@ -107,7 +107,7 @@ export alias edit_face="blender $PROJECT_DIR/RAS/face/blender/lightHead.blend"
 . ./common/source_me_to_set_env.sh
 
 # debugging info
-echo "Python version:" $(get_version)
+echo "*** Operating System python is:" $(get_version)
 
 # handle MinGW and Windows suffix
 case `uname -s` in
