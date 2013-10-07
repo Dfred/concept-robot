@@ -1,10 +1,22 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# LightHead programm is a HRI PhD project at the University of Plymouth,
-#  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.
-# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+# ARAS is the open source software (OSS) version of the basic component of
+# Syntheligence's software suite. This software is provided for academic
+# research only. Any other use is not permitted.
+# Syntheligence SAS is a robotics and software company established in France.
+# For more information, visit http://www.syntheligence.com .
+
+# ARAS stands for Abstract Robotic Animation System, and features actuator,
+# sensor, animation and remote management high-level interfaces.
+# Copyright 2013 Syntheligence, fdelaunay@syntheligence.com
+
+# This software was originally named LightHead, the Human-Robot-Interaction part
+# of the CONCEPT project, taking place at the University of Plymouth (UK).
+# The project originated as the PhD pursued by Frédéric Delaunay, who was under
+# the supervision of Prof. Tony Belpaeme.
+# This PhD project started in late 2008 and ended in late 2011.
+# Visit http://www.tech.plym.ac.uk/SoCCE/CONCEPT/ for more information.
 
 #  This program is free software: you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License as

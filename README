@@ -15,19 +15,17 @@ For more information, visit http://www.tech.plym.ac.uk/SoCCE/CONCEPT/
 * CURRENT STATE:
 
 You are welcomed to try the software and submit bugfixes as long as you use this
-software for academic purposes and notify Frederic by email.
+software for academic purposes. If you use or have used this software for your
+ research and publications please notify Frederic by email.
 This license restriction applies in conjunction with the GPL license provided 
 with this software.
-Since this is now a fork of the original project, other uses can only be
-granted by Frederic Delaunay (fdelaunay at syntheligence.com).
-
-
-The rest of this documentation assumes the current directory is the directory 
-containing this file.
 
 
 Requirements (In this order):
 =============
+
+- Understand that the rest of this documentation assumes the current directory
+ is the directory containing this file.
 
 - Python >= 2.7 and < 3	(http://www.python.org/getit/releases/)
 - NumPy for Python 2.7 	(http://www.scipy.org/Download)
