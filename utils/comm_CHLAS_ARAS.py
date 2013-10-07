@@ -51,7 +51,7 @@ LOG = get_logger(__package__)
 
 
 class MT_ArasComm(MTComm):
-    """Class dedicated for communication with lightHead server.
+    """Class dedicated for communication with ARAS server.
     """
 
     def __init__(self, srv_addrPort, connection_lost_fct = None,
@@ -61,7 +61,7 @@ class MT_ArasComm(MTComm):
         super(MT_ArasComm, self).__init__(srv_addrPort,
                                               connection_succeded_fct,
                                               connection_lost_fct)
-        self.thread.name += '_LightHead'
+        self.thread.name += '_ARAS'
         # information blocks
         self.face_info = None
         self.snapshot = None
@@ -135,7 +135,7 @@ class MT_ChlasComm(MTComm):
         super(MT_ChlasComm,self).__init__(srv_addrPort,
                                               connection_succeded_fct,
                                               connection_lost_fct)
-        self.thread.name += '_Expr2'
+        self.thread.name += '_CHLAS'
         self.tag = None
         self.tag_count = 0
         self.tags_pending = set()
@@ -155,7 +155,7 @@ class MT_ChlasComm(MTComm):
         self.datablock = ['']*5
 
     def on_reply_fct(self, tag, fct):
-        """Installs a callback on reply from Expression.
+        """Installs a callback on reply from the CHLAS.
         Use the same function with argument None to unset.
         """
         if not fct:
@@ -165,7 +165,7 @@ class MT_ChlasComm(MTComm):
         self.on_reply[tag] = fct
 
     def set_fExpression(self, name, intensity=1.0, duration=None):
-        """Sets (and returns) the facial expression part of Expr2's datablock.
+        """Sets (and returns) the facial expression part of our CHLAS datablock.
         name: facial expression identifier, no colon (:) allowed.
         intensity: float, normalized gain.
         duration: float, duration of facial expression in seconds.
@@ -174,14 +174,14 @@ class MT_ChlasComm(MTComm):
         return self.format_DB(0, name, None, intensity, duration)
 
     def set_text(self, text):
-        """Sets (and returns) the text part of Expr2's datablock.
+        """Sets (and returns) the text part of our CHLAS datablock.
         text: text to utter, no double-quotes (") allowed.
         """
         assert type(text) is str, 'text should be a string'
         return self.format_DB(1, '"%s"'%text)
 
     def set_gaze(self, vector3, transform='p', duration=None):
-        """Sets (and returns) the eye-gaze part of Expr2's datablock.
+        """Sets (and returns) the eye-gaze part of our CHLAS datablock.
         vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
         assert len(vector3)==3, "vector3: wrong type"
@@ -205,7 +205,7 @@ class MT_ChlasComm(MTComm):
                               spine_section)
 
     def set_instinct(self, command):
-        """Sets (and returns) the instinct part of Expr2's datablock.
+        """Sets (and returns) the instinct part of our CHLAS datablock.
         command: you should know what you are doing when dealing with this.
         """
         assert type(command) is str, 'wrong types'
@@ -214,15 +214,15 @@ class MT_ChlasComm(MTComm):
 
     def format_DB(self, i, value, trnsf=None, intns=None, durtn=None,
                   keywd=None, args=None):
-        """Sets (and returns) an element of Expr2's datablock.
+        """Sets (and returns) an element of our CHLAS datablock.
 
         Transforms use right handedness (ie: with y+ pointing forward).
         
-        value:  representable object supported by Expression. Your check. 
+        value:  representable object supported by the CHLAS. Your check. 
         trnsf:  char, one of o,r,t,p (Orientation, Rotatn, Transltn, Positn)
         intns:  float, intensity of action whenever relevant.
         durtn:  float, duration of action in seconds.
-        keywd:  string, see Expression's documentation.
+        keywd:  string, see CHLAS' documentation.
         """
         assert durtn is None or type(durtn) is float, 'duration not float'
         if self.datablock[i]:
