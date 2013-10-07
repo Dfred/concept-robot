@@ -34,7 +34,7 @@ __status__ = "Prototype" # , "Development" or "Production"
 import logging
 import time
 
-from HMS.communication import MTExpressionComm
+from utils.comm_CHLAS_ARAS import MT_ChlasComm
 from utils import conf, handle_exception
 from utils.parallel_fsm import SPFSM, STARTED, STOPPED
 
@@ -71,7 +71,7 @@ class BehaviourBuilder(object):
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
-    self.comm_expr = MTExpressionComm(conf.CHLAS_server,
+    self.comm_expr = MT_ChlasComm(conf.CHLAS_server,
                                       connection_succeded_fct=self.connected)
     
   def connected(self):
