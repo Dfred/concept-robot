@@ -116,7 +116,7 @@ def build_candidates():
     return locs
 
 def load(raise_exception=True, reload_=False, required_entries=(), name=None,
-         silent=True):
+         logger=None):
     """Try to load 1st available configuration file, ignoring Subsequent calls
     unless reload_ is set to True.
     required_names: iterable of strings specifying variable names to be found.
@@ -156,11 +156,11 @@ def load(raise_exception=True, reload_=False, required_entries=(), name=None,
 
     __LOADED_FILE = load_from_candidates()
     if __LOADED_FILE:
-        if not silent:
-            print "loaded configuration file", __LOADED_FILE
+        if logger:
+            logger.info("Loaded configuration file '%s'", __LOADED_FILE)
     elif raise_exception:
-        if not silent:
-            print "no config file found in any of %s" % build_candidates()
+        if logger:
+            logger.error("no config file found in any of %s",build_candidates())
         raise LoadException(None,
                             "** NO CONFIGURATION FILE FOUND FOR PROJECT {0} **"
                             "Aborting!\nYou can define the environment variable"
