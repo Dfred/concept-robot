@@ -1,10 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# LightHead programm is a HRI PhD project at the University of Plymouth,
-#  a Robotic Animation System including face, eyes, head and other
-#  supporting algorithms for vision and basic emotions.
-# Copyright (C) 2010 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+# ARAS is an OSS HRI project by Syntheligence available for academic research.
+# This copyright covers the Abstract Robotic Animation System, including
+# the animation software for the face, eyes, head and other supporting
+# algorithms for vision and basic emotions.
+# Copyright (C) 2013 Frederic Delaunay and syntheligence.
+# For further details, visit http://www.syntheligence.com
 
 #  This program is free software: you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License as
@@ -33,7 +35,7 @@ import cv
 try:
     import pyvision as pv
 except ImportError, e:
-    print "python import error: %s" % e
+    print("python import error: %s" % e)
     raise ImportError('path to pyvision should be included in PYTHONPATH')
 pv.disableCommercialUseWarnings()
 
@@ -42,10 +44,11 @@ from pyvision.face.FilterEyeLocator import FilterEyeLocator
 from pyvision.surveillance.VideoStreamProcessor import VideoWriterVSP
 #, AVE_LEFT_EYE, AVE_RIGHT_EYE
 from pyvision.types.Video import Webcam
+from pyvision.types.Point import Point
+from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from utils import conf, get_logger
-from utils.fps import SimpleFPS
+from .. import conf, get_logger, fps
 
 LOG = get_logger(__package__)
 
@@ -60,13 +63,13 @@ class VisionException(Exception):
 class CamGUI(object):
     """
     """
+    KEY_ESC = 1048603                           #XXX ESC key (at least on linux)
 
-    def __init__(self, name='Camera', with_fps=True):
-        """
+    def __init__(self, name='Camera'):
+        """name: window and application name.
         """
         self.name = name
         self.quit_request = None
-        self.fps = with_fps and SimpleFPS(30*2) # refresh period in frames
         cv.NamedWindow(self.name, cv.CV_WINDOW_AUTOSIZE)
 
     def destroy(self):
@@ -74,20 +77,15 @@ class CamGUI(object):
         """
         cv.DestroyWindow(self.name)
 
-    def show_frame(self, camFrame, delay = 30, mirrored=True):
-        """Shows up the camera.
-        
-        Users can escape pressing an
-        camFrame: the pyvision camera frame
+    def show_frame(self, camFrame, delay = 30):
+        """
+        camFrame: pyvision camera frame
         delay: in ms.
         """
         # cv.WaitKey processes GUI events. value in ms.
-        if cv.WaitKey(delay) == 1048603:        # ESC key (at least on linux)
-            print "quit request"
+        if cv.WaitKey(delay) == self.KEY_ESC:
             self.quit_request = True
 
-        if self.fps:
-            camFrame.annotateLabel(Point(), "FPS: %.2f" % self.fps.fps)
         pil = camFrame.asAnnotated()    # get image with annotations (PIL)
         rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
         cv.SetData(rgb, pil.tostring())
@@ -96,8 +94,7 @@ class CamGUI(object):
         if frame is None:
             print "error creating openCV frame for gui"
         cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
-        if mirrored:
-            cv.Flip(frame, None, 1)
+        cv.Flip(frame, None, 1)
         cv.ShowImage(self.name, frame)
 
     def add_slider(self, label, min_v, max_v, callback):
@@ -121,6 +118,7 @@ class CamCapture(object):
         self.camera = None
         self.frame = None
         self.gui = None
+        self.fps_counter = None
         self.vid_writer = None
         sensor_name and self.use_camera(sensor_name)
 
@@ -146,9 +144,8 @@ class CamCapture(object):
             raise VisionException("Camera '%s' has no definition in your"
                                    " configuration file." % name)
         except KeyError, e:
-            raise VisionException("Definition of camera '%s' is lacking %s"
-                                  "property in your configuration file." %
-                                  (name, e))
+            raise VisionException("Camera '%s' has no '%s' property in your"
+                                  " configuration file." % (name, e))
         self.set_device(*cam_props_req)
         self.cam_props = cam_props
 
@@ -172,12 +169,20 @@ class CamCapture(object):
         if self.vid_writer and self.frame:
             self.vid_writer.addFrame(self.frame)
         self.frame = self.camera.query()        # grab ?
+        if self.fps_counter:
+            self.fps_counter.update()
 
     def toggle_record(self, filename, fourCodec=None):
         """
         """
         self.vid_writer = VideoWriterVSP(filename, size=self.camera.size,
                                          fourCC_str=(fourCodec or 'XVID'))
+
+    def toggle_fps(self, val, every_frames=30*2):
+        """
+        every_frames: refresh period in frames
+        """
+        self.fps_counter = fps.SimpleFPS(every_frames)
 
     def gui_create(self):
         """
@@ -187,14 +192,22 @@ class CamCapture(object):
     def gui_show(self):
         """
         """
-        if self.gui:
-            self.gui.show_frame(self.frame)
+        if self.fps_counter:
+            self.frame.annotateLabel(Point(), "FPS: %.2f"% self.fps_counter.fps)
+        self.gui.show_frame(self.frame)
+
+    def gui_loop(self, callback=None, args=None):
+        """Loops until self.quit_request is True (triggered with 'ESC' key).
+        """
+        while not self.gui.quit_request:
+            self.update()
+            callback and callback(*args)
+            self.gui_show()
 
     def gui_destroy(self):
         """
         """
-        if self.gui:
-            self.gui.destroy()
+        self.gui and self.gui.destroy()
 
 
 class CamUtils(CamCapture):
@@ -212,7 +225,7 @@ class CamUtils(CamCapture):
 
         # TODO: create a calibration tool so factors is mandatory (for 3d info)
         for prop in ('XY_factors', 'depth_fct'):
-            if self.cam_props.has_key(prop):
+            if prop in self.cam_props:
                 if hasattr(self.camera,prop):
                     LOG.warning("[conf] camera %s: overwriting property '%s'",
                                 name, prop)
@@ -248,15 +261,19 @@ class CamUtils(CamCapture):
         for p in points:
             self.frame.annotatePoint(p, color)
 
-    def enable_face_detection(self, haar_cascade_path=None,
+    def toggle_face_detection(self, enable, haar_cascade_path=None,
                               msize=(50,50), scale=.5):
-        """Enables face detection algorithms.
-
+        """Toggles face detection algorithms.
+        enable: True or False
         haar_cascade_path: path to .xml, if None then use default
         msize: (width,height), minimum size
         scale: float, image scale
         Returns: None
         """
+        if not enable:
+            self.face_detector = None
+            self.eyes_detector = None
+            return
         if not haar_cascade_path:
             try:
                 haar_cascade_path = conf.ROBOT['mod_vision']['haar_cascade']
@@ -311,7 +328,7 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
             fct = eval('lambda x:'+self.camera.depth_fct)
             try:
                 fct(10)
-            except StandardError, e:
+            except Exception, e:
                 LOG.critical("[conf] error with depth_fct expression: %s",e)
                 return None
             else:
@@ -328,54 +345,3 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
         """
         raise NotImplementedError()
         #MotionDetector().detect()
-
-
-###############################################################################
-# TEST and XY_FACTORS creation
-#
-if __name__ == "__main__":
-    import sys, time
-    import argparse
-    
-    from pyvision.types.Point import Point
-
-    def run(cap):
-      while not cap.gui.quit_request:
-        cap.update()
-        faces = cap.find_faces()
-        if faces:
-            cap.mark_rects(faces)
-            try:
-                z_str= "estim. dist: %.2fm" % cap.get_face_3Dfocus(faces)[0][2]
-            except AssertionError:
-                z_str= "failed to estimate"
-            print "face width %.6f %s" % (faces[0].w/float(cap.camera.size[0]),
-                                          z_str)
-        cap.gui.fps.update()
-        cap.gui_show()                          # slashes fps by half...
-
-    conf.set_name('lightHead')
-    conf.load()
-
-    parser = argparse.ArgumentParser(description='test this vision module')
-    parser.add_argument('-c', help='camera resolution', type=int, nargs=2,
-                        metavar=('Width', 'Height'))
-    parser.add_argument('-r', help='enable record', action='store_true')
-    args = parser.parse_args(sys.argv[1:])
- 
-    import logging
-    from utils import comm, conf, LOGFORMATINFO
-    logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
-
-    cap = CamUtils('laptop')
-    if args.c:
-        print "using camera resolution: %sx%s" % args.c
-        cap.set_device(resolution=args.c)
-    if args.r:
-        fname = time.strftime("vision-%H:%M:%S.avi")
-        print "recording vision as "+fname
-        cap.toggle_record(fname)
-    cap.enable_face_detection()
-    cap.gui_create()
-    run(cap)
-    print "done"
