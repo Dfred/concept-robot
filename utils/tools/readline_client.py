@@ -36,7 +36,7 @@ import os
 
 # include path of our utils package for next import
 sys.path.insert(1,os.path.join(sys.path[0],'..','..'))
-from utils import comm, set_logging_default, handle_exception_debug
+from . import comm, set_logging_default, handle_exception_debug
 
 set_logging_default(verbosity_level=1)
 comm.set_debug_logging(False)

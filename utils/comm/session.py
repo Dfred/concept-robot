@@ -57,15 +57,10 @@ import select
 import logging
 import platform
 from threading import Thread, Lock
-from collections import namedtuple
-try:
-    import threading
-except ImportError:
-    import dummy_threading as threading
 
 from presentation import BasePresentation
+from .. import handle_exception
 
-from utils import handle_exception
 
 LOG = logging.getLogger(__package__)
 FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
@@ -870,9 +865,6 @@ class BaseClient(BasePeer):
 # - auto-selection of classes based on (address,port). Users can choose between
 #    classic inheritance and using create_server().
 ###
-
-
-ThreadingInfo = namedtuple('ThreadingInfo', 'threaded_server threaded_clients')
 
 def getBaseServerClass(addr_port, threaded):
   """Returns the appropriate base class for server according to addr_port.

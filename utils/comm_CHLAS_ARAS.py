@@ -42,9 +42,9 @@ __license__ = "GPL"
 import cPickle as pickle
 import time
 
-from utils.comm.threaded_comm import MTComm
-from utils.comm import ASCIICommandClient, set_debug_logging
-from utils import get_logger
+from comm.threaded_comm import MTComm
+from comm import ASCIICommandClient, set_debug_logging
+from . import get_logger
 
 set_debug_logging(True)
 LOG = get_logger(__package__)
