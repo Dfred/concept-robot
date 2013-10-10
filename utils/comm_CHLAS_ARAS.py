@@ -42,26 +42,22 @@ __license__ = "GPL"
 import cPickle as pickle
 import time
 
-from comm.threaded_comm import MTComm
+from comm.threaded_comm import ThreadedComm
 from comm import ASCIICommandClient, set_debug_logging
 from . import get_logger
 
 set_debug_logging(True)
 LOG = get_logger(__package__)
 
+##
+## ARAS
+##
 
-class MT_ArasComm(MTComm):
-    """Class dedicated for communication with ARAS server.
+
+class ArasProtocol(object):
     """
-
-    def __init__(self, srv_addrPort, connection_lost_fct = None,
-                 connection_succeded_fct = None):
-        """
-        """
-        super(MT_ArasComm, self).__init__(srv_addrPort,
-                                              connection_succeded_fct,
-                                              connection_lost_fct)
-        self.thread.name += '_ARAS'
+    """
+    def __init__(self):
         # information blocks
         self.face_info = None
         self.snapshot = None
@@ -84,7 +80,6 @@ class MT_ArasComm(MTComm):
                 self.snapshot = None
             for k,v in self.snapshot.iteritems():
                 self.snapshot[k] = dict(zip(v[0][1], v[1]))
-        self.unblock_wait()
 
     def get_snapshot(self, origins):
         """Returns a snapshot from remote server.
@@ -92,77 +87,82 @@ class MT_ArasComm(MTComm):
         """
         assert hasattr(origins,'__iter__'), "origins isn't an iterable"
         self.send_msg("get_snapshot " + (origins and ' '.join(origins) or '') )
-        self.wait()
+
+
+class ArasComm(ASCIICommandClient, ArasProtocol):
+    """Class dedicated for communication with ARAS server.
+    """
+    def get_snapshot(self, origins):
+        ArasProtocol.get_snapshot(self, origins)
+        self.read_socket_and_process()
         return self.snapshot
 
 
-class MT_ChlasComm(MTComm):
-    """Class dedicated for communication with expression server.
+class ArasCommTh(ThreadedComm, ArasProtocol):
+    """Class dedicated for threaded communication with ARAS server.
+    """
 
+    def __init__(self, srv_addrPort, 
+                 fct_disconnected = None,
+                 fct_connected = None):
+        """
+        """
+        super(ThreadedComm, self).__init__(srv_addrPort,
+                                           connected_fct,
+                                           disconnected_fct)
+        self.thread.name += '_ARAS'
+
+    def get_snapshot(self, origins):
+        ArasProtocol.get_snapshot(self, origins)
+        self.wait()                             ## wait for unwait() by thread
+        return self.snapshot
+
+    def cmd_snapshot(self,argline):
+        ArasProtocol.cmd_snapshot(self,argline)
+        if self.snapshot:                       #TDL XXX incomplete snapshot ?
+            self.unwait()
+
+##
+## CHLAS
+##
+
+
+class ChlasProtocol(object):
+    """
     It's possible to set handlers for any kind of answer from expr2.
     """
 
     ROTP_PRE_SUFF = { 'o':('((','))'), 'r':('(',')'),
                       'p':('[[',']]'), 't':('[',']'),
                     }
-
-    @staticmethod                               #XXX: we're adding to the class
-    def add_handler(status, log_fct, msg):
-        """cmd_ handlers can only be called by self.thread so threading is easy.
+    
+    def __init__(self):
         """
-        PRE_MSG = 'expression reports '
-        def cmd_(self, argline):
-            tag = argline.strip()
-            try:
-                self.on_reply[tag](status, tag)
-            except KeyError:
-                pass
-            log_fct(PRE_MSG+msg, tag or '')
-            if tag in self.tags_pending:
-                self.tags_pending.remove(tag)
-                self.tag = tag
-                self.unblock_wait()
-                while self.tag:                     #XXX: waiters reset self.tag
-                    time.sleep(.1)
-        setattr(MT_ChlasComm, 'cmd_'+status, cmd_)
-
-    def __init__(self, srv_addrPort, connection_lost_fct = None,
-                 connection_succeded_fct = None):
         """
-        srv_addrPort: (server_address, port)
-        connection_succeded_fct: function called on successful connection.
-        """
-        super(MT_ChlasComm,self).__init__(srv_addrPort,
-                                              connection_succeded_fct,
-                                              connection_lost_fct)
-        self.thread.name += '_CHLAS'
         self.tag = None
         self.tag_count = 0
         self.tags_pending = set()
         self.reset_datablock()
-        self.on_reply = {}
 
-        for status,fct,msg in (
-            ('ACK', LOG.debug, 'processing of tag %s'),
-            ('NACK',LOG.info, 'bad message (%s)'),
-            ('INT', LOG.warning,'animation interruption (%s)'),
-            ('DSC', LOG.warning,'the RAS is disconnected!%s')):
-            MT_ChlasComm.add_handler(status,fct,msg)
+    def cmd_ACK(self, argline):
+        arg = argline.strip()
+        LOG.debug('processed tag %s', arg)
+        self.tag = arg
+    def cmd_NACK(self, argline):
+        arg = argline.strip()
+        LOG.error('bad message (%s)', arg)
+        self.tag = arg
+    def cmd_INT(self, argline):
+        LOG.warning('animation interruption')
+        self.tag = None
+    def cmd_DSC(self, argline):
+        LOG.warning('the RAS is disconnected!')
+        self.tags_pending.clear()
 
     def reset_datablock(self):
         """Forgets values previously stored with set_ functions.
         """
         self.datablock = ['']*5
-
-    def on_reply_fct(self, tag, fct):
-        """Installs a callback on reply from the CHLAS.
-        Use the same function with argument None to unset.
-        """
-        if not fct:
-            del self.on_reply[tag]
-            return
-        assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
-        self.on_reply[tag] = fct
 
     def set_fExpression(self, name, intensity=1.0, duration=None):
         """Sets (and returns) the facial expression part of our CHLAS datablock.
@@ -171,6 +171,8 @@ class MT_ChlasComm(MTComm):
         duration: float, duration of facial expression in seconds.
         """
         assert type(name) is str , 'name should be a string'
+        if not name:
+            return
         return self.format_DB(0, name, None, intensity, duration)
 
     def set_text(self, text):
@@ -178,6 +180,8 @@ class MT_ChlasComm(MTComm):
         text: text to utter, no double-quotes (") allowed.
         """
         assert type(text) is str, 'text should be a string'
+        if not text:
+            return
         return self.format_DB(1, '"%s"'%text)
 
     def set_gaze(self, vector3, transform='p', duration=None):
@@ -185,22 +189,30 @@ class MT_ChlasComm(MTComm):
         vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
         """
         assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
         return self.format_DB(2, vector3, transform, None, duration)
 
     def set_neck(self, vector3, transform='o', duration=None):
         """Places head. Arguments: see format_DB()."""
         assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
         return self.format_DB(3, vector3, transform, None, duration,
                               keywd='Cervicals')
 
     def set_thorax(self, vector3, tranform='o', duration=None):
         """Places thorax. Arguments: see format_DB()."""
         assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
         return self.format_DB(3, vector3, transform, None, duration,
                               keywd='Thorax')
 
     def set_spine(self, spine_section, vector3, transform, duration):
         """Generic Spine placement."""
+        if not spine_section:
+            return
         return self.format_DB(3, vector3, transform, None, duration,
                               spine_section)
 
@@ -209,6 +221,8 @@ class MT_ChlasComm(MTComm):
         command: you should know what you are doing when dealing with this.
         """
         assert type(command) is str, 'wrong types'
+        if not command:
+            return
         self.datablock[4] = command
         return self.datablock[4]
 
@@ -224,8 +238,11 @@ class MT_ChlasComm(MTComm):
         durtn:  float, duration of action in seconds.
         keywd:  string, see CHLAS' documentation.
         """
-        assert durtn is None or type(durtn) is float, 'duration not float'
+        FIELDS = ['Facial Expression', 'Utterance', 'Gaze', 'Spine', 'Instinct']
+        assert durtn is None or type(durtn) is float, "duration isn't a float"
         if self.datablock[i]:
+            if i in (1,4):
+                LOG.warning("appending to %s field!", FIELDS[i])
             self.datablock[i] += '|'
         if keywd:
             self.datablock[i] += keywd+':'
@@ -264,6 +281,90 @@ class MT_ChlasComm(MTComm):
         """Sends a raw datablock, so you have to know datablock formatting.
         """
         self.send_msg(datablock)
+
+
+class ChlasComm(ASCIICommandClient, ChlasProtocol):
+    """Class dedicated for client communication with expression server.
+    """
+
+    def wait_reply(self, tag):
+        """Waits for a reply from the server.
+        """
+        self.tags_pending.add(tag)
+        LOG.debug("waiting for completion of tag '%s' (current: %s)", tag,
+                  self.tag)
+        while self.tags_pending and self.tag and self.tag != tag:
+            self.read_once(None)                                ## blocking
+        self.tag = None
+
+    def sendDB_waitReply(self, datablock=None, tag=None):
+        """Sends (given or internal) datablock and returns upon reply about it.
+        datablock: string without tag
+        tag: string
+        """
+        if datablock and tag:
+            self.send_my_datablock(datablock+tag)
+        else:
+            tag = self.send_datablock(tag)
+        self.wait_reply(tag)
+
+
+class ChlasCommTh(ThreadedComm, ChlasProtocol):
+    """Class dedicated for threaded client communication with expression server.
+    """
+
+    @staticmethod                               #XXX we're adding to the class
+    def add_handler(status, log_fct, msg):      #TDL shift threading code away
+        """Mask thread synchro for user with callbacks.
+        cmd_ handlers can only be called by self.thread, so threading is easy.
+        """
+        PRE_MSG = 'expression reports '
+        def cmd_(self, argline):
+            tag = argline.strip()
+            ## call user callback (bound or not)
+            try:
+                self.on_reply[tag](status, tag)
+#                on_reply[tag](status, tag)
+            except KeyError:
+                pass
+            
+            log_fct(PRE_MSG+msg, tag or '')
+            ## unblock 
+            if tag in self.tags_pending:
+                self.tags_pending.remove(tag)
+                self.tag = tag
+                self.unwait()
+                while self.tag:                     #XXX: waiters reset self.tag
+                    time.sleep(.1)
+        setattr(ChlasCommTh, 'cmd_'+status, cmd_)
+
+    def __init__(self, srv_addrPort,
+                 fct_disconnected = None,
+                 fct_connected = None):
+        """
+        srv_addrPort: (server_address, port)
+        connection_succeded_fct: function called on successful connection.
+        """
+        super(ChlasCommTh,self).__init__(srv_addrPort,
+                                         fct_connected,
+                                         fct_disconnected)
+        self.on_reply = {}                              ## { tag : callback }
+
+    def connect(self):
+        """Append thread name and connects. Not for kids! use connect_and_run"""
+        super(ChlasCommTh,self).connect()
+        self.thread.setName(self.thread.getName()+'_CHLAS')
+
+    ## Mask thread management with user's callbacks and ease encapsulation. See
+    ## also add_handler
+    def on_reply_fct(self, tag, fct):
+        """Installs a callback on reply from the CHLAS, unsets if fct == None.
+        """
+        if not fct:
+            del self.on_reply[tag]
+            return
+        assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
+        self.on_reply[tag] = fct
 
     def wait_reply(self, tag):
         """Waits for a reply from the server.
