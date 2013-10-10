@@ -59,7 +59,7 @@ class BasePresentation(object):
   __metaclass__ = ABCMeta
 
   def handle_notfound(self, cmd, args):
-    """Called when a cmd_... method (a command handler) is not found in self.
+    """Called when a cmd_... method (command handler) is not found in self.
     To be overriden.
     Return: None
     """
@@ -120,11 +120,11 @@ class ASCIICommandProto(BasePresentation):
 
   def process(self, recv_data):
     """Command dispatcher function.
-    Commands can be issued within the same step by linking them with '&&'.
-    recv_data: network data to process (supposed to be multiline ASCII text)
+    Commands linked with '&&' are issued within the same step.
+    recv_data: network data to process (should be multiline ASCII text)
     Return: unprocessed data, not finishing with a \n
     """
-    LOG.debug("%s> command [%iB]:%s", self.socket.fileno(), len(recv_data),
+    LOG.debug("%s> command [%iB]:%s", self._socket.fileno(), len(recv_data),
               len(recv_data)>MAX_B and recv_data[:MAX_B]+'[...]' or recv_data)
     #XXX: this version allows tampering with buffers while parsing.
     self.data = recv_data                                   # allows extern read
@@ -145,7 +145,8 @@ class ASCIICommandProto(BasePresentation):
 
   def read(self, size):
     """Read in self.data, then the socket itself if needed.
-    Return: data read. Notice: length of data read has to be checked by caller!
+
+    Return: data read. Notice: caller shall check length of data read!
     """
 #    import pdb; pdb.set_trace()
     more = size - len(self.data[self.data_end:])
@@ -210,7 +211,7 @@ class ASCIICommandProtoEx(ASCIICommandProto):
   def process(self, recv_data):
     """Uses filter_line() to add script-friendly features.
     """
-    LOG.debug("%s> command [%iB]:%s", self.socket.fileno(),
+    LOG.debug("%s> command [%iB]:%s", self._socket.fileno(),
               len(recv_data)>32 and recv_data[:32]+'[...]' or recv_data)
     filtered, buffered = self.__class__.filter_lines(recv_data)
     for cmdline in filtered:
@@ -243,7 +244,7 @@ class RequestHandlerCmdsMixIn(object):
     Return: None
     """
     LOG.info("%s> listing %i clients.",
-             self.socket.fileno(), len(self.server.clients))
+             self._socket.fileno(), len(self.server.clients))
     clients_infos = []
     for sock, cl in self.server.clients.iteritems():
       clients_infos.append(type(cl.addr_port) is type("") and

@@ -24,11 +24,11 @@
 comm package for python (versions >= 2.6)
 
 A template server and associated handler + client:
-Provides socket-based communication (with logging support) and a convenient
-way for handling word-based (text) application protocols.
-Auto-selection of base classes from address family, port type and threading
-information doesn't require child classes to use inheritance; see doc of
-create_server() for more details
+* Provides socket-based communication (with logging support) and a convenient
+  way for handling word-based (text) application protocols.
+* Auto-selects base class from address family, port type and thread settings
+  so not to require inheritance and ease encapsulation; see create_server's
+  doc for more details.
 
 Overview:
 * session.py, holds server classes connecting processes,
@@ -62,6 +62,7 @@ __all__ = [
   'AsciiRequestHandler',
   'AsciiRequestHandlerCmds',
   'create_server',
+  'get_addrPort',
   'set_logging_level',
   ]
 
@@ -94,8 +95,26 @@ class ASCIIRequestHandlerCmds(BaseRequestHandler,
   pass
 
 
+def get_addrPort(addrPort_str, default_addr='localhost'):
+  """Parses a server identifier such as 'host_IP:host_port' or 'Unix_pipe'.
+  if only ':host_port' is provided, then host_IP is set to default_addr.
+
+  Raises: ValueError on bogus string.
+  Returns: ('host_IP',host_port) or ('Unix_pipe')
+  """
+  if addrPort_str.count(':') > 1:
+    raise ValueError("bogus server identifier: '%s'" % addrPort_str)
+  addr_port = addrPort_str.split(':')
+  if addr_port[-1].isdigit():
+    addr_port[-1] = int(addr_port[-1])
+  else:
+    return tuple(addr_port[-1])
+  return len(addr_port)>1 and tuple(addr_port) or (default_addr,addr_port[0])
+
 def set_debug_logging(debug=True):
   """Sets this package's logging level to debug (ie: from logging module).
   Convienience function.
+
+  Returns: None
   """
   LOG.setLevel(debug and logging.DEBUG or logging.WARNING)

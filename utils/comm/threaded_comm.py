@@ -57,83 +57,116 @@ LOG = logging.getLogger(__package__)                      # main package logger
 __NEED_WAIT_PATCH__ = sys.version_info[0] == 2 and sys.version_info[1] < 7
 
 
-class MTComm(ASCIICommandClient):
+class ThreadedComm(ASCIICommandClient):
   """A communication class based on the comm protocol spawning its own thread.
   """
 
   CONNECT_TIMEOUT = 3
 
   def __init__(self, server_addrPort,
-               connection_succeded_function = None,
-               disconnection_function = None):
-    super(MTComm,self).__init__(server_addrPort)
+               fct_connected = None,
+               fct_connection_lost = None):
+    """Override BaseClient to manage threading.
+    """
+    super(ThreadedComm,self).__init__(server_addrPort)
     self.connect_timeout = self.CONNECT_TIMEOUT
-    self.disconnect_function = disconnection_function
-    self.connect_success_function = connection_succeded_function
-    self.thread = threading.Thread(target=self.always_connected, name='MTComm')
-    self.event = threading.Event()
-    self.working = True
-    self.thread.start()
+    self.fct_connLost = fct_connection_lost
+    self.fct_connEstablished = fct_connected
+    self.__thread = None
+    self.__event = None
+    self.__working = False
+
+  ##
+  ## Threading specific
+  ##
+
+  @property
+  def thread(self):
+    return self.__thread
+
+  @property
+  def working(self):
+    return self.__working
+
+  @property
+  def event(self):
+    return self.__event
 
   def wait(self, timeout=None):                         #TODO: add event name
     """Wait for an event on the communication channel.
 
-    Returns: False if timeout elapsed, True otherwise
+    Return: False if timeout elapsed, True otherwise
     """
     outtimed = True
     if timeout and __NEED_WAIT_PATCH__:
-      t = time.time()                             # for python < 2.7
-    if self.event:
-      outtimed = self.event.wait(timeout)
-      self.event.clear()
+      t = time.time()                                   # for python < 2.7
+    if self.__event:
+      outtimed = self.__event.wait(timeout)
+      self.__event.clear()
       if __NEED_WAIT_PATCH__:
         outtimed = timeout and (time.time()-t) < timeout or True
     return outtimed
 
-  def unblock_wait(self):                               #TODO: add event name
+  def unwait(self):                                     #TODO: add event name
     """Unblock threads blocked in wait().
     """
-    if self.event:
-      self.event.set()                                  # unblock waiting thread
-
-  def send_msg(self, msg):
-    """Sends a message and logs (debug) messages that couldn't be sent."""
-    if self.connected:
-      return super(MTComm, self).send_msg(msg)
-    LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
+    if self.__event:
+      self.__event.set()                                # unblock waiting thread
 
   def always_connected(self):
-    """Enters working loop finished only on call to done() or on error.
+    """Loop on connect+work_loop which finishes by calling done() or on error.
     """
-    while self.working:
+    while self.__working:
       self.connect_and_run()
 
   def done(self):
-    """Terminates the connection.
+    """Terminate the connection.
     """
-    self.working = False
+    self.__working = False
     self.abort()
     LOG.debug('joining thread for %s', self)
-    self.thread.join()
+    self.__thread.join()
     LOG.debug('joined thread %s', self)
+
+  ##
+  ## Overrides
+  ##
+
+  def connect_and_run(self, *arglist, **argdict):
+    """Connect to the remote server within the spawned thread.
+    """
+    assert not self.__thread, "thread %s still alive!" % self.__thread.getName()
+    self.__thread= threading.Thread(target=super(ThreadedComm,
+                                                 self).connect_and_run,
+                                    args=arglist, kwargs=argdict,
+                                    name='CommTh')
+    self.__event = threading.Event()
+    self.__working = True
+    self.__thread.start()
+
+  def send_msg(self, msg):
+    """Send a message and logs (debug) messages that couldn't be sent."""
+    if self._connected:
+      return super(ThreadedComm, self).send_msg(msg)
+    LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
   def handle_connect_error(self, e):
     """See handle_connect_timeout.
     """
-    super(MTComm, self).handle_connect_error(e)
+    super(ThreadedComm, self).handle_connect_error(e)
     self.handle_connect_timeout()
 
   def handle_connect_timeout(self):
-    """Sleeps for a second if connection initialization is in timeout status.
+    """Sleep for a second if connection initialization is in timeout status.
     """
     time.sleep(1)
 
-  def handle_disconnect(self):
-    """Calls your disconnection_function when connection is lost.
-    """
-    self.disconnect_function and self.disconnect_function()
-        
-  def handle_connect(self):
-    """Calls your connection_succeeded_function when connection is established.
-    """
-    self.connect_success_function and self.connect_success_function()
+  # def handle_disconnect(self):
+  #   """Call fct_connection_lost when connection with remote is lost.
+  #   """
+  #   self.fct_connLost and self.fct_connLost()
+    
+  # def handle_connect(self):
+  #   """Call fct_connected when connection to server is established.
+  #   """
+  #   self.fct_connEstablished and self.fct_connEstablished()
