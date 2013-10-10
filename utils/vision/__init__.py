@@ -69,6 +69,7 @@ class CamGUI(object):
         """name: window and application name.
         """
         self.name = name
+        self.mirror_image = True
         self.quit_request = None
         cv.NamedWindow(self.name, cv.CV_WINDOW_AUTOSIZE)
 
@@ -94,7 +95,7 @@ class CamGUI(object):
         if frame is None:
             print "error creating openCV frame for gui"
         cv.CvtColor(rgb, frame, cv.CV_RGB2BGR)
-        cv.Flip(frame, None, 1)
+        self.mirror_image and cv.Flip(frame, None, 1)
         cv.ShowImage(self.name, frame)
 
     def add_slider(self, label, min_v, max_v, callback):
@@ -118,6 +119,7 @@ class CamCapture(object):
         self.camera = None
         self.frame = None
         self.gui = None
+        self.gui_message = None
         self.fps_counter = None
         self.vid_writer = None
         sensor_name and self.use_camera(sensor_name)
@@ -189,11 +191,17 @@ class CamCapture(object):
         """
         self.gui = CamGUI()
 
+    def gui_write(self, message):
+        """Allow a user message to be displayed"""
+        self.gui_message = message
+
     def gui_show(self):
         """
         """
         if self.fps_counter:
             self.frame.annotateLabel(Point(), "FPS: %.2f"% self.fps_counter.fps)
+        if self.gui_message:
+            self.frame.annotateLabel(Point(), self.gui_message)
         self.gui.show_frame(self.frame)
 
     def gui_loop(self, callback=None, args=None):
@@ -270,6 +278,7 @@ class CamUtils(CamCapture):
         scale: float, image scale
         Returns: None
         """
+        LOG.debug("%sabling Face Detection", enable and "En" or "Dis")
         if not enable:
             self.face_detector = None
             self.eyes_detector = None
@@ -292,7 +301,7 @@ class CamUtils(CamCapture):
 
         Return: list of rects or None
         """
-        assert self.face_detector, "call to enable_face_detection() required"
+        assert hasattr(self,'face_detector'), "toggle_face_detection() required"
         return self.face_detector.detect(self.frame)
 
     def find_eyes(self, faces):
