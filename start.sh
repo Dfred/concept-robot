@@ -73,22 +73,21 @@ case "$OPT" in
 	exit 1
 	;;
 
-    "b")
-	PREFIX="$PREFIX $BLENDERPLAYER "
-	;;
     "w")
         WINDOW_MODE=1
 	if test -z "$2" || test -z "$3"; then
 	    echo "windowing (-w) option requires width and height arguments"
 	    exit 1
 	fi
-	PREFIX="$PREFIX -w $2 $3 "
+	;;
+    "d")
+	DEBUG_MODE=1
 	;;
     "i")
     	PREFIX="optirun $PREFIX "
 	;;
-    "d")
-	PREFIX="$PREFIX-d "
+    "b")
+	WITH_BPLAYER=1
 	;;
     "W")
         WITH_REDWINE=1
@@ -123,15 +122,26 @@ case `uname -s` in
         ;;
 esac
 
+#
 # edit some variables
-result=`echo "'$PREFIX'" | grep "$BLENDERPLAYER"` 
-if test -n "$WINDOW_MODE" && test -z result; then
-	    PREFIX="$PREFIX -w $2 $"
+#
+if test -n "$WITH_BPLAYER"; then
+    PREFIX="$PREFIX$BLENDERPLAYER"
+    if test -n "$WINDOW_MODE"; then
+	    PREFIX="$PREFIX -w $2 $3 "
+    fi
+else if test -n "$WINDOW_MODE"; then
     PROJECT_NAME=$PROJECT_NAME-window
+    fi
 fi
+
 if test -n "$WITH_REDWINE"; then
     PREFIX="wine $PREFIX "
     BIN_SUFFIX=".exe"
+fi
+
+if test -n "$DEBUG_MODE"; then
+    PREFIX="$PREFIX -d "
 fi
 
 # checking environment variable
