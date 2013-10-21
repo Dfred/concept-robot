@@ -29,8 +29,6 @@ import math
 import threading
 import logging
 
-import numpy
-
 import cv
 try:
     import pyvision as pv
@@ -83,11 +81,11 @@ class CamGUI(object):
         camFrame: pyvision camera frame
         delay: in ms.
         """
-        # cv.WaitKey processes GUI events. value in ms.
+        ## cv.WaitKey processes GUI events. value in ms.
         if cv.WaitKey(delay) == self.KEY_ESC:
             self.quit_request = True
 
-        pil = camFrame.asAnnotated()    # get image with annotations (PIL)
+        pil = camFrame.asAnnotated()                            ## PIL format
         rgb = cv.CreateImageHeader(pil.size, cv.IPL_DEPTH_8U, 3)
         cv.SetData(rgb, pil.tostring())
 
@@ -114,42 +112,38 @@ class CamCapture(object):
     """
 
     def __init__(self, sensor_name=None):
-        """sensor_name: if set, calls self.use_camera with that name.
+        """sensor_name: if set, calls self.set_camera with that name.
         """
+        self.cam_info = None
         self.camera = None
         self.frame = None
         self.gui = None
         self.gui_message = None
         self.fps_counter = None
         self.vid_writer = None
-        sensor_name and self.use_camera(sensor_name)
+        sensor_name and self.set_camera(sensor_name)
 
     def set_device(self, dev_index=0, resolution=(800,600)):
         """
         dev_index: specify camera number for multiple camera configurations.
         resolution: (width,height) of the frames to grab.
         """
-        self.camera = Webcam(dev_index, resolution)
-        if not self.camera.grab():
-            raise VisionException("Can't get camera at device index: %i" %
-                                  dev_index)
+        self.cam_info = {'dev_index':dev_index, 'resolution':resolution}
 
-    def use_camera(self, name):
+    def set_camera(self, name):
         """
         name: identifier of camera as found in conf.
         """
-        # Required attributes
+        ## Required attributes
         try:
             cam_props = conf.lib_vision[name]
-            cam_props_req = (cam_props['dev_index'], cam_props['resolution'])
+            self.set_device(cam_props['dev_index'], cam_props['resolution'])
         except AttributeError:
             raise VisionException("Camera '%s' has no definition in your"
                                    " configuration file." % name)
         except KeyError, e:
             raise VisionException("Camera '%s' has no '%s' property in your"
                                   " configuration file." % (name, e))
-        self.set_device(*cam_props_req)
-        self.cam_props = cam_props
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -165,12 +159,22 @@ class CamCapture(object):
         """
         return self.frame.asMatrix3D()
 
+    def acquire_camera(self):
+        """Grab the camera for work.
+        """
+        self.camera = Webcam(self.cam_info['dev_index'], 
+                             self.cam_info['resolution'])
+        if not self.camera.grab():
+            raise VisionException("Can't get camera at device index: %i" %
+                                  self.cam_info['dev_index'])
+
     def update(self):
         """
         """
+        assert self.camera, "acquire_camera() required."
         if self.vid_writer and self.frame:
             self.vid_writer.addFrame(self.frame)
-        self.frame = self.camera.query()        # grab ?
+        self.frame = self.camera.query()                        # grab ?
         if self.fps_counter:
             self.fps_counter.update()
 
@@ -223,25 +227,38 @@ class CamUtils(CamCapture):
     """
 
     def __init__(self, sensor_name=None):
-        super(CamUtils,self).__init__(sensor_name)
+        ## as CamCapture might call set_camera, init our stuff 1st
         self.XY_factors = None, None
+        self.depth_fct = None
+        self.face_detector = None
+        self.eyes_detector = None
+        super(CamUtils,self).__init__(sensor_name)
 
-    def use_camera(self, name):
+    def set_camera(self, name):
         """Overriding to add our properties.
         """
-        super(CamUtils,self).use_camera(name)
+        super(CamUtils,self).set_camera(name)
 
-        # TODO: create a calibration tool so factors is mandatory (for 3d info)
+        #TDL create a nice calibration tool to get factors (for 3d info)
+
+        ## Required attributes
         for prop in ('XY_factors', 'depth_fct'):
-            if prop in self.cam_props:
-                if hasattr(self.camera,prop):
-                    LOG.warning("[conf] camera %s: overwriting property '%s'",
-                                name, prop)
-                setattr(self.camera, prop, self.cam_props[prop])
-                LOG.debug("camera %s: setting property %s: %s", name, prop,
-                          self.cam_props[prop])
-            else:
-                LOG.info("[conf] camera %s has no property '%s'", name, prop)
+            try:
+                setattr(self,prop,conf.lib_vision[name][prop])
+            except KeyError, e:
+                raise VisionException("Camera '%s' has no '%s' property in your"
+                                      " configuration file." % (name, e))
+        assert isinstance(self.XY_factors, tuple) and all(self.XY_factors)
+        assert isinstance(self.depth_fct, str)
+        ## compile depth_fct
+        fct = eval('lambda x:'+self.depth_fct)
+        try:
+            fct(10)
+        except Exception, e:
+            LOG.critical("[conf] error with depth_fct expression: %s",e)
+            return None
+        else:
+            self.depth_fct = fct
 
     def mark_rects(self, rects, thickness=1, color='blue'):
         """Outlines the given rects in our video stream.
@@ -301,7 +318,7 @@ class CamUtils(CamCapture):
 
         Return: list of rects or None
         """
-        assert hasattr(self,'face_detector'), "toggle_face_detection() required"
+        assert self.face_detector, "toggle_face_detection(True) required"
         return self.face_detector.detect(self.frame)
 
     def find_eyes(self, faces):
@@ -331,22 +348,11 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
         4/ in conf's lib_vision, set 'depth_fct' with your function as a string, 
         e.g. 'depth_fct': '0.249136*x**-0.443607' for the function above
         """
-        assert hasattr(self.camera,'XY_factors'), 'Provide XY_factors in conf.'
-        assert hasattr(self.camera,'depth_fct'), 'Provide depth_fct in conf'
-        if type(self.camera.depth_fct) == type(''):
-            fct = eval('lambda x:'+self.camera.depth_fct)
-            try:
-                fct(10)
-            except Exception, e:
-                LOG.critical("[conf] error with depth_fct expression: %s",e)
-                return None
-            else:
-                self.camera.depth_fct = fct
-        w, h = ( float(v) for v in self.camera.size )
-        fw, fh = self.camera.XY_factors
+        w, h = float(self.camera.size[0]), float(self.camera.size[1])
+        fw, fh = self.XY_factors
         if not hasattr(rects, '__iter__'):
             rects = [rects]
-        return [( -(r.x/w-.5)*fw, self.camera.depth_fct(r.w/w), -(r.y/h-.5)*fh)
+        return [( -(r.x/w-.5)*fw, self.depth_fct(r.w/w), -(r.y/h-.5)*fh)
                 for r in rects ]
 
     def get_motions(self):
