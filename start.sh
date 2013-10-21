@@ -126,7 +126,7 @@ esac
 # edit some variables
 #
 if test -n "$WITH_BPLAYER"; then
-    PREFIX="$PREFIX$BLENDERPLAYER"
+    PREFIX="$PREFIX$BLENDERPLAYER "
     if test -n "$WINDOW_MODE"; then
 	    PREFIX="$PREFIX -w $2 $3 "
     fi
