@@ -95,21 +95,22 @@ class ASCIIRequestHandlerCmds(BaseRequestHandler,
   pass
 
 
-def get_addrPort(addrPort_str, default_addr='localhost'):
-  """Parses a server identifier such as 'host_IP:host_port' or 'Unix_pipe'.
-  if only ':host_port' is provided, then host_IP is set to default_addr.
+def get_addrPort(addrPort, default_addr='localhost'):
+  """Parses a network identifier. Uses default_addr if only the port is provided
 
+  >addrPort: "IP:port" or "Unix_pipe"
+  >default_addr: "fqdn_or_IP_address"
   Raises: ValueError on bogus string.
   Returns: ('host_IP',host_port) or ('Unix_pipe')
   """
-  if addrPort_str.count(':') > 1:
-    raise ValueError("bogus server identifier: '%s'" % addrPort_str)
-  addr_port = addrPort_str.split(':')
-  if addr_port[-1].isdigit():
-    addr_port[-1] = int(addr_port[-1])
+  if not (0 <= addrPort.count(':') <= 1):
+    raise ValueError("bogus server identifier: '%s'" % addrPort)
+  addrPort = addrPort.split(':')
+  if addrPort[-1].isdigit():
+    addrPort[-1] = int(addrPort[-1])
   else:
-    return tuple(addr_port[-1])
-  return len(addr_port)>1 and tuple(addr_port) or (default_addr,addr_port[0])
+    return tuple(addrPort[-1])
+  return len(addrPort)>1 and tuple(addrPort) or (default_addr,addrPort[0])
 
 def set_debug_logging(debug=True):
   """Sets this package's logging level to debug (ie: from logging module).
