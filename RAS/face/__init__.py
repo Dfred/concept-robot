@@ -88,7 +88,9 @@ class Face_Server(object):
   def __init__(self):
     #XXX: keep 'AUs' attribute name! see LightHeadHandler.__init__()
     self.AUs = AUPool('face', DYNAMICS, threaded=True)
-    self.SW_limits = conf.lib_spine['blender']['AXIS_LIMITS']
+    if not conf.lib_spine.has_key(self.name):
+      raise conf.ConfigError("lib_spine lacks entry for '%s'" % self.name)
+    self.SW_limits = conf.lib_spine[self.name]['AXIS_LIMITS']
 
   def commit_AUs(self, fifo):
     """Checks and commits AU updates."""

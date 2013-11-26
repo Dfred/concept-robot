@@ -79,6 +79,13 @@ class LoadException(StandardError):
       print 'file {0[0]} : {0[1]}'.format(e)"""
     pass
 
+
+class ConfigError(StandardError):
+    """Exception for invalid settings in the configuration.
+    """
+    pass
+
+
 def set_name(project_name):
     """Sets the project name and returns the filtered version of it."""
     global __NAME
