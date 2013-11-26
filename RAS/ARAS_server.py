@@ -39,11 +39,11 @@ import cPickle as pickle
 
 from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
-from utils import get_logger, conf
+from utils import get_logger, conf, handle_exception
 from RAS.au_pool import FeaturePool
 
 LOG = get_logger(__package__)
-ORIGINS = ('face', 'spine', 'dynamics') # protocol keywords
+ORIGINS = ('face', 'gaze', 'spine', 'dynamics') # protocol keywords
 VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
              "04L","04R",
@@ -189,7 +189,7 @@ class ARASHandler(MetaRequestHandler, ASCIICommandProto):
         self.send_msg(repr(getattr(self.server.origins[args[0]][0], args[1])))
       elif args[0].startswith('backend'):               # origin's backend
         self.send_msg(self.server.origins[args[1]][0].name)
-    except StandardError, e:
+    except StandardError as e:
       LOG.warning("cannot get: '%s' (%s)", argline, e)
       return
 
@@ -256,20 +256,20 @@ class ARASServer(object):
       name = name[4:]
       try:
         module = __import__('RAS.'+name, fromlist=['RAS'])
-      except ImportError, e:
+      except ImportError as e:
         LOG.error("Error while loading 'mod_%s': %s", name, e)
         sys.exit(3)
       try:
         subserv_class = getattr(module, 'get_server_class')()
         handler_class = getattr(module, name.capitalize()+'_Handler')
-      except AttributeError, e:
+      except AttributeError as e:
         # Consider that a missing class just means no subserver
         LOG.warning("Module %s: Missing mandatory classes (%s)" % (name, e))
         continue
       try:
         subserver = subserv_class()
-      except StandardError, e:
-        LOG.error("Error while initializing module %s: %s", name, ' : '.join(e))
+      except StandardError as e:
+        handle_exception(LOG, "Error while initializing module %s:" % name)
         sys.exit(4)
       if not hasattr(subserver,"name"):
         LOG.warning("%s has no name", subserver)        # for cmd_backend()
