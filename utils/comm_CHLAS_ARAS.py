@@ -102,14 +102,10 @@ class ArasCommTh(ThreadedComm, ArasProtocol):
     """Class dedicated for threaded communication with ARAS server.
     """
 
-    def __init__(self, srv_addrPort, 
-                 fct_disconnected = None,
-                 fct_connected = None):
+    def __init__(self, srv_addrPort):
         """
         """
-        super(ThreadedComm, self).__init__(srv_addrPort,
-                                           connected_fct,
-                                           disconnected_fct)
+        super(ThreadedComm, self).__init__(srv_addrPort)
         self.thread.name += '_ARAS'
 
     def get_snapshot(self, origins):
@@ -141,7 +137,8 @@ class ChlasProtocol(object):
         """
         self.tag = None
         self.tag_count = 0
-        self.tags_pending = set()
+        self.pending_tag = None
+        self.tags_arrived = set()
         self.reset_datablock()
 
     def cmd_ACK(self, argline):
@@ -157,14 +154,14 @@ class ChlasProtocol(object):
         self.tag = None
     def cmd_DSC(self, argline):
         LOG.warning('the RAS is disconnected!')
-        self.tags_pending.clear()
+        self.tags_arrived.clear()
 
     def reset_datablock(self):
         """Forgets values previously stored with set_ functions.
         """
         self.datablock = ['']*5
 
-    def set_fExpression(self, name, intensity=1.0, duration=None):
+    def set_fExpression(self, name, intensity=None, duration=None):
         """Sets (and returns) the facial expression part of our CHLAS datablock.
         name: facial expression identifier, no colon (:) allowed.
         intensity: float, normalized gain.
@@ -290,103 +287,82 @@ class ChlasComm(ASCIICommandClient, ChlasProtocol):
     def wait_reply(self, tag):
         """Waits for a reply from the server.
         """
-        self.tags_pending.add(tag)
-        LOG.debug("waiting for completion of tag '%s' (current: %s)", tag,
-                  self.tag)
-        while self.tags_pending and self.tag and self.tag != tag:
-            self.read_once(None)                                ## blocking
+        LOG.debug("waiting for completion of tag '%s' (curr. %s)", tag,self.tag)
+        ## set blocking
+        old_to = self.read_timeout
+        self.read_timeout = None
+        while self.tag != tag:
+            print 'read_once', self.read_timeout
+            self.read_once()
+        LOG.debug("tag '%s' complete (curr. %s)", tag,self.tag)
         self.tag = None
+        self.read_timeout = old_to
 
-    def sendDB_waitReply(self, datablock=None, tag=None):
+    def sendDB_waitReply(self, datablock='', tag='', wait=True):
         """Sends (given or internal) datablock and returns upon reply about it.
-        datablock: string without tag
+        datablock: string without tag, if None use internal datablock
         tag: string
         """
-        if datablock and tag:
-            self.send_my_datablock(datablock+tag)
+        if datablock:
+            assert tag, "when sending your own datablock, provide a tag"
+            self.send_my_datablock(datablock, tag)
         else:
             tag = self.send_datablock(tag)
-        self.wait_reply(tag)
+        wait and self.wait_reply(tag)
 
 
-class ChlasCommTh(ThreadedComm, ChlasProtocol):
+class ChlasCommTh(ThreadedComm, ChlasComm):
     """Class dedicated for threaded client communication with expression server.
     """
+    pass
+    # def __init__(self, srv_addrPort,
+    #              fct_disconnected = None,
+    #              fct_connected = None):
+    #     """
+    #     srv_addrPort: (server_address, port)
+    #     connection_succeded_fct: function called on successful connection.
+    #     """
+    #     super(ChlasCommTh,self).__init__(srv_addrPort,
+    #                                      fct_connected,
+    #                                      fct_disconnected)
+    #     self.on_reply = {}                              ## { tag : callback }
 
-    @staticmethod                               #XXX we're adding to the class
-    def add_handler(status, log_fct, msg):      #TDL shift threading code away
-        """Mask thread synchro for user with callbacks.
-        cmd_ handlers can only be called by self.thread, so threading is easy.
-        """
-        PRE_MSG = 'expression reports '
-        def cmd_(self, argline):
-            tag = argline.strip()
-            ## call user callback (bound or not)
-            try:
-                self.on_reply[tag](status, tag)
-#                on_reply[tag](status, tag)
-            except KeyError:
-                pass
-            
-            log_fct(PRE_MSG+msg, tag or '')
-            ## unblock 
-            if tag in self.tags_pending:
-                self.tags_pending.remove(tag)
-                self.tag = tag
-                self.unwait()
-                while self.tag:                     #XXX: waiters reset self.tag
-                    time.sleep(.1)
-        setattr(ChlasCommTh, 'cmd_'+status, cmd_)
+    # def cmd_ACK(self, argline):
+    #     super(ChlasCommTh,self).cmd_(argline)
+    #     ## unblock 
+    #     if tag in self.tags_pending:
+    #             self.tags_pending.remove(tag)
+    #             self.tag = tag
+    #             self.unwait()
+    #             while self.tag:                     #XXX: waiters reset self.tag
+    #                 time.sleep(.1)
+    #     setattr(ChlasCommTh, 'cmd_'+status, cmd_)
 
-    def __init__(self, srv_addrPort,
-                 fct_disconnected = None,
-                 fct_connected = None):
-        """
-        srv_addrPort: (server_address, port)
-        connection_succeded_fct: function called on successful connection.
-        """
-        super(ChlasCommTh,self).__init__(srv_addrPort,
-                                         fct_connected,
-                                         fct_disconnected)
-        self.on_reply = {}                              ## { tag : callback }
+    # def handle_connect(self):
+    #     """Append thread name and connects."""
+    #     super(ChlasCommTh,self).handle_connect()
+    #     self.thread.setName(self.thread.getName()+'_CHLAS')
 
-    def connect(self):
-        """Append thread name and connects. Not for kids! use connect_and_run"""
-        super(ChlasCommTh,self).connect()
-        self.thread.setName(self.thread.getName()+'_CHLAS')
+    # ## Mask thread management with user's callbacks and ease encapsulation. See
+    # ## also add_handler
+    # def on_reply_fct(self, tag, fct):
+    #     """Installs a callback on reply from the CHLAS, unsets if fct == None.
+    #     """
+    #     if not fct:
+    #         del self.on_reply[tag]
+    #         return
+    #     assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
+    #     self.on_reply[tag] = fct
 
-    ## Mask thread management with user's callbacks and ease encapsulation. See
-    ## also add_handler
-    def on_reply_fct(self, tag, fct):
-        """Installs a callback on reply from the CHLAS, unsets if fct == None.
-        """
-        if not fct:
-            del self.on_reply[tag]
-            return
-        assert fct.func_code.co_argcount == 2, fct.func_name+" shall get 2 args"
-        self.on_reply[tag] = fct
-
-    def wait_reply(self, tag):
-        """Waits for a reply from the server.
-        """
-        self.tags_pending.add(tag)
-        while self.working:
-            self.wait(.5)
-            if self.tag == tag:
-                break
-        self.tag = None
-
-    def sendDB_waitReply(self, datablock=None, tag=None):
-        """Sends (given or internal) datablock and returns upon reply about it.
-        datablock: string without tag
-        tag: string
-        """
-        if datablock and tag:
-            self.send_my_datablock(datablock+tag)
-            self.wait_reply(tag)
-        else:
-            self.wait_reply(self.send_datablock(tag))
-
+    # def wait_reply(self, tag):
+    #     """Waits for a reply from the server.
+    #     """
+    #     while self.working:
+    #         self.wait(.5)
+    #         if self.tag == tag:
+    #             break
+    #     self.tag = None
+    
 
 if __name__ == "__main__":
     raise NotImplementedError("untested, potentially unreliable. Behind you!!!")
