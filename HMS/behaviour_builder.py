@@ -33,8 +33,9 @@ __status__ = "Prototype" # , "Development" or "Production"
 
 import logging
 import time
+import sys
 
-from utils.comm_CHLAS_ARAS import MT_ChlasComm
+from utils.comm_CHLAS_ARAS import ChlasCommTh
 from utils import conf, handle_exception
 from utils.parallel_fsm import SPFSM, STARTED, STOPPED
 
@@ -53,7 +54,7 @@ class BehaviourBuilder(object):
 
   def __init__(self, machine_defs, fsm_class=SPFSM):
     """machine_defs: iterable of (name, FSM rules, parent machine)
-    fsm_class: allows you to change from SPFSM to any of its derivate, e.g:MPFSM.
+    fsm_class: allows you to change from SPFSM to any of its derivate, e.g MPFSM
     """
     missing = conf.load(required_entries=('ROBOT','CHLAS_server'))
     if missing:
@@ -71,12 +72,8 @@ class BehaviourBuilder(object):
       setattr(self, 'fsm_'+fsm.name, fsm)
       if not hasattr(self, 'root_fsm'):
         self.root_fsm = fsm
-    self.comm_expr = MT_ChlasComm(conf.CHLAS_server,
-                                      connection_succeded_fct=self.connected)
-    
-  def connected(self):
-    LOG.debug('connected')
-
+    self.comm_expr = ChlasCommTh(conf.CHLAS_server)
+  
   def cleanUp(self):
     self.comm_expr.done()
 
@@ -90,7 +87,9 @@ class BehaviourBuilder(object):
     """
     """
     try:
+      print "waiting for connection",
       while not self.comm_expr.connected:
+        sys.stdout.flush()
         time.sleep(1)
         print '.',
       self.root_fsm.run(self.step_callback)
@@ -124,15 +123,14 @@ if __name__ == '__main__':
                        None) ]
       super(Test_BehaviourBuilder,self).__init__(machine_def)
 
-      self.my_fps = fps.SimpleFPS(30)           # target: refresh every 30frames
       try:
-        self.vision = vision.CamUtils()
-        self.vision.use_camera(conf.ROBOT['mod_vision']['sensor'])
+        self.vision = vision.CamUtils('laptop')
+        self.vision.acquire_camera()
+        self.vision.gui_create()
         #XXX: put that to conf for vision to read
         self.vision_frame = self.vision.camera.tolerance = .1   # 10%
-        self.vision.gui_create()
-        self.vision.update()
-        self.vision.enable_face_detection()
+        self.vision.toggle_face_detection(True)
+        self.vision.toggle_fps(True, 30)
       except vision.VisionException, e:
         self.comm_expr.done()
         fatal(e)
@@ -142,8 +140,6 @@ if __name__ == '__main__':
       super(Test_BehaviourBuilder,self).step_callback()
       self.vision.update()
       self.vision.gui_show()
-      self.my_fps.update()
-      self.my_fps.show()
 
     def cleanUp(self):
       super(Test_BehaviourBuilder,self).cleanUp()
@@ -153,7 +149,7 @@ if __name__ == '__main__':
   import logging
   from utils import comm, conf, LOGFORMATINFO
   logging.basicConfig(level=logging.DEBUG, **LOGFORMATINFO)
-  conf.set_name('lightHead')
+  conf.set_name('lighty')
 
   player = Test_BehaviourBuilder()
   player.run()
