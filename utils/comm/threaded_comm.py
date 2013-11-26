@@ -88,10 +88,6 @@ class ThreadedComm(ASCIICommandClient):
   def working(self):
     return self.__working
 
-  @property
-  def event(self):
-    return self.__event
-
   def wait(self, timeout=None):                         #TODO: add event name
     """Wait for an event on the communication channel.
 
@@ -120,35 +116,35 @@ class ThreadedComm(ASCIICommandClient):
       self.connect_and_run()
 
   def done(self):
+    """Unblocks always_connected().
+    """
+    self.__working = False
+
+  def disconnect(self):
     """Terminate the connection.
     """
     self.__working = False
+    super(ThreadedComm,self).disconnect()
+    LOG.debug("joining thread '%s'", self.__thread.getName())
     self.abort()
-    LOG.debug('joining thread for %s', self)
     self.__thread.join()
+    self.set_threaded(False)
     LOG.debug('joined thread %s', self)
 
   ##
   ## Overrides
   ##
 
-  def connect_and_run(self, *arglist, **argdict):
+  def connect_and_run(self, thread_name):
     """Connect to the remote server within the spawned thread.
     """
     assert not self.__thread, "thread %s still alive!" % self.__thread.getName()
-    self.__thread= threading.Thread(target=super(ThreadedComm,
-                                                 self).connect_and_run,
-                                    args=arglist, kwargs=argdict,
-                                    name='CommTh')
+    cnr = super(ThreadedComm,self).connect_and_run
+    self.__thread= threading.Thread(target=cnr, name=thread_name)
     self.__event = threading.Event()
     self.__working = True
+    self.set_threaded(True)
     self.__thread.start()
-
-  def send_msg(self, msg):
-    """Send a message and logs (debug) messages that couldn't be sent."""
-    if self._connected:
-      return super(ThreadedComm, self).send_msg(msg)
-    LOG.debug("*NOT* sending to %s: '%s'", self.addr_port, msg)
 
   def handle_connect_error(self, e):
     """See handle_connect_timeout.
@@ -159,14 +155,5 @@ class ThreadedComm(ASCIICommandClient):
   def handle_connect_timeout(self):
     """Sleep for a second if connection initialization is in timeout status.
     """
+    super(ThreadedComm, self).handle_connect_timeout()
     time.sleep(1)
-
-  # def handle_disconnect(self):
-  #   """Call fct_connection_lost when connection with remote is lost.
-  #   """
-  #   self.fct_connLost and self.fct_connLost()
-    
-  # def handle_connect(self):
-  #   """Call fct_connected when connection to server is established.
-  #   """
-  #   self.fct_connEstablished and self.fct_connEstablished()
