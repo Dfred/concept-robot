@@ -180,6 +180,8 @@ def handle_exception_debug(logger = None, force_debugger=False, msg=''):
     Also start pdb if force_debugger is True or if logger level is DEBUG.
     Otherwise, it just raises the latest exception.
     """
+    import sys, traceback
+    msg += '\n'.join(traceback.format_exception(*sys.exc_info())[-2:])
     if logger:
         logger.exception(msg)
     else:
