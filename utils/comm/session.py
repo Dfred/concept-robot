@@ -36,13 +36,12 @@ Server classes of this module have been largely inspired by SocketServer.
 However, there's the following modifications:
 + access to handler objects
 + server class auto-selected based on address family
-+ TODO: complete the list
-TODO: check timeout management for select (also impact of a client with small timeout)
++ TODO: complete modifications list
 
 Handler class of this module has been largely inspired by SocketServer.
 However, there's the following modifications:
 + basic useful commands
-+ TODO: complete improvement list
++ TODO: complete modifications list
 """
 
 __author__    = "Frédéric Delaunay"
@@ -56,17 +55,17 @@ import socket
 import select
 import logging
 import platform
-from threading import Thread, Lock
+import threading
 
 from presentation import BasePresentation
 #from .. import handle_exception
 #from utils import handle_exception
-def handle_exception(): pass
+#def handle_exception(logger=None): pass
 
 
 LOG = logging.getLogger(__package__)
 FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
-DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF, errno.ETIMEDOUT ]
+DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF ]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
 
@@ -92,7 +91,7 @@ class BaseServer(object):
     return self.__serving
 
   def set_threaded(self):
-    """Enable the server to start() its own thread.
+    """Enable server's start() to spawn its own thread running serve_forever.
     Sets handler_timeout so select is blocking.
     """
     self.threaded = True
@@ -146,7 +145,7 @@ class BaseServer(object):
     self.polling_sockets = [self.socket]
     self.update_poll_timeout()
     if self.threaded:
-      self.thread = Thread(target=self.serve_forever, name='server')
+      self.thread = threading.Thread(target=self.serve_forever, name='server')
       self.thread.start()
     LOG.info("%s> %s started in %s thread.", id(self), self.__class__.__name__,
              self.threaded and 'its' or 'main')
@@ -530,9 +529,12 @@ class BasePeer(object):
     super(BasePeer,self).__init__()
     self._running = False                               # bail out flag
     self._connected = False                             # connection status
+    self._read_timeout = None                           # blocking select()
     self._unprocessed = ''                              # socket data buffer
-    self._th_save = {}                                  # see set_threading
-    self.each_loop = None                               # see read_while_running
+    self._th_save = {}                                  # see set_threaded
+    if not hasattr(self,'each_loop'):
+        self.each_loop = None                           # see read_while_running
+    print 'Session BasePeer'
 
   @property
   def running(self):
@@ -550,6 +552,28 @@ class BasePeer(object):
     """Returns the internal socket object."""
     return self._socket
 
+  @property
+  def read_timeout(self):
+    """Returns the reading timeout."""
+    return self._read_timeout
+
+  @read_timeout.setter
+  def read_timeout(self, timeout):
+    """Sets reading timeout.
+    timeout: time waiting for data (in seconds).
+    * if >= 0, specifies a poll and never blocks.
+    * if None, read() blocks until socket's ready.
+    """
+    LOG.debug("%s> Setting read timeout to %s", id(self), timeout)
+    self._read_timeout = timeout
+    if self._socket:
+        self._socket.settimeout(self._read_timeout)
+
+  def handle_read_timeout(self):
+    """Called upon read timeout."""
+    LOG.warning("%s> timeout reading socket after %ss.",
+                id(self), self._read_timeout)
+
   def handle_error(self, error):
     """Called upon socket error.
     Installs an interactive pdb session if logger is at DEBUG level.
@@ -557,7 +581,8 @@ class BasePeer(object):
     Return: None
     """
     LOG.warning("%s> Connection error :%s", id(self), error)
-    handle_exception(LOG)
+    if LOG.getEffectiveLevel() == logging.debug:
+        import pdb; pdb.post_mortem()
 
   def handle_disconnect(self):
     """Called after disconnection from server.
@@ -583,11 +608,14 @@ class BasePeer(object):
     """
     try:
       buff = self._socket.recv(size)
-      if not buff:
+      if not buff and self.read_timeout == None:
         return self.abort()
     except socket.error, e:
+      if e.errno == errno.ETIMEDOUT:
+          self.handle_timeout()
       if e.errno not in DISCN_ERRORS:                           # for Windows
-        self.handle_error(e)
+          pass
+#        self.handle_error(e)
       return self.abort()
     LOG.debug("%s> read %iB from socket", id(self), len(buff))
     return buff
@@ -624,16 +652,14 @@ class BasePeer(object):
                   id(self), data)
       return False
 
-  def read_once(self, timeout):
+  def read_once(self):
     """One-pass processing of client commands.
-    timeout: time waiting for data (in seconds).
-      a value of 0 specifies a poll and never blocks.
-      a value of None makes the function block until socket's ready.
-    Return: False on error, True if all goes well or upon timeout expiry.
+    Return: False on error, timeout value upon timeout expiry, True if OK.
     """
     assert self._connected, "not yet connected, did you call connect()?"
     try:
-      r, w, e = select.select([self._socket], [], [self._socket], timeout)
+      r, w, e = select.select([self._socket], [], [self._socket],
+                              self._read_timeout)
     except KeyboardInterrupt:
       self.abort()
       raise
@@ -642,49 +668,51 @@ class BasePeer(object):
             LOG.debug('interrupted system call')
             return False
     if not r:
-      return timeout
+      self.handle_read_timeout()
+      return self._read_timeout
     if e:
       self.handle_error('select() error with socket %s' % e)
       return self.abort()
     return self.read_socket_and_process()
 
-  def read_while_running(self, timeout=0.01):
+  def read_while_running(self):
     """Process client commands until self._running is False.
 
     If self.each_loop == False, the function calls self.each_loop()
     every step of the loop.
-    timeout: delay (in seconds) see doc for read_once().
     Return: True if stopped running, False on error.
     """
     self._running = True
+#    import pdb; pdb.set_trace()
     while self._running:
-      if not self.read_once(timeout):
-        return False
+      self.read_once()
+#        return False
       self.each_loop and self.each_loop()
     return True
 
   # TODO: test
-  def set_threading(self, threaded):
-    """Enable threading.
+  def set_threaded(self, threaded):
+    """Enable thread safe socket writing for clients/handlers.
+
     It's not the best design, but it allows transparent threading.
-    threaded: True => set thread-safe
+    threaded: True => set thread-safe socket writes
     Return: None
     """
     def th_send_msg(self, msg):
       """Thread safe version of send_msg().
       """
       self._threading_lock.acquire()
-      BasePresentation.send_msg(self, msg)
+      super(self.__class__,self).send_msg(msg)
       self._threading_lock.release()
 
     if threaded:
       self._th_save['send_msg'] = self.send_msg
-      self._threading_lock = Lock()
-      self.send_msg = th_send_msg
+      self._threading_lock = threading.Lock()
+      setattr(self,'send_msg',th_send_msg.__get__(self,self.__class__))
       LOG.debug('%s> client in thread-safe. send_msg is %s', 
                 id(self), self.send_msg)
     else:
-      for name, member in self._th_save:
+      for name, member in self._th_save.iteritems():
         setattr(self, name, member)
       self._th_save.clear()
       LOG.debug('%s> client in single-thread. send_msg is %s',
@@ -806,8 +834,8 @@ class BaseClient(BasePeer):
     """Called upon connection time-out.
     Return: None
     """
-    LOG.debug('%s> time-out connecting to remote server %s', id(self),
-              self.addr_port)
+    LOG.debug('%s> timeout connecting to remote server %s after %ss.',
+              id(self), self.addr_port, self._connect_timeout)
 
   def handle_connect_error(self, e):
     """Called upon error waiting for input.
@@ -837,11 +865,11 @@ class BaseClient(BasePeer):
     """
     assert self._connected is False, 'connecting while connected ?'
     LOG.debug('%s> connecting to %s:%s (for%s)', id(self), self.addr_port[0],
-              self.addr_port[1], (self.connect_timeout is None and 'ever')
-              or " %ss." % self.connect_timeout )
+              self.addr_port[1], (self._connect_timeout is None and 'ever')
+              or " %ss." % self._connect_timeout )
     try:
       self._socket = socket.socket(self.family)
-      self._socket.settimeout(self.connect_timeout)
+      self._socket.settimeout(self._connect_timeout)
       self._socket.connect(self.addr_port)
     except socket.timeout:
       self.handle_connect_timeout()
@@ -856,14 +884,14 @@ class BaseClient(BasePeer):
     self._socket = None
     return False
 
-  def run(self, read_timeout=0.001):
-    """Block with read_while_running(), and handles error.
+  def run(self):
+    """Manages socket and errors while/after calling read_while_running().
 
     Return: True if disconnected via disconnect(), False on any error.
     """
     assert self._connected, "not yet connected, did you call connect()?"
     try:
-      self.read_while_running(read_timeout)
+      self.read_while_running()
       ret = True
     except select.error, e:
       self.handle_error(e)
@@ -886,15 +914,13 @@ class BaseClient(BasePeer):
               self.addr_port)
     return True
 
-  def connect_and_run(self, connect_timeout=None, read_timeout=0.01):
+  def connect_and_run(self):
     """Blocking call. Interrupt the loop setting self._running to False.
-    connect_timeout: alternative to setting self.connect_timeout.
-    read_timeout: delay (in s.) before giving up waiting for data.
 
     Return: True if disconnected normally, False on error.
     """
     self._running = True
-    self.connect_timeout = connect_timeout
+#    import pdb; pdb.set_trace()
     while self._running and not self._connected:
       if not self.pre_connect():
           return True                           ## user action => not an error
@@ -902,7 +928,7 @@ class BaseClient(BasePeer):
 
     if not self._connected or not self._running:
       return False
-    return self.run(read_timeout)
+    return self.run()
 
   def disconnect(self):
     """Set flag for leaving any loop (doesn't close socket). Returns None.
