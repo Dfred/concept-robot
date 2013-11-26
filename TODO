@@ -1,3 +1,4 @@
+* unify origins and let backends decide which AU they handle.
 * utils.FSMs: use an event mechanism to wait for time and/or state.
 * vision: implement OpenCV calibration (to be saved in conf)
 * vision: under Windows, get cause of Exception at: pyvision_0.9.0\src\pyvision\types\img.py(608)OpenCVToNumpy() -> return np.asarray(cvmat,dtype=np.float64)
