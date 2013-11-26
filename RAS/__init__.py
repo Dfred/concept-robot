@@ -53,10 +53,10 @@ def initialize(thread_info, project_name):
   """Initialize the system.
   thread_info: tuple of booleans setting threaded_server and threaded_clients
   """
+  logging.basicConfig(level=VFLAGS2LOGLVL[1], **LOGFORMATINFO)        # info
+  LOG = logging.getLogger(__package__)
   # check configuration
   try:
-    logging.basicConfig(level=VFLAGS2LOGLVL[1], **LOGFORMATINFO)        # info
-    LOG = logging.getLogger()
     conf.set_name(project_name)
     missing = conf.load(required_entries=_REQUIRED_CONF_ENTRIES, logger=LOG)
     if missing:
@@ -68,10 +68,10 @@ def initialize(thread_info, project_name):
     sys.exit(2)
   if not hasattr(conf, 'VERBOSITY'):
     conf.VERBOSITY = 0
+  logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
+  LOG.setLevel(VFLAGS2LOGLVL[conf.VERBOSITY])
   LOG.info('ARAS verbosity level is now %s', 
            ['0 (BASIC)','1 (INFO)','2 (DEBUG)'][conf.VERBOSITY])
-  logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
-  LOG = logging.getLogger()
 
   # Initializes the system and do all critical imports now that conf is ok.
   from utils.comm import session
