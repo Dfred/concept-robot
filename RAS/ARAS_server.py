@@ -34,15 +34,16 @@ SERVER MODULE
 """
 
 import sys
+import logging
 from collections import deque
 import cPickle as pickle
 
 from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
-from utils import get_logger, conf, handle_exception
+from utils import conf
 from RAS.au_pool import FeaturePool
 
-LOG = get_logger(__package__)
+LOG = logging.getLogger(__package__)
 ORIGINS = ('face', 'gaze', 'spine', 'dynamics') # protocol keywords
 VALID_AUS = ("01L","01R",                   # also easier to see (a)symetric AUs
              "02L","02R",
@@ -131,7 +132,8 @@ class ARASHandler(MetaRequestHandler, ASCIICommandProto):
         fifo.append([au_name, value, duration])
         return
       elif server.AUs.has_key(au_name+'R'):
-        fifo.extend([ [au_name+'R',value,duration], [au_name+'L',value,duration] ])
+        fifo.extend([ [au_name+'R',value,duration],
+                      [au_name+'L',value,duration] ])
         return
     LOG.warning("[AU] %s isn't supported", au_name)
 
@@ -238,45 +240,55 @@ class ARASServer(object):
     """Bind individual servers and their handler to the meta server.
     This function uses conf's module definitions: if conf has an attribute
     which name can be found in ORIGINS, then that RAS module is loaded.
+    Return: None
     """
     EXTRA_ORIGINS = 'extra_origins'
-    try:
-      r_dict = conf.ROBOT
-    except AttributeError:
-      LOG.error("ROBOT dictionnary not found in configuration file")
-      return
+    if not hasattr(conf, 'ROBOT'):
+      return LOG.error("in '%s': ROBOT dictionnary not found",
+                       conf.get_loaded())
+    if not conf.ROBOT.has_key('modules'):
+      return LOG.error("in '%s': ROBOT dictionnary has no 'modules' entry",
+                       conf.get_loaded())
 
     # check for attributes, allowing a submodule to register more
     #  than one ORIGIN keyword with its extra_origins attribute.
-    for name, info in r_dict.iteritems():
-      if not name.startswith('mod_') or not info:
-        continue
-      if info.has_key('backend') and not info['backend']:
-        continue
-      name = name[4:]
+    for i, info in enumerate(conf.ROBOT['modules']):
+      if not info.has_key('backend'):
+        return LOG.error("in '%s', ROBOT's modules #%i lacks 'backend' entry",
+                         conf.get_loaded(), i)
+      be_name = info['backend']
       try:
-        module = __import__('RAS.'+name, fromlist=['RAS'])
+        module = __import__('RAS.backends.'+be_name, fromlist=['',])
       except ImportError as e:
-        LOG.error("Error while loading 'mod_%s': %s", name, e)
+        LOG.error("Error importing backend '%s': %s", be_name, e)
         sys.exit(3)
+      except SyntaxError as e:
+        LOG.error("Error with backend '%s': %s %s:%s", be_name, e.msg,
+                  e.filename, e.lineno)
+        sys.exit(3)
+
       try:
-        subserv_class = getattr(module, 'get_server_class')()
-        handler_class = getattr(module, name.capitalize()+'_Handler')
+        subserv_cls, handler_cls = getattr(module, 'get_networking_classes')()
       except AttributeError as e:
         # Consider that a missing class just means no subserver
-        LOG.warning("Module %s: Missing mandatory classes (%s)" % (name, e))
-        continue
+        LOG.error("Module '%s' lacks get_networking_classes function" % be_name)
+        sys.exit(3)
+      assert subserv_cls and handler_cls,("subserver and handler classes can't"
+                                          "be None, use base classes if needed")
       try:
-        subserver = subserv_class()
+        subserver = subserv_cls(info)
       except StandardError as e:
-        handle_exception(LOG, "Error while initializing module %s:" % name)
+        LOG.error("Error while initializing module '%s':", be_name)
+        if LOG.getEffectiveLevel() == logging.DEBUG:
+          LOG.error("StandardError: %s", e) 
+          import pdb; pdb.post_mortem()
         sys.exit(4)
       if not hasattr(subserver,"name"):
-        LOG.warning("%s has no name", subserver)        # for cmd_backend()
-      self.register(subserver, handler_class, name)
-      if info.has_key(EXTRA_ORIGINS):
-        for origin in info[EXTRA_ORIGINS]:
-          self.register(subserver, handler_class, origin)
+        LOG.error("%s has no name", subserver)          # for cmd_backend()
+        sys.exit(5)
+      self.register(subserver, handler_cls, info['origins'][0])
+      for origin in info['origins'][1:]:
+        self.register(subserver, handler_cls, origin)
     if not self.origins:
       raise conf.LoadException("No submodule configuration.")
     missing = [ o for o in ORIGINS if o not in self.origins ]
