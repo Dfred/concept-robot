@@ -10,17 +10,17 @@ get_CWD ()
 $PYTHON -c 'import os; print os.getcwd()'
 }
 
-get_version ()
+get_python_version ()
 {
 $PYTHON -c 'import sys; print sys.version'
 }
 
-get_paths ()
+get_python_paths ()
 {
 $PYTHON -c 'import sys; print sys.path'
 }
 
-get_python_conf ()
+get_conf ()
 {
 $PYTHON -c 'from utils import conf;
 conf.set_name("'$1'")
@@ -28,14 +28,13 @@ try:
  missing = conf.load()
 except conf.LoadException, e:
  print "CONFIGURATION ERROR:", e[1], "(file: %s)" % e[0]
- print "candidate files:", conf.build_candidates()
  exit(1)
-print conf.__LOADED_FILE
+print conf.get_loaded()
 exit(0)'
 }
 
 # checks if there's missing definitions in the conf file
-check_python_conf ()
+check_conf ()
 {
 $PYTHON -c 'from utils import conf;
 conf.set_name("'$1'")
@@ -52,9 +51,17 @@ exit(0)'
 }
 
 # get search path and files checked for conf
-get_python_conf_candidates ()
+get_conf_candidates ()
 {
 $PYTHON -c 'import conf;
 conf.set_name("'$1'")
 print " ".join(conf.build_candidates())'
+}
+
+# get backend
+get_backend ()
+{
+$PYTHON -c 'from utils import conf;
+conf.load(name="'$1'")
+print conf.ROBOT["modules"][0]["backend"]'
 }

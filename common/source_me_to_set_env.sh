@@ -54,22 +54,23 @@ else
     fi
     export PYTHONPATH
     
-    CONF_FILE=$(get_python_conf $PROJECT_NAME)
+    CONF_FILE=$(get_conf $PROJECT_NAME)
     if test "$?" != 0 ; then
 	echo "$CONF_FILE"
 	unset CONF_FILE
+	exit 1
     else
 	if test -n "$CONF_FILE"; then
 	    echo "found configuration file: " $CONF_FILE
 	    export CONF_FILE
 	else
 	    echo -n "WARNING: unable to find any of these files: "
-	    echo `get_python_conf_candidates $PROJECT_NAME`
+	    echo `get_conf_candidates $PROJECT_NAME`
 	    echo "Edit project_def.py or $PROJECT_NAME environment variable."
 	fi
 
         echo -n "Checking conf... "
-	MISSING=$(check_python_conf $PROJECT_NAME)
+	MISSING=$(check_conf $PROJECT_NAME)
 	if test -n "$MISSING"; then
 	    echo "missing required entries in conf: $MISSING"
 	else
