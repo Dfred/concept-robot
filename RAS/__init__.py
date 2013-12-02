@@ -45,7 +45,6 @@ from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
 _TEMPPIDFILE = os.path.join(tempfile.gettempdir(), 'pid.ARAS')
 _REQUIRED_CONF_ENTRIES = ('ARAS_server', 'ROBOT', 'lib_vision', 'lib_spine')
 
-#LOG = logging.getLogger(__package__)                  # updated in initialize()
 LOG = None
 
 
@@ -53,23 +52,23 @@ def initialize(thread_info, project_name):
   """Initialize the system.
   thread_info: tuple of booleans setting threaded_server and threaded_clients
   """
-  logging.basicConfig(level=VFLAGS2LOGLVL[1], **LOGFORMATINFO)        # info
-  LOG = logging.getLogger(__package__)
   # check configuration
   try:
-    conf.set_name(project_name)
-    missing = conf.load(required_entries=_REQUIRED_CONF_ENTRIES, logger=LOG)
-    if missing:
-      print '\nmissing configuration entries: %s' % missing
-      sys.exit(1)
+    missing = conf.load(name=project_name,
+                        required_entries=_REQUIRED_CONF_ENTRIES)
   except conf.LoadException, e:
     filename, errmsg = e
-    print (filename and 'in file %s:'%filename or ""), errmsg
+    print "Error loading conf%s: %s" % (" file "+filename if filename else "",
+                                        errmsg)
     sys.exit(2)
+  print "*** Loaded config file", conf.get_loaded()
+  if missing:
+    print '\nmissing configuration entries:', missing
+    sys.exit(1)
   if not hasattr(conf, 'VERBOSITY'):
     conf.VERBOSITY = 0
   logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
-  LOG.setLevel(VFLAGS2LOGLVL[conf.VERBOSITY])
+  LOG = logging.getLogger(__package__)
   LOG.info('ARAS verbosity level is now %s', 
            ['0 (BASIC)','1 (INFO)','2 (DEBUG)'][conf.VERBOSITY])
 
