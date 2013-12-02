@@ -36,7 +36,7 @@ import os
 
 # include path of our utils package for next import
 sys.path.insert(1,os.path.join(sys.path[0],'..','..'))
-from utils import comm, set_logging_default, handle_exception_debug
+from utils import comm, set_logging_default
 
 set_logging_default(verbosity_level=1)
 comm.set_debug_logging(False)
@@ -184,7 +184,7 @@ class commConsClient(comm.ScriptCommandClient):
           self.ui.done = True
           self.ui.thread.join()
           self.ui = None
-          handle_exception_debug(force_debugger=True)
+          import pdb; pdb.post_mortem()
     if self.ui:
       self.ui.done = True
 #      print('press Enter key to finish')                # to unblock input read

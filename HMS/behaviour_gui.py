@@ -1,7 +1,7 @@
 
 import threading, math, Queue, time, random
     
-from utils import conf, handle_exception, LOGFORMATINFO
+from utils import conf, LOGFORMATINFO
 from utils.FSMs import SMFSM
 
 from HMS.cogmod import vision, cfg

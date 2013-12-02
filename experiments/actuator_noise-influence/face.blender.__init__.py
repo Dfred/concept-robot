@@ -113,8 +113,7 @@ def fatal(error):
   """Common function to gracefully quit."""
   print '   *** Fatal: %s ***' % error
   if sys.exc_info() != (None,None,None):
-    from utils import handle_exception
-    handle_exception(None,error)
+    import pdb; pdb.set_trace()
   shutdown(G.getCurrentController())
 
 def shutdown(cont):

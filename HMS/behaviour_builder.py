@@ -36,7 +36,7 @@ import time
 import sys
 
 from utils.comm_CHLAS_ARAS import ChlasCommTh
-from utils import conf, handle_exception
+from utils import conf
 from utils.parallel_fsm import SPFSM, STARTED, STOPPED
 
 
@@ -94,7 +94,7 @@ class BehaviourBuilder(object):
         print '.',
       self.root_fsm.run(self.step_callback)
     except StandardError, e:
-      handle_exception(None)
+      import pdb; pdb.post_mortem()
     except KeyboardInterrupt:
       LOG.fatal('aborting')
     self.root_fsm.abort()
