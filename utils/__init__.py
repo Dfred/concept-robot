@@ -19,6 +19,7 @@
 #  You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import threading
 import logging
 
 # convenient format.
@@ -29,12 +30,6 @@ VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG,
                 3: logging.DEBUG-1      # USR1
                 }
 
-
-def get_logger(name = None):
-    return logging.getLogger(name)
-
-def set_logger_debug(logger, lvl):
-    logger.setLevel(lvl and logging.DEBUG or logging.INFO)
 
 def set_logging_default(verbosity_level=0):
     verbosity_level = min(verbosity_level,len(VFLAGS2LOGLVL))
@@ -135,7 +130,6 @@ def add_colors_ansi(fn):
         else:
             color = COLORS['NORMAL']
         args[1].msg = color + args[1].msg + COLORS['NORMAL']
-        #print "after"
         return fn(*args)
     return new
 
@@ -163,44 +157,6 @@ else:
 #
 
 
-def handle_exception_simple(logger = None, msg=''):
-    """ Uses the logger's error() for a single line description of the latest
-    exception, avoiding output of the full backtrace.
-    """
-    import sys, traceback
-    py_error = traceback.format_exception(*sys.exc_info())[-2:]
-    if logger:
-        logger.error('%s %s: %s', msg, py_error[1].strip(), py_error[0].strip())
-    else:
-        import logging
-        logging.error('%s %s: %s',msg, py_error[1].strip(), py_error[0].strip())
-
-def handle_exception_debug(logger = None, force_debugger=False, msg=''):
-    """Display last exception.
-    Also start pdb if force_debugger is True or if logger level is DEBUG.
-    Otherwise, it just raises the latest exception.
-    """
-    import sys, traceback
-    msg += '\n'.join(traceback.format_exception(*sys.exc_info())[-2:])
-    if logger:
-        logger.exception(msg)
-    else:
-        logging.exception(msg)
-    if force_debugger or (logger and logger.getEffectiveLevel()==logging.DEBUG):
-        import pdb; pdb.post_mortem()
-
-def handle_exception(logger, msg=''):
-    """Call handle_exception_debug if logger's level is DEBUG, else _simple.
-    logger: a logging.logger instance, or None.
-    """
-    if not logger:
-        logger = logging.getLogger()
-    if logger.getEffectiveLevel() > logging.DEBUG:
-      handle_exception_simple(logger)
-      print '\t*** debug level loggers spawn allow post-mortem analysis ***'
-    else:
-      handle_exception_debug(logger, force_debugger=True)
-
 def round(iterable):
     """version for iterables, different signature from __builtins__.round"""
     return [ round(v, Spine_Server.PRECISION) for v in iterable ]
@@ -216,4 +172,12 @@ def weighted_choice(weights):
         r -= w
         if r < 0:
             return i
-        
+
+def print_remaining_threads(prefix=""):
+    """Return: list of remaining threads"""
+    threads_str = [ "* alive: %s - daemon: %s <%s>" % (
+            th.isAlive(), th.isDaemon(), th.name) for th in
+                    threading.enumerate() if th.name != "MainThread" ]
+    if not threads_str:
+        return
+    print prefix+"\n\t".join(threads_str)

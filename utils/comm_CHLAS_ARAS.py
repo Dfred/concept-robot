@@ -40,14 +40,14 @@ __credits__ = ["Joachim de Greeff"]
 __license__ = "GPL"
 
 import cPickle as pickle
+import logging
 import time
 
 from comm.threaded_comm import ThreadedComm
 from comm import ASCIICommandClient, set_debug_logging
-from . import get_logger
 
 set_debug_logging(True)
-LOG = get_logger(__package__)
+LOG = logging.getLogger(__package__)
 
 ##
 ## ARAS
@@ -106,7 +106,7 @@ class ArasCommTh(ThreadedComm, ArasProtocol):
         """
         """
         super(ThreadedComm, self).__init__(srv_addrPort)
-        self.thread.name += '_ARAS'
+        self.__thread.name += '_ARAS'
 
     def get_snapshot(self, origins):
         ArasProtocol.get_snapshot(self, origins)
