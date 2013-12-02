@@ -1,0 +1,17 @@
+Katana Arm Backend, INSTRUCTIONS:
+
+To build the custom KNI wrapper and use this python module, you need:
+1) to have successfully built the KatanaNativeInterface SDK.
+2) to use the Makefile in this directory.
+Note: you'd need to define the BASE_DIR environment variable for the build.
+You can do this:
+
+$ BASE_DIR=~/user/opt/KNI make
+
+This would build libLH_KNI_wrapper.so with optimization and without debug.
+Also, the Makefile provides a debug rule you can use for development.
+
+3) to copy the configuration file (from $BASE_DIR/configfiles4*/) that
+ matches your katana arm version.
+
+It is not yet clear if the KNI license allows distributing these files.
