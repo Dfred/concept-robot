@@ -75,31 +75,35 @@ class LoadException(StandardError):
     import conf
     try:
       load()
-    except conf.LoadException, e:
+    except conf.LoadException as e:
       print 'file {0[0]} : {0[1]}'.format(e)"""
     pass
 
 
-class ConfigError(StandardError):
-    """Exception for invalid settings in the configuration.
-    """
-    pass
-
-
 def set_name(project_name):
-    """Sets the project name and returns the filtered version of it."""
+    """Sets the project name and returns the filtered version of it.
+    >project_name: string identifying the project.
+    Return: filtered version of project_name
+    """
     global __NAME
     __NAME = filter(lambda x: x.isalnum() and x or '_', project_name)
 #    print "Project name set to " + __NAME
     return __NAME
 
 def get_name():
-    """Return global (filtered) project name"""
+    """Return: global (filtered) project name
+    Raise: LoadException
+    """
     global __NAME
     if __NAME:
         return __NAME
     else:
         raise LoadException('project name has not been set; use conf.set_name.')
+
+def get_loaded():
+    """Return: loaded filename"""
+    global __LOADED_FILE
+    return __LOADED_FILE
 
 def build_candidates():
     """Returns locations where conf file could be, ie:
@@ -116,7 +120,7 @@ def build_candidates():
     sysWide_confFolder = '/etc' if platform.uname()[0] != 'Windows' else r'C:\\'
     try:
         locs.append(path.join(path.expanduser('~/'),lead+__NAME+'.conf'))
-    except OSError, err:
+    except OSError as err:
         raise LoadException(None, 'Cheesy OS error: %s' % err)
     else:
         locs.append(path.join(sysWide_confFolder, __NAME+'.conf'))
@@ -149,9 +153,9 @@ def load(raise_exception=True, reload_=False, required_entries=(), name=None,
             msg = None
             try:
                 execfile(conf_file, globals())
-            except SyntaxError, err:
+            except SyntaxError as err:
                 msg = "error line %i." % err.lineno
-            except Exception, e:
+            except Exception as e:
                 msg = e
             else:
                 return conf_file
