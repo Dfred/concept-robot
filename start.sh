@@ -30,10 +30,9 @@ PYTHONPATH=$PYTHONPATH:/usr/lib/python$BGE_PYTHON_VERS
 #PYTHONPATH=$PYTHONPATH:~/opt/lib/python$BGE_PYTHON_VERS
 BLENDERPLAYER=blenderplayer.blender2.4
 
-export PYTHONOPTIMIZE=1	# optimize and also remove docstrings
 PROJECT_DIR=`pwd`
 PROJECT_NAME=lighty
-PROJECT_EXTRA_PATHS="$PROJECT_DIR/RAS/face/"
+PROJECT_EXTRA_PATHS="$PROJECT_DIR/RAS/backends"
 
 if test -z "$PYTHON"; then
     PYTHON=python$BGE_PYTHON_VERS	#/usr/bin/python3
@@ -105,8 +104,14 @@ export alias edit_face="blender $PROJECT_DIR/RAS/face/blender/lightHead.blend"
 #
 . ./common/source_me_to_set_env.sh
 
-# debugging info
-echo "*** Operating System python is:" $(get_version)
+if test -z "$CONF_FILE"; then
+    echo "Missing configuration file."
+    exit 3
+fi
+
+# displaying backend from conf
+BACKEND=$(get_backend $PROJECT_NAME)
+echo "*** Configuration set backend to $BACKEND ***"
 
 # handle MinGW and Windows suffix
 case `uname -s` in
@@ -123,8 +128,10 @@ case `uname -s` in
 esac
 
 #
-# edit some variables
+# define logic checks
 #
+check_blender ()
+{
 if test -n "$WITH_BPLAYER"; then
     PREFIX="$PREFIX$BLENDERPLAYER "
     if test -n "$WINDOW_MODE"; then
@@ -134,7 +141,22 @@ else if test -n "$WINDOW_MODE"; then
     PROJECT_NAME=$PROJECT_NAME-window
     fi
 fi
+EXECUTABLE=$PROJECT_NAME$BIN_SUFFIX
+if ! test -x $EXECUTABLE; then
+    echo "'$EXECUTABLE' is not executable."
+    exit 2
+fi
+}
 
+check_backend ()
+{
+PREFIX="$PYTHON "
+EXECUTABLE="__init__.py"
+}
+
+#
+# edit some variables
+#
 if test -n "$WITH_REDWINE"; then
     PREFIX="wine $PREFIX "
     BIN_SUFFIX=".exe"
@@ -142,22 +164,28 @@ fi
 
 if test -n "$DEBUG_MODE"; then
     PREFIX="$PREFIX -d "
+else
+    export PYTHONOPTIMIZE=1		# optimize and also remove docstrings
 fi
 
-# checking environment variable
-if test -z "$CONF_FILE"; then
-    echo "Missing configuration file."
-    exit 3
-fi
-
-if ! test -x ./$PROJECT_NAME$BIN_SUFFIX; then
-    echo "Could not find executable file '$PROJECT_NAME$BIN_SUFFIX' in this directory."
-    exit 2
-fi
+case "$BACKEND" in 
+    "blender")
+	check_blender ;;
+    "iCub")
+	check_backend ;;
+    "katHD400s_6M")
+	check_backend ;;
+    *)
+	echo "Unknown backend: '$BACKEND', please review config file $CONF_FILE"
+	exit 5 ;;
+esac
 
 # Now launch
-echo "--- launching face --- "
-echo "running: 'PYTHONPATH=$PYTHONPATH $PREFIX$PROJECT_NAME$BIN_SUFFIX' " #$@"
+if test -n "$DEBUG_MODE"; then
+    echo "*** Operating System python is:" $(get_python_version)
+    echo "*** launching $BACKEND ***"
+    echo "running: 'PYTHONPATH=$PYTHONPATH $PREFIX$EXECUTABLE$SUFFIX' " #$@"
 #if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
+fi
 
-PYTHONPATH=$PYTHONPATH $PREFIX./$PROJECT_NAME$BIN_SUFFIX
+PYTHONPATH=$PYTHONPATH $PREFIX$EXECUTABLE$SUFFIX
