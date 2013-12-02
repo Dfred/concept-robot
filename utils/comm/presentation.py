@@ -48,6 +48,7 @@ from abc import ABCMeta, abstractmethod
 LOG = logging.getLogger(__package__)
 MAX_B = 64                              # Max len in Bytes for Debug of packets
 
+
 class BasePresentation(object):
   """Base class for protocol handlers.
   Handle a specific protocol by implementing these abstract functions:
