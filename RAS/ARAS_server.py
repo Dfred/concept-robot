@@ -42,7 +42,7 @@ from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
 from utils import conf
 from RAS.au_pool import FeaturePool
-from RAS.supported import ORIGINS
+from supported import ORIGINS
 
 LOG = logging.getLogger(__package__)
 

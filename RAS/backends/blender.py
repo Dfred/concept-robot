@@ -50,7 +50,7 @@ import GameLogic as G
 
 from RAS.au_pool import VAL
 from RAS.face import FaceServerMixin, FaceHandlerMixin
-from RAS.supported import VALID_AUs
+from supported import VALID_AUs
 
 
 def get_networking_classes():
