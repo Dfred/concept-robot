@@ -50,7 +50,7 @@ import GameLogic as G
 
 from RAS.au_pool import VAL
 from RAS.face import FaceServerMixin, FaceHandlerMixin
-from RAS.ARAS_server import VALID_AUS
+from RAS.supported import VALID_AUs
 
 
 def get_networking_classes():
@@ -210,7 +210,7 @@ def initialize(server):
   # BEWARE to not set props to these objects before this line, or they will be
   # included here.
   objects = [owner] + [ getattr(G,name) for name in REQUIRED_OBJECTS ]
-  aiov = [(pAU[1:], obj[pAU]/SH_ACT_LEN, obj.name[2:], pAU[1:] in VALID_AUS) for
+  aiov = [(pAU[1:], obj[pAU]/SH_ACT_LEN, obj.name[2:], pAU[1:] in VALID_AUs) for
           obj in objects for pAU in obj.getPropertyNames()]
   aiov.sort(key=lambda x: x[0])
   AUs, init_vals, objs, validated = zip(*aiov)
