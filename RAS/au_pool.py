@@ -64,9 +64,10 @@ class FeaturePool(dict):
   def __new__(cls):
     """Creates a singleton.
 
-    Need another feature pool? Derive from that class, overriding self.instance,
+    Need another feature pool? Derive from that class, overriding cls.instance,
      and don't bother with the __ prefix to make it pseudo-private...
-    cls: Current type (ie: maybe a derived class type)
+    >cls: Current type (ie: maybe a derived class type)
+    Return: FeaturePool instance
     """
     if cls.instance is None:
       cls.instance = super(FeaturePool,cls).__new__(cls)
@@ -76,8 +77,8 @@ class FeaturePool(dict):
   def __setitem__(self, key, value):
     """Registers a Feature into the pool.
 
-    key: string identifying the feature
-    value: numpy.ndarray (aka numpy array) of arbitrary size
+    >key: string identifying the feature
+    >value: numpy.ndarray (aka numpy array) of arbitrary size
     """
     LOG.debug("new feature (%i items) in pool from %s", len(value), key)
     assert isinstance(value, ndarray) , "Not a numpy ndarray instance"
