@@ -55,23 +55,17 @@ class SpineError(StandardError):
   pass
 
 
+#TDL Move(dict): """Same as Pose but with duration information per axis."""
 class Pose(dict):
-  def __init__(self, map_or_iterable, pose_manager, check_SWlimits=True):
-    """
-    map_or_iterable: {AU:normalized_value,} or ((AU,nvalue),) defining the pose
-    pose_manager: instance of PoseManager associated to that pose.
-    """
-    super(Pose,self).__init__(map_or_iterable)
-    assert isinstance(self.keys()[0], basestring), "AUs must be strings"
-    self.manager = pose_manager
-    if check_SWlimits:
-      for AU,nval in self.iteritems():
-        if not pose_manager.is_inSWlimits(AU, nval):
-          raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
-              AU, nval, pose_manager.infos[AU][-2:]), AU)
+  """Dictionnary of AU and associated normalized value.
+  """
 
-  def to_raw(self, check_SWlimits=True):
-    return self.manager.get_rawFromPose(self, check_SWlimits)
+  def __init__(self, *args, **kwds):
+    """Same as Dict, but asserts keys are strings and values are floats.
+    """
+    super(Pose,self).__init__(*args, **kwds)
+    assert isinstance(self.keys()[0], basestring), "AUs must be strings"
+    assert isinstance(self.values()[0], float), "values must be floats"
 
 
 class PoseManager(object):
@@ -85,7 +79,7 @@ class PoseManager(object):
                         offset,         # ready pose hardware value
                         HWmin, HWmax,   # RAW VALUES: foolproof for weird values
                         SWmin, SWmax    # normalized values
-                                )}
+                        )}
     """
     self.infos = hardware_infos
     LOG.debug("Hardware infos:")
@@ -102,11 +96,31 @@ Soft[%6s/%+.5f %6s/%+.5f]""",
         raise SpineError("AU %s: Software %s %s out of Hardware %s."%
                          (AU, infos[4:6], (rmin, rmax), infos[2:4]), AU)
 
+  def get_poseFromNval(self, map_or_iterable, check_SWlimits=True):
+    """Create a pose from a mapping of AUs and normalized values.
+    >map_or_iterable: {AU:normalized_value,} or ((AU,nvalue),) defining the pose
+    >check_SWlimits: boolean, if True checks each axis'value is within
+                     software-defined limits.
+    Return: Pose instance
+    """
+    pose = Pose(map_or_iterable)
+    if check_SWlimits:
+      for AU,nval in pose.iteritems():
+        if not self.is_inSWlimits(AU, nval):
+          raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
+              AU, nval, self.infos[AU][-2:]), AU)
+    pose.manager = self
+    return pose
+
   def get_poseFromPool(self, AUpool,
                        check_SWlimits=True, filter_fct=lambda x: True):
-    """Returns a Pose instance from the AUpool target values.
-
-    Raises SpineError if values lead to out-of-bounds hardware pose.
+    """Create a pose from the AUpool target values.
+    >AUpool: the AUpool to read AUs from.
+    >check_SWlimits: boolean, if True checks each axis'value is within
+                     software-defined limits.
+    >filter_fct: function() -> boolean
+    Raise: SpineError if values lead to out-of-bounds hardware pose.
+    Return: Pose instance
     """
     assert hasattr(AUpool,'__getitem__'), "argument isn't an AUpool."
     # normalized target value = base normalized value + normalized distance
@@ -146,9 +160,9 @@ Soft[%6s/%+.5f %6s/%+.5f]""",
     return self.infos[AU][4] <= nvalue <= self.infos[AU][5]
 
 
-#XXX: ideally, inherit from a class with support for cmd_AU and cmd_commit
 class SpineHandlerMixin(ASCIIRequestHandler):
-  """
+  """Implements additional commands. 
+  Must inherit from comm.ASCIIRequestHandler or derivate.
   """
 
   def setup(self):
@@ -176,7 +190,8 @@ class SpineHandlerMixin(ASCIIRequestHandler):
 
 
 class SpineServerMixin(object):
-  """Skeleton animation module.
+  """Skeleton animation.
+  To be mixed with classes ARASServer and comm.BaseServer or a derivate.
   """
 
   def __init__(self, conf):
@@ -249,13 +264,16 @@ class SpineServerMixin(object):
     """Unlock spine after collision detection cause locking"""
     raise NotImplementedError()
 
-  def set_targetTriplets(self, triplets):
-    """Sets the targets (a Pose), waiting until the previous are processed by
-    backend. Here the backend updates the AU pool to allow speed control.
+  def set_targetTriplets(self, triplets, wait=False):
+    """Sets the targets (a Pose), the backend shall override this function.
+    >triplets: iterable of triplet, i.e: ( (AU, target_nval, duration), ... )
+    >wait: boolean, if True: wait for previous pose to be reached.
+    Return: None
     """
-    while self._new_pt != None:
-      time.sleep(.05)
-    AU_nval = [ (AU,nval) for AU,nval,att_dur in triplets if att_dur >= 0 ]
+    if wait:
+      while self._new_pt != None:
+        time.sleep(.05)
+    AU_nval = [ (AU,nval) for AU,nval,att_dur in triplets if att_dur > 0 ]
     # check attacks
     if len(AU_nval) != len(triplets):
       raise SpineError("attack duration can't be <= 0")

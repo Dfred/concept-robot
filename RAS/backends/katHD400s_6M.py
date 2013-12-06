@@ -250,7 +250,7 @@ class SrvMix_katana400s(SpineServerMixin):
     pose: a Pose instance
     wait: if True, waits for the pose to be reached before returning
     """
-    for AU, raw_val in pose.to_raw().items():
+    for AU, raw_val in self.pmanager.get_rawFromPose(pose).items():
       self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))          # ~ 20ms
     #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])              # ~460ms
 
