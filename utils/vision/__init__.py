@@ -46,9 +46,9 @@ from pyvision.types.Point import Point
 from pyvision.types.Rect import Rect
 from pyvision.edge.canny import canny
 
-from .. import conf, get_logger, fps
+from .. import conf, fps
 
-LOG = get_logger(__package__)
+LOG = logging.getLogger(__package__)
 
 
 
