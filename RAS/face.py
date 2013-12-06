@@ -45,7 +45,9 @@ LOG = logging.getLogger(__package__)
 
 #XXX: ideally, inherit from a class with support for cmd_AU and cmd_commit
 class FaceHandlerMixin(ASCIIRequestHandler):
-  """Remote connection handler: protocol parser."""
+  """Remote connection handler: protocol parser.
+  Must inherit from comm.ASCIIRequestHandler or derivate.
+  """
 
   def setup(self, *args):
     pass
@@ -76,7 +78,8 @@ class FaceHandlerMixin(ASCIIRequestHandler):
 
 class FaceServerMixin(object):
   """Main facial feature animation module
-
+  To be mixed with classes ARASServer and comm.BaseServer or a derivate.
+  
   Also maintains consistent muscle activation.
   AU value is normalized: 0 -> AU not streched, 1 -> stretched to max
   Setting an AU target value overwrites previous target.
