@@ -1,8 +1,21 @@
 """Defines constants not part of the configuration.
 """
+from math import pi
 
-ORIGINS = ('face', 'gaze', 'spine', 'dynamics') # protocol keywords
-VALID_AUs = ("01L","01R",                   # also easier to see (a)symetric AUs
+## backends. Some backends can be run along others.
+BACKENDS = ('blender', 'katHD400s_6M', 'iCub')
+
+## protocol keywords
+ORIGIN_FACE = 'face'
+ORIGIN_GAZE = 'gaze'
+ORIGIN_SPNE = 'spine'
+ORIGIN_LIPS = 'lips'
+ORIGIN_DYNM = 'dynamics'
+ORIGINS = (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE, ORIGIN_DYNM)
+
+## list of AUs recognized by the system. These are mostly based on FACS.
+## 2 column definition makes it easier to see (a)symetric AUs
+VALID_AUs = ("01L","01R",
              "02L","02R",
              "04L","04R",
              "05L","05R",
@@ -41,3 +54,70 @@ VALID_AUs = ("01L","01R",                   # also easier to see (a)symetric AUs
              "thB",                             # Thorax Breather
              "TX","TY","TZ",
              )
+
+## defaults
+DEFAULTS = {
+  "katHD400s_6M" : {
+    "origins" : (ORIGIN_SPNE,),
+    "hardware_addr" : "192.168.168.232",
+    "pose_rest" : (6350, 5600, 1800, 24900, None, None),
+    "pose_neutral" : (6350, -8500, -7500, 27300, None, None),
+    ## software axis range
+    "axis_limits" : { 'TX'  :(-.3 ,  .1 ),
+                      'TZ'  :(-.5 ,  .5 ),
+                      '53.5':(-.12 , .6, True),         ## extra: inversed rot.
+                      '55.5':(-.25,  .25),
+                      '51.5':(-.4 ,  .4, True)
+      },
+    },
+
+  "blender" : {
+    "origins" : (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE),
+    "proj_matrix" : ( ( 17.50, -0.30,   .12,    .7 ),
+                      (- 0.18,  8.91,   .33,   1.9 ),
+                      (- 0.10,  0.  , -0.10, - 0.2 ),
+                      (- 0.10, -0.6 ,  1.26,  16.78) ),
+    "axis_limits" : {'51.5' : (-15*pi, 15*pi),
+                     '53.5' : (-22*pi, 25*pi),
+                     '55.5' : (-15*pi, 15*pi),
+                     'TX'   : (-20*pi, 30*pi),
+                     'TY'   : (-17*pi, 15*pi),
+                     'TZ'   : (-15*pi, 15*pi),
+                     'SY'   : (-17*pi, 15*pi),
+                     'SZ'   : (-17*pi, 15*pi)
+                     },
+    },
+
+  "iCub" : {
+    "origins" : (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE),
+    "yarp_root" : '/icubSim',
+    "axis_limits" : {
+      ## iCub v1's neck is under dimensioned, so be gentle.
+      '51.5' : (-30*pi, 30*pi),                         ## Z, really [-50, 50]
+      '53.5' : (-30*pi, 20*pi),                         ## X, really [-40, 30]
+      '55.5' : (-40*pi, 40*pi),                         ## Y, really [-60, 60]
+      ## also include camera orientations
+      '61.5' : (-50*pi, 50*pi),
+      '63.5' : (-35*pi, 15*pi), },
+    "pose_rest" : (0, 0, 0, 0, 0, 0),
+    "pose_neutral" : (0, 0, 0, 0, 0),
+    },
+}
+
+LIBRARIES = {
+  ## entries' identifiers are built with vendor_id:device_id
+  LIB_VISION : {
+    "408:2fb1" : { "dev_index" : 0,
+                   "identifier" : "Quanta Computer HD Camera",
+                   "resolution" : (800,600),
+                   "XY_factors" : (.2, .1),
+                   "depth_fct" : "0.105*x**-1.364",
+                   },
+    },
+
+  LIB_HEARING : {
+    "8086:1c20" : { "dev_index" : (6,6),                ## stereo capable
+                    "dB_factor" : .1,
+                    },
+    },
+  }
