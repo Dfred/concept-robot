@@ -16,6 +16,6 @@ if __name__ == "__main__":
 
   print "starting the RAS"
   server.serve_forever()
-  time.sleep(1)
+  time.sleep(.5)
   print_remaining_threads(prefix="remaining threads:\n\t")
   print "RAS finished"
