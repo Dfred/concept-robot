@@ -13,6 +13,10 @@ ORIGIN_LIPS = 'lips'
 ORIGIN_DYNM = 'dynamics'
 ORIGINS = (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE, ORIGIN_DYNM)
 
+## HW libraries
+LIB_VISION = 'vision'
+LIB_HEARING = 'hearing'
+
 ## list of AUs recognized by the system. These are mostly based on FACS.
 ## 2 column definition makes it easier to see (a)symetric AUs
 VALID_AUs = ("01L","01R",
@@ -104,11 +108,12 @@ DEFAULTS = {
     },
 }
 
-LIBRARIES = {
+## Description of supported hardware. "label" is a required field.
+HW_LIBRARIES = {
   ## entries' identifiers are built with vendor_id:device_id
   LIB_VISION : {
-    "408:2fb1" : { "dev_index" : 0,
-                   "identifier" : "Quanta Computer HD Camera",
+    "408:2fb1" : { "label" : "Quanta Computer HD Camera",
+                   "dev_index" : 0,
                    "resolution" : (800,600),
                    "XY_factors" : (.2, .1),
                    "depth_fct" : "0.105*x**-1.364",
@@ -116,7 +121,8 @@ LIBRARIES = {
     },
 
   LIB_HEARING : {
-    "8086:1c20" : { "dev_index" : (6,6),                ## stereo capable
+    "8086:1c20" : { "label" : "Intel 6 Series/C200 Series HD Audio (rev 05)",
+                    "dev_index" : (6,6),                ## stereo capable
                     "dB_factor" : .1,
                     },
     },
