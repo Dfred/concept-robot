@@ -196,7 +196,6 @@ class SpineServerMixin(object):
 
   def __init__(self, conf):
     self.conf = conf
-    super(SpineServerMixin, self).__init__()
     self._motors_on = False
     self._lock_handler = None
     self._new_pt = None                                 # pose and triplets

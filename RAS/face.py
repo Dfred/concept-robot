@@ -90,8 +90,6 @@ class FaceServerMixin(object):
 
   def __init__(self, conf):
     self.conf = conf
-    super(FaceServerMixin,self).__init__(conf)
-    #XXX: keep 'AUs' attribute name! see LightHeadHandler.__init__()
     self.AUs = AUPool('face', DYNAMICS, threaded=True)
     if not CONF.lib_spine.has_key(self.name):
       raise CONF.ConfigError("lib_spine lacks entry for '%s'" % self.name)
