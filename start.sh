@@ -141,7 +141,7 @@ else if test -n "$WINDOW_MODE"; then
     PROJECT_NAME=$PROJECT_NAME-window
     fi
 fi
-EXECUTABLE=$PROJECT_NAME$BIN_SUFFIX
+EXECUTABLE="./$PROJECT_NAME$BIN_SUFFIX"
 if ! test -x $EXECUTABLE; then
     echo "'$EXECUTABLE' is not executable."
     exit 2
@@ -162,9 +162,7 @@ if test -n "$WITH_REDWINE"; then
     BIN_SUFFIX=".exe"
 fi
 
-if test -n "$DEBUG_MODE"; then
-    PREFIX="$PREFIX -d "
-else
+if test -z "$DEBUG_MODE"; then
     export PYTHONOPTIMIZE=1		# optimize and also remove docstrings
 fi
 
@@ -181,11 +179,12 @@ case "$BACKEND" in
 esac
 
 # Now launch
+COMMAND="PYTHONPATH=$PYTHONPATH $PREFIX$EXECUTABLE$SUFFIX" # $@
 if test -n "$DEBUG_MODE"; then
     echo "*** Operating System python is:" $(get_python_version)
     echo "*** launching $BACKEND ***"
-    echo "running: 'PYTHONPATH=$PYTHONPATH $PREFIX$EXECUTABLE$SUFFIX' " #$@"
+    echo "running: '$COMMAND'"
 #if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
 fi
 
-PYTHONPATH=$PYTHONPATH $PREFIX$EXECUTABLE$SUFFIX
+eval $COMMAND
