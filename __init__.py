@@ -1,7 +1,7 @@
 """Entry point for most backends. Should also ensure conf is properly loaded
 before starting the show.
 """
-from utils import print_remaining_threads
+from utils import print_remaining_threads, EXIT_UNKNOWN
 
 if __name__ == "__main__":
   import time
@@ -12,7 +12,7 @@ if __name__ == "__main__":
     server = RAS.initialize(RAS_THREAD_INFO,"lighty")
   except StandardError as e:
     print "error initializing the RAS:", e
-    exit(1)
+    exit(EXIT_UNKNOWN)
 
   print "starting the RAS"
   server.serve_forever()
