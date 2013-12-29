@@ -22,12 +22,29 @@
 import threading
 import logging
 
+# Generic exit codes
+EXIT_OK      = 0
+EXIT_DEPEND  = 1
+EXIT_CMDLINE = 2                ## exit code of argparse.ArgumentParser.error()
+EXIT_CONFIG  = 3
+EXIT_USR_INT = 4
+EXIT_UNKNOWN= 127
+
 # convenient format.
 LOGFORMATINFO={'format':"%(asctime)s.%(msecs)d %(name)s.%(filename).21s:"
                         "%(lineno)-4d-%(levelname)s-\t%(message)s",
                'datefmt':"%H:%M:%S"}
 VFLAGS2LOGLVL={ 0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG,
-                3: logging.DEBUG-1      # USR1
+                3: logging.DEBUG-1,                     # USR1
+                "ERROR" : logging.ERROR,
+                "WARNING":logging.WARNING,
+                "INFO"  : logging.INFO,
+                "DEBUG" : logging.DEBUG,
+                }
+LOGLVL2VFLAGS={ logging.WARNING:"0 (WARNING)",
+                logging.INFO:   "1 (INFO)",
+                logging.DEBUG:  "2 (DEBUG)",
+                logging.DEBUG-1:"3 (USER)"              # USR1
                 }
 
 
