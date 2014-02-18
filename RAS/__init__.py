@@ -40,49 +40,65 @@ print "*** Lighty's ARAS python is:", \
 import tempfile, os
 import logging
 
-from utils import conf, LOGFORMATINFO, VFLAGS2LOGLVL
+from utils.comm import get_addrPort
+from utils import (conf, LOGFORMATINFO, VFLAGS2LOGLVL, LOGLVL2VFLAGS,
+                   EXIT_DEPEND, EXIT_CONFIG)
 
 _TEMPPIDFILE = os.path.join(tempfile.gettempdir(), 'pid.ARAS')
-_REQUIRED_CONF_ENTRIES = ('ARAS_server', 'ROBOT', 'lib_vision', 'lib_spine')
+
+REQUIRED_CONF_ENTRIES = ('addrPort', 'backends', 'verbosity',
+                         ) #'lib_vision', 'lib_spine'
 
 LOG = None
 
+def loadnCheck_configuration(project_name):
+  """Check configuration and print error messages.
+  >project_name: "project_identifier"
+  Return: False => config file found; None => wrong config file; True => OK
+  """
+  try:
+    missing = conf.load(name=project_name,
+                        required_entries=REQUIRED_CONF_ENTRIES)
+  except conf.LoadingError as e:
+    print "ERROR: unable to find any of these files: ", conf.build_candidates()
+    print "ERROR:", e
+    return False
+  if missing:
+    print "ERROR: %s lacks required entries:" % conf.get_loaded(), missing
+    return None
+  return True
 
 def initialize(thread_info, project_name):
   """Initialize the system.
   thread_info: tuple of booleans setting threaded_server and threaded_clients
   """
-  # check configuration
+  if not conf.get_loaded() and not loadnCheck_configuration(project_name):
+    sys.exit(EXIT_CONFIG)
+  if not conf.CONFIG.has_key("verbosity"):
+    conf.CONFIG["verbosity"] = 0
   try:
-    missing = conf.load(name=project_name,
-                        required_entries=_REQUIRED_CONF_ENTRIES)
-  except conf.LoadException, e:
-    filename, errmsg = e
-    print "Error loading conf%s: %s" % (" file "+filename if filename else "",
-                                        errmsg)
-    sys.exit(2)
-  print "*** Loaded config file", conf.get_loaded()
-  if missing:
-    print '\nmissing configuration entries:', missing
-    sys.exit(1)
-  if not hasattr(conf, 'VERBOSITY'):
-    conf.VERBOSITY = 0
-  logging.basicConfig(level=VFLAGS2LOGLVL[conf.VERBOSITY], **LOGFORMATINFO)
+    logging.basicConfig(level=VFLAGS2LOGLVL[conf.CONFIG["verbosity"]],
+                        **LOGFORMATINFO)
+  except KeyError as e:
+    print "ERROR: bad verbosity '%s'" % conf.CONFIG["verbosity"]
+    sys.exit(EXIT_CONFIG)
   LOG = logging.getLogger(__package__)
-  LOG.info('ARAS verbosity level is now %s', 
-           ['0 (BASIC)','1 (INFO)','2 (DEBUG)'][conf.VERBOSITY])
+  LOG.info("ARAS verbosity level is now %s", 
+           LOGLVL2VFLAGS[LOG.getEffectiveLevel()])
 
   # Initializes the system and do all critical imports now that conf is ok.
   from utils.comm import session
   from ARAS_server import ARASServer, ARASHandler
-  server = session.create_server(ARASHandler, conf.ARAS_server,
+#  import pdb; pdb.set_trace()
+  server = session.create_server(ARASHandler, 
+                                 conf.CONFIG["addrPort"],
                                  threading_info=thread_info,
                                  server_mixin=ARASServer)
   server.create_protocol_handlers()       # inits face and all other subservers.
   try:
     with file(_TEMPPIDFILE, 'w') as f:
       f.write(str(os.getpid()))
-  except StandardError,e:
+  except StandardError as e:
     LOG.error("Couldn't write PID file (%s), expect issues with the SDK.",e)
   return server
 
@@ -94,6 +110,6 @@ def cleanUp(server):
   server.shutdown()
   try:
     os.remove(_TEMPPIDFILE)
-  except StandardError,e:
+  except StandardError as e:
     LOG.error("Couldn't remove PID file (%s), expect issues with the SDK.",e)
   print "LIGHTHEAD terminated"
