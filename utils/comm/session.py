@@ -964,7 +964,7 @@ def getBaseServerClass(addr_port, threaded):
   try:
     addr, port = addr_port
   except ValueError:
-    raise ValueError('addr_port is a tuple also for AF_UNIX: %s'% addr_port)
+    raise ValueError("addr_port is a tuple also for AF_UNIX: "+str(addr_port))
   if isinstance(port,basestring):                               # check protocol
     proto, port = port.find(':') > 0 and port.split(':') or (D_PROTO, port)
     if port.isdigit():
@@ -975,10 +975,10 @@ def getBaseServerClass(addr_port, threaded):
   try:
     srv_class = SERVER_CLASSES[type(port)][proto][threaded]
   except KeyError:
-    raise ValueError('No suitable server class for: %s'% (port, proto))
+    raise ValueError("No suitable server class for: "+str((port, proto)))
   if isinstance(addr_port[1], basestring):
     addr_port = addr_port[1]
-  LOG.debug('address-port: %s, selected server class: %s',addr_port,srv_class)
+  LOG.debug("address-port: %s, selected server class: %s",addr_port,srv_class)
   return addr_port, srv_class
 
 
