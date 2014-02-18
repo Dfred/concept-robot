@@ -68,16 +68,13 @@ __NAME = None
 __LOADED_FILE = None
 
 BASE_PATH=path.normpath(__path__[0]+'/../..')+'/'
+CONFIG={}
 
 
-class LoadException(StandardError):
-    """Exception with 2 elements: filename and error_message. Use like:
-    import conf
-    try:
-      load()
-    except conf.LoadException as e:
-      print 'file {0[0]} : {0[1]}'.format(e)"""
-    pass
+class LoadingError(StandardError):
+    """2 argument (filename and error_message) Exception."""
+    def __str__(self):
+        return "%s %s" % self.args
 
 
 def set_name(project_name):
@@ -87,18 +84,13 @@ def set_name(project_name):
     """
     global __NAME
     __NAME = filter(lambda x: x.isalnum() and x or '_', project_name)
-#    print "Project name set to " + __NAME
     return __NAME
 
 def get_name():
-    """Return: global (filtered) project name
-    Raise: LoadException
-    """
+    """Return: global (filtered) project name"""
     global __NAME
-    if __NAME:
-        return __NAME
-    else:
-        raise LoadException('project name has not been set; use conf.set_name.')
+    assert __NAME, "project name has not been set; use conf.set_name."
+    return __NAME
 
 def get_loaded():
     """Return: loaded filename"""
@@ -110,6 +102,7 @@ def build_candidates():
     1/ from environmnent variable built from project name (see build_env())
     2/ in user home folder (for SysV and co.: hidden file with leading '.')
     3/ in system's configuration folder (for SysV and co.: /etc , Windows: C:\\)
+    Raise: OSError
     """
     locs=[]
     try:
@@ -118,12 +111,9 @@ def build_candidates():
         pass
     lead = '.' if platform.uname()[0] != 'Windows' else ''
     sysWide_confFolder = '/etc' if platform.uname()[0] != 'Windows' else r'C:\\'
-    try:
-        locs.append(path.join(path.expanduser('~/'),lead+__NAME+'.conf'))
-    except OSError as err:
-        raise LoadException(None, 'Cheesy OS error: %s' % err)
-    else:
-        locs.append(path.join(sysWide_confFolder, __NAME+'.conf'))
+    #XXX the following might raise an OSError
+    locs.append(path.join(path.expanduser('~/'),lead+__NAME+'.conf'))
+    locs.append(path.join(sysWide_confFolder, __NAME+'.conf'))
     return locs
 
 def load(raise_exception=True, reload_=False, required_entries=(), name=None,
@@ -139,28 +129,38 @@ def load(raise_exception=True, reload_=False, required_entries=(), name=None,
     else:
         set_name(name)
 
+    ## check for missing mandatory configuration entries.
     def check_missing(required_entries):
-        """check for missing mandatory configuration entries.
-        Returns:
-        """
+        global CONFIG
         return [ i for i in required_entries if
-                 i not in dir(sys.modules[__name__]) ]
+                 i not in CONFIG ]#dir(sys.modules[__name__]) ]
 
+    def load_json(conf_file):
+        try:
+            import json
+            with open(conf_file) as f:
+                globals()["CONFIG"]=json.load(f)
+        except StandardError as e:
+            return e
+    def load_python(conf_file):
+        try:
+            execfile(conf_file, CONFIG)
+            return None
+        except SyntaxError as err:
+            msg = "error line %i." % err.lineno
+        except StandardError as e:
+            msg = e
+        return msg
+
+    ## load file
     def load_from_candidates():
         for conf_file in build_candidates():
             if not path.isfile(conf_file):
                 continue
-            msg = None
-            try:
-                execfile(conf_file, globals())
-            except SyntaxError as err:
-                msg = "error line %i." % err.lineno
-            except Exception as e:
-                msg = e
-            else:
-                return conf_file
+            msg = load_json(conf_file) and load_python(conf_file)
             if msg and raise_exception:
-                raise LoadException(conf_file, msg)
+                raise LoadingError(conf_file, msg)
+            return conf_file
 
     if __LOADED_FILE and not reload_:
         return []
@@ -172,9 +172,9 @@ def load(raise_exception=True, reload_=False, required_entries=(), name=None,
     elif raise_exception:
         if logger:
             logger.error("no config file found in any of %s",build_candidates())
-        raise LoadException(None,
-                            "** NO CONFIGURATION FILE FOUND FOR PROJECT {0} **"
-                            "Aborting!\nYou can define the environment variable"
-                            " '{0}' for complete configuration file path "
-                            "definition.".format(__NAME) )
+        raise LoadingError(None,
+                           "** NO CONFIGURATION FILE FOUND FOR PROJECT {0} **"
+                           "Aborting!\nYou can define the environment variable"
+                           " '{0}' for complete configuration file path "
+                           "definition.".format(__NAME) )
     return check_missing(required_entries)
