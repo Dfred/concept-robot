@@ -74,8 +74,9 @@ parser = ArgumentParser(
   formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("-d", action='store_true',
                     help="start in debug mode")
-parser.add_argument("-w", action='store_true',
-                    help="window mode")
+parser.add_argument("-w", nargs='?',
+                    help="window mode. Set W as WIDTHxHEIGHT. If not "
+                    "specified, default resolution is used")
 parser.add_argument("-W", action='store_true',
                     help="use wine to start the application")
 parser.add_argument("-b", nargs='?', const='blenderplayer',
@@ -84,12 +85,12 @@ parser.add_argument("-b", nargs='?', const='blenderplayer',
 parser.add_argument("-i", action='store_true',
                     help="use ironhide (package bumblebee) for dual graphic "\
                         "card setups")
-parser.add_argument("resolution", nargs='*',
-                    help="resolution to be set as WIDTHxHEIGHT .")
 
 args = parser.parse_args()
 if args.i:
-  COMMAND.append("optirun")
+#XXX fun fact: COMMAND.extend(["optirun"]) => vglrun:303:exec: lighty: not found
+#XXX adding an argument makes vglrun work (at least version 2.3.2-20121002).
+  COMMAND.extend(["optirun", args.d and "-v" or ""])    #XXX spawns 1new process
 if args.W:
   PATH_S_=";z:\\"
 
@@ -102,7 +103,7 @@ missing = loadnCheck_configuration(NAME)
 missing is False and exit(EXIT_DEPEND)
 missing is None and exit(EXIT_CONFIG)
 print "*** Loaded config file '%s'" % conf.get_loaded()
-BACKEND = conf.CONFIG["main_backend"]
+BACKEND = conf.CONFIG["backends"][0]
 print "*** Backend set to", BACKEND
 
 ## handle MinGW and Windows suffix
@@ -124,11 +125,11 @@ def check_blender(args):
   global COMMAND, BIN_SUFFIX, PROJECT_NAME
   if args.b:
     COMMAND.append(args.b)
-    args.resolution and COMMAND.extend(["-w "]+args.resolution[0].split('x',1))
+    args.w and COMMAND.extend(["-w "]+args.w.split('x',1))  
   elif args.w:
     PROJECT_NAME+="-window"
 
-  executable=os.path.join(PROJECT_DIR, PROJECT_NAME+BIN_SUFFIX)
+  executable=os.path.join(PROJECT_NAME+BIN_SUFFIX)
   if sys.platform.startswith("win"):
     executable+=".exe"
   if not os.access(executable, os.X_OK):
@@ -168,7 +169,6 @@ if args.d:
   print "+++ Operating System's version of python is:", filter(
     lambda x: x not in "\r\n", sys.version)
   print "+++ PYTHONPATH=%s" % PYTHONPATH
-  print "+++ Running: %s" % COMMAND
-#if [ $# -ge 1 ]; then echo "using options: $@"; else echo ""; fi
+  print "+++ Running:", COMMAND
 
-exit(os.system(" ".join(COMMAND)))
+os.execvp(COMMAND[0], COMMAND[1:] or [""])
