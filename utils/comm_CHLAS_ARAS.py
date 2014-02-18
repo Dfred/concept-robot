@@ -102,10 +102,10 @@ class ArasCommTh(ThreadedComm, ArasProtocol):
     """Class dedicated for threaded communication with ARAS server.
     """
 
-    def __init__(self, srv_addrPort):
+    def __init__(self, *args, **kwds):
         """
         """
-        super(ThreadedComm, self).__init__(srv_addrPort)
+        super(ThreadedComm, self).__init__(*args, **kwds)
         self.__thread.name += '_ARAS'
 
     def get_snapshot(self, origins):

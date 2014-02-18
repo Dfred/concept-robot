@@ -63,15 +63,11 @@ class ThreadedComm(ASCIICommandClient):
 
   CONNECT_TIMEOUT = 3
 
-  def __init__(self, server_addrPort,
-               fct_connected = None,
-               fct_connection_lost = None):
+  def __init__(self, *args, **kwds):
     """Override BaseClient to manage threading.
     """
-    super(ThreadedComm,self).__init__(server_addrPort)
+    super(ThreadedComm,self).__init__(*args, **kwds)
     self.connect_timeout = self.CONNECT_TIMEOUT
-    self.fct_connLost = fct_connection_lost
-    self.fct_connEstablished = fct_connected
     self.__thread = None
     self.__event = None
     self.__working = False
