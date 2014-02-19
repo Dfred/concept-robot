@@ -6,12 +6,12 @@ from math import pi
 BACKENDS = ('blender', 'katHD400s_6M', 'iCub')
 
 ## protocol keywords
-ORIGIN_FACE = 'face'
-ORIGIN_GAZE = 'gaze'
-ORIGIN_SPNE = 'spine'
-ORIGIN_LIPS = 'lips'
-ORIGIN_DYNM = 'dynamics'
-ORIGINS = (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE, ORIGIN_DYNM)
+SECTION_FACE = 'face'
+SECTION_GAZE = 'gaze'
+SECTION_SPNE = 'spine'
+SECTION_LIPS = 'lips'
+SECTION_DYNM = 'dynamics'
+SECTIONS = (SECTION_FACE, SECTION_GAZE, SECTION_LIPS, SECTION_SPNE, SECTION_DYNM)
 
 ## HW libraries
 LIB_VISION = 'vision'
@@ -62,7 +62,7 @@ VALID_AUs = ("01L","01R",
 ## defaults
 DEFAULTS = {
   "katHD400s_6M" : {
-    "origins" : (ORIGIN_SPNE,),
+    "sections" : (SECTION_SPNE,),
     "hardware_addr" : "192.168.168.232",
     "pose_rest" : (6350, 5600, 1800, 24900, None, None),
     "pose_neutral" : (6350, -8500, -7500, 27300, None, None),
@@ -76,7 +76,7 @@ DEFAULTS = {
     },
 
   "blender" : {
-    "origins" : (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE),
+    "sections" : (SECTION_FACE, SECTION_GAZE, SECTION_LIPS, SECTION_SPNE),
     "proj_matrix" : ( ( 17.50, -0.30,   .12,    .7 ),
                       (- 0.18,  8.91,   .33,   1.9 ),
                       (- 0.10,  0.  , -0.10, - 0.2 ),
@@ -93,7 +93,7 @@ DEFAULTS = {
     },
 
   "iCub" : {
-    "origins" : (ORIGIN_FACE, ORIGIN_GAZE, ORIGIN_LIPS, ORIGIN_SPNE),
+    "sections" : (SECTION_FACE, SECTION_GAZE, SECTION_LIPS, SECTION_SPNE),
     "yarp_root" : '/icubSim',
     "axis_limits" : {
       ## iCub v1's neck is under dimensioned, so be gentle.
