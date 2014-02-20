@@ -34,8 +34,9 @@ import logging
 
 import numpy
 
-from utils import conf as CONF
+from utils import conf
 from utils.comm import ASCIIRequestHandler
+from supported import *
 from RAS.au_pool import AUPool
 from RAS.dynamics import INSTANCE as DYNAMICS
 import RAS
@@ -73,7 +74,8 @@ class FaceHandlerMixin(ASCIIRequestHandler):
           ret = eval("self.server."+args[0]+"".join(args[1:]))
         except StandardError as e:
           ret = e
-      self.send_msg(str(ret))
+      if ret:
+        self.send_msg(str(ret))
 
 
 class FaceServerMixin(object):
@@ -88,12 +90,11 @@ class FaceServerMixin(object):
 
   MIN_ATTACK_TIME = 0.001     # in seconds.
 
-  def __init__(self, conf):
-    self.conf = conf
+  def __init__(self):
     self.AUs = AUPool('face', DYNAMICS, threaded=True)
-    if not CONF.lib_spine.has_key(self.name):
-      raise CONF.ConfigError("lib_spine lacks entry for '%s'" % self.name)
-    self.SW_limits = CONF.lib_spine[self.name]['AXIS_LIMITS']
+    if not DEFAULTS.has_key(self.name):
+      raise conf.ConfigError("lib_spine lacks entry for '%s'" % self.name)
+    self.SW_limits = DEFAULTS[self.name]['axis_limits']
 
   def commit_AUs(self, fifo):
     """Checks and commits AU updates."""
@@ -128,10 +129,12 @@ if __name__ == '__main__':
   from utils import comm
   comm.set_debug_logging(len(sys.argv) > 1 and sys.argv[1] == '-d')
   try:
-    CONF.load(name='lightHead')
-    fconf = CONF.ROBOT['mod_face']
-    server = comm.session.create_server(Face_Handler, fconf['comm'],
-                                        (False,False),Face_Server)
+    missing = conf.load(name='lighty')
+    if missing:
+      raise UserWarning("config file lacks settings %s" % missing)
+    server = comm.session.create_server(FaceHandlerMixin,
+                                        conf.CONFIG['addrPort'],
+                                        (False,False), FaceServerMixin)
   except UserWarning as err:
       LOG.error("FATAL ERROR: %s (%s)", sys.argv[0], err)
       exit(-1)
