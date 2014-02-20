@@ -174,7 +174,7 @@ class SpineHandlerMixin(ASCIIRequestHandler):
     args = argline.split()
     try:
       fct = getattr(self.server, 'switch_'+args[0])
-    except AttributeError :
+    except AttributeError:
       LOG.debug('no switch_%s function available', args[0])
       return
 #    #TODO: implement and use the 'with' statement for threaded servers
@@ -184,7 +184,7 @@ class SpineHandlerMixin(ASCIIRequestHandler):
       fct(int(args[1]))
     else:
       fct()
-#    except StandardError, e:
+#    except StandardError as e:
 #      LOG.critical('Exception in thread-protected section: %s', e)
 #    self.server.threaded and self.server.threadsage_stop()
 
@@ -210,7 +210,7 @@ class SpineServerMixin(object):
     """Checks and commits AU updates."""
     try:
       self.set_targetTriplets(fifo.__copy__())                  # thread safe
-    except StandardError, e:                                    #TODO:SpineError
+    except StandardError as e:                                  #TODO:SpineError
       LOG.warning("can't set pose %s (%s)", list(fifo), e)
 
   # Note: property decorators are great but don't allow child class to define
@@ -242,18 +242,18 @@ class SpineServerMixin(object):
     try:
       hardware = conf.lib_spine[self.conf['backend']]
     except:
-      raise conf.LoadException("missing['%s'] in lib_spine" % 
+      raise conf.LoadingError("missing['%s'] in lib_spine" % 
                                self.conf['backend'])
     try:
       self.SW_limits = hardware['AXIS_LIMITS']          # may contain angles
     except:
-      raise conf.LoadException("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
+      raise conf.LoadingError("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
                                 self.name)
     try:
       self.HWrest = list(hardware['POSE_REST'])
       self.HWready = list(hardware['POSE_READY_NEUTRAL'])
     except:
-      raise conf.LoadException("lib_spine['%s'] need 'POSE_REST' and "
+      raise conf.LoadingError("lib_spine['%s'] need 'POSE_REST' and "
                                "'POSE_READY_NEUTRAL'" % self.name)
 
   def is_moving(self):
@@ -306,11 +306,11 @@ if __name__ == '__main__':
     LOG.info("initializing %s", get_server_class())
     server = comm.create_server(Spine_Handler, conf.ROBOT['mod_spine']['comm'],
                                 (False,False), get_server_class())
-  except (conf.LoadException, UserWarning), err:
+  except (conf.LoadingError, UserWarning) as err:
     import sys
     LOG.fatal("%s (%s)", sys.argv[0], ':'.join(err))
     exit(1)
-  except SpineError, e:
+  except SpineError as e:
     LOG.fatal("%s", e)
     exit(2)
   print 'Initialization OK'
