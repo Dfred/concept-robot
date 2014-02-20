@@ -105,8 +105,9 @@ class ArasCommTh(ThreadedComm, ArasProtocol):
     def __init__(self, *args, **kwds):
         """
         """
-        super(ThreadedComm, self).__init__(*args, **kwds)
-        self.__thread.name += '_ARAS'
+        ## init all subclasses
+        super(ArasCommTh, self).__init__(*args, **kwds)
+        self._thread_name = 'ARAS'
 
     def get_snapshot(self, origins):
         ArasProtocol.get_snapshot(self, origins)

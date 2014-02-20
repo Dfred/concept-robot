@@ -68,6 +68,7 @@ class ThreadedComm(ASCIICommandClient):
     """
     super(ThreadedComm,self).__init__(*args, **kwds)
     self.connect_timeout = self.CONNECT_TIMEOUT
+    self._thread_name = 'ThComm_default_name'
     self.__thread = None
     self.__event = None
     self.__working = False
@@ -120,8 +121,9 @@ class ThreadedComm(ASCIICommandClient):
     """Terminate the connection.
     """
     self.__working = False
+    name = self.__thread.getName()
     super(ThreadedComm,self).disconnect()
-    LOG.debug("joining thread '%s'", self.__thread.getName())
+    LOG.debug("joining thread '%s'", name)
     self.abort()
     self.__thread.join()
     self.set_threaded(False)
@@ -131,12 +133,18 @@ class ThreadedComm(ASCIICommandClient):
   ## Overrides
   ##
 
-  def connect_and_run(self, thread_name):
+  def connect(self):
+    if not self.__thread:
+      self.connect_and_run()
+    else:
+      super(ThreadedComm,self).connect()
+
+  def connect_and_run(self):
     """Connect to the remote server within the spawned thread.
     """
     assert not self.__thread, "thread %s still alive!" % self.__thread.getName()
     cnr = super(ThreadedComm,self).connect_and_run
-    self.__thread= threading.Thread(target=cnr, name=thread_name)
+    self.__thread= threading.Thread(target=cnr, name=self._thread_name)
     self.__event = threading.Event()
     self.__working = True
     self.set_threaded(True)
