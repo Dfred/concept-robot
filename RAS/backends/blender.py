@@ -35,18 +35,23 @@
 """
 
 import sys
-print "*** BlenderPlayer's python is:", \
-  filter(lambda x: x not in "\r\n", sys.version) 
-
-if sys.version_info[0] > 2:
-  raise importError("""this version is for python >= 2.5,
- use an alternate version supporting python3 series.""")
-  sys.exit(2)
-
 import site, time
 from math import cos, sin, pi
 
 import GameLogic as G
+
+PRE_NFO="*** INFO: "
+PRE_WRN="*** WARNING: "
+PRE_ERR="*** ERROR: "
+
+if not hasattr(G,"initialized"):
+  print "BlenderPlayer's python is:", filter(lambda x: x not in
+                                                     "\r\n", sys.version) 
+
+if sys.version_info[0] > 2:
+  raise importError(PRE_ERR+"""this version is for python >= 2.5,
+ use an alternate version supporting python3 series.""")
+  sys.exit(2)
 
 from RAS.au_pool import VAL
 from RAS.face import FaceServerMixin, FaceHandlerMixin
@@ -64,33 +69,30 @@ class SrvMix_blender(FaceServerMixin):
   Indeed, no hardware implementation is needed in this case.
   """
 
-  def __init__(self, conf):
+  def __init__(self):
     """Just sets this backend's name.
     """
     self.name = 'blender'
-    super(SrvMix_blender,self).__init__(conf)
+    super(SrvMix_blender,self).__init__()
 
 #  def cleanUp(self):
 #    shutdown(G.getCurrentController())
 
   def cam_projInc(self, *args):
     """Update projection matrix with relative values"""
-    m = G.getCurrentScene().active_camera.projection_matrix
+    projMatrix = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
       return str(m)
-    col = int(args[0])
-    row = int(args[1])
-    inc = float(args[2])
-    m[row][col] += inc
-    print "new projection matrix:", m
-    G.getCurrentScene().active_camera.projection_matrix = m
+    projMatrix[ int(args[1]) ][ int(args[0]) ] += float(args[2])
+    print "new projection matrix:", projMatrix
+    G.getCurrentScene().active_camera.projection_matrix = projMatrix
 
   def cam_proj(self, *args):
     """Update projection matrix with absolute values"""
     projMatrix = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
       return str(projMatrix)
-    projMatrix[ int(args[1]) ][ int(args[0]) ] += float(args[2])
+    projMatrix[ int(args[1]) ][ int(args[0]) ] = float(args[2])
     print "new projection matrix:", projMatrix
     G.getCurrentScene().active_camera.projection_matrix = projMatrix
 
@@ -136,14 +138,15 @@ try:
   import atexit
   atexit.register(exiting)
 except ImportError:
-  print "Couldn't import atexit"
+  print PRE_NFO+"Couldn't import atexit"
 
 def fatal(error):
   """Common function to gracefully quit."""
-  print '\t*** Fatal: %s ***' % error
+  print PRE_ERR+'--- Fatal: %s ---' % error
   if sys.exc_info() != (None,None,None) and (
-    hasattr(G,'CONF') and G.CONF.VERBOSITY >= 2):
-    import pdb; pdb.set_trace()
+    hasattr(G,'CONFIG') and G.CONFIG["verbosity"].startswith("DEBUG")):
+    try: import pdb; pdb.post_mortem()
+    except ValueError: pass
   shutdown(G.getCurrentController())
 
 def shutdown(cont):
@@ -160,7 +163,7 @@ def check_defects(owner, acts):
   """
   keys = [ act.name for act in acts] + ['61.5L', '61.5R', '63.5'] # add eyes
   errors = False
-  PREFIX = "BLENDER FILE ERROR: "
+  PREFIX = PRE_ERR+"WITH BLENDER FILE: "
   for name in keys:
     if not owner.has_key('p'+name):
       print PREFIX+"object '{0}' has actuator '{1}' but no " \
@@ -186,7 +189,7 @@ def initialize(server):
   """Initialiazes and configures facial subsystem (blender specifics...)"""
   global INFO_PERIOD
 
-  print "loaded module from", __file__
+  print "--- loaded blender backend from", __file__
 
   # get driven objects
   objs = G.getCurrentScene().objects
@@ -217,11 +220,9 @@ def initialize(server):
   invalids = [ "%s (object %s)" % (AUs[i],objs[i]) for i in range(len(AUs)) if
                not validated[i] ]
   if invalids:
-#    fatal('WARNING: the following detected propert%s are invalid: %s' %
-#          (len(invalids)>1 and 'ies' or 'y', ', '.join(invalids)))
-#    return False
-    print ('\n*** WARNING: the following detected propert%s are invalid: %s' %
+    print (PRE_WRN+'\nthe following detected propert%s are invalid: %s' %
            (len(invalids)>1 and 'ies' or 'y', ', '.join(invalids)))
+#    return False
 
   if not server.set_available_AUs(AUs):
     return fatal('Check your .blend file for bad property names.')
@@ -241,19 +242,18 @@ def initialize(server):
   G.setLogicTicRate(MAX_FPS)
   G.setMaxLogicFrame(1)       # relative to rendering
   import Rasterizer
-  print "Material mode:", ['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
-                           'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
+  print PRE_NFO+"Material mode:",['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
+                                  'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
-  try:
-    from utils import conf as CONF
-    G.CONF = CONF
-    if CONF.VERBOSITY < 2:
-      INFO_PERIOD = None
-    if G.face_server.conf.has_key('proj_matrix'):
-      cam.projection_matrix = G.face_server.conf['proj_matrix']
-  except StandardError, e:
-    print "ERROR: Couldn't set projection matrix (%s)" % e
-  print "camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
+  if G.CONFIG["verbosity"].startswith("DEBUG"):
+    INFO_PERIOD = None
+  if (G.CONFIG.has_key('use_projMat') and G.CONFIG['use_projMat'] and
+      G.CONFIG.has_key('proj_matrix')):
+    try:
+      cam.projection_matrix = G.CONFIG['proj_matrix']
+    except StandardError as e:
+      print PRE_ERR+"Couldn't set projection matrix (%s)" % e
+  print PRE_NFO+"camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
     cam.lens, cam.modelview_matrix, cam.projection_matrix)
   G.last_update_time = time.time()
   return cont
@@ -341,9 +341,9 @@ def update():
   G.last_update_time = time.time()
   G.info_duration += time_diff
   if INFO_PERIOD is not None and G.info_duration > INFO_PERIOD:
-    print "*RENDERING INFO*:\nBGE logic running at %sfps." % G.getLogicTicRate()
+    print PRE_NFO+"BGE logic running at %sfps." % G.getLogicTicRate()
 #    print "BGE physics running at %sfps." % G.getPhysicsTicRate()
-    print "BGE graphics currently at %sfps." % G.getAverageFrameRate()
+    print PRE_NFO+"BGE graphics currently at %sfps." % G.getAverageFrameRate()
     G.info_duration = 0
 
 #    print "------------------------ PROFILING --------------"
@@ -360,6 +360,9 @@ def main():
   if not hasattr(G, "initialized"):
     try:
       import RAS
+      if not RAS.loadnCheck_configuration("lighty"):
+        exit(RAS.EXIT_CONFIG)
+      G.CONFIG = RAS.conf.CONFIG
       G.server = RAS.initialize(THREAD_INFO, "lighty")
       G.face_server = G.server['face']
 
