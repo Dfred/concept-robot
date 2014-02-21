@@ -872,7 +872,7 @@ ping(int axis){
 
 /*
  ** MOTIVATION: Python ctypes cannot access C++ (since there's no strict ABI at
- ** the time of this writting) and the swig wrapper provided by Neuronics is 
+ ** the time of this writing) and the swig wrapper provided by Neuronics is 
  ** missing some useful methods.
  */
 
