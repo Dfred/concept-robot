@@ -31,7 +31,7 @@ import threading
 
 try:
   from utils import conf
-except ImportError, e:
+except ImportError as e:
   print e, "Make sure you have run 'source_me_to_set_env.sh'"
   exit(1)
 from katHD400s_6M.LH_KNI_wrapper import LHKNI_wrapper
@@ -101,7 +101,7 @@ class SrvMix_katana400s(SpineServerMixin):
     try:
       self.KNI_address = self.conf['hardware_addr']
     except:
-      raise conf.LoadException("backend %s has no 'hardware_addr' key",__name__)
+      raise conf.LoadingError("backend %s has no 'hardware_addr' key",__name__)
     from os.path import dirname, sep
     if dirname(__file__):
       self.KNI_cfg_file = dirname(__file__)+sep+"katana6M90T.cfg"
@@ -150,14 +150,14 @@ class SrvMix_katana400s(SpineServerMixin):
       for axis in range(6):
         try:
           self.KNI.moveMot(axis+1, encoders_at_init[axis], SPEED, ACCEL)
-        except SpineError, e:                             #TODO: better policy?
+        except SpineError as e:                         #TDL: better policy?
           if self.unblock_if_needed() == None:
             try:
               LOG.info("Calibration needed.")
               LOG.debug("Got these encoders: %s", encoders_at_init)
               encoders_at_init = calibrate()
               break
-            except SpineError, e:
+            except SpineError as e:
               LOG.fatal('Could not switch on properly: %s', e)
               raise
       del axis
@@ -184,7 +184,7 @@ class SrvMix_katana400s(SpineServerMixin):
               self.SW_limits[AU][0],      self.SW_limits[AU][1] )
                                   for AU,axis in self.AU2Axis.iteritems()
                                   if axis != None } )
-      except SpineError, e:
+      except SpineError as e:
         LOG.warning("error: %s", e[0])
         encoders_at_init = manual_center(SpineHW.AU2Axis[e[1]])
       else:
