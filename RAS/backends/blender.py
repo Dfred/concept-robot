@@ -82,30 +82,30 @@ class SrvMix_blender(FaceServerMixin):
     """Update projection matrix with relative values"""
     projMatrix = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
-      return str(m)
-    projMatrix[ int(args[1]) ][ int(args[0]) ] += float(args[2])
-    print "new projection matrix:", projMatrix
+      return projMatrix
+    projMatrix[ int(args[0]) ][ int(args[1]) ] += float(args[2])
     G.getCurrentScene().active_camera.projection_matrix = projMatrix
+    print (PRE_NFO+"new projection matrix: %s" %
+           G.getCurrentScene().active_camera.projection_matrix )
 
   def cam_proj(self, *args):
     """Update projection matrix with absolute values"""
     projMatrix = G.getCurrentScene().active_camera.projection_matrix
     if not len(args):
-      return str(projMatrix)
-    projMatrix[ int(args[1]) ][ int(args[0]) ] = float(args[2])
-    print "new projection matrix:", projMatrix
+      return projMatrix
+    projMatrix[ int(args[0]) ][ int(args[1]) ] = float(args[2])
     G.getCurrentScene().active_camera.projection_matrix = projMatrix
+    print (PRE_NFO+"new projection matrix: %s" %
+           G.getCurrentScene().active_camera.projection_matrix )
 
   def cam_mview(self, *args):
-    m = G.getCurrentScene().active_camera.modelview_matrix
+    viewMatrix = G.getCurrentScene().active_camera.modelview_matrix
     if not len(args):
-	return str(m)
-    col = int(args[0])
-    row = int(args[1])
-    inc = float(args[2])
-    m[row][col] += inc
-    print "new modelview matrix:", m
-    G.getCurrentScene().active_camera.setModelViewMatrix(m)
+	return viewMatrix
+    viewMatrix[ int(args[0]) ][ int(args[1]) ] = float(args[2])
+    G.getCurrentScene().active_camera.modelview_matrix = viewMatrix
+    print (PRE_NFO+"new model view matrix: %s" %
+           G.getCurrentScene().active_camera.modelview_matrix )
 
 
 # A word on threading:
