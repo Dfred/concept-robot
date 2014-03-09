@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import time
 import random
@@ -19,16 +21,18 @@ Move all attached servos randomly every 2 seconds and read back the position
 they end up in.
 """
 
-ACCEPTABLE_RATES = [ int(br[5:]) for br in sorted(dynamixel.BAUD_RATE.keys()) ]
+USER_ABORT = 2
+ACCEPTABLE_RATES = sorted([ int(br[5:]) for br in dynamixel.BAUD_RATE.keys() ])
 
-def main(settings):
+def main(settings, statusReturnLevel, with_infos=False):
 
     portName = settings['port']
     baudRate = settings['baudRate']
     highestServoId = settings['highestServoId']
 
     if baudRate not in ACCEPTABLE_RATES:
-        print "non-standard baud rate %s" % baudRate
+        print "{} isn't a standard baud rate {}".format(baudRate,
+                                                        ACCEPTABLE_RATES)
         sys.exit(1)
     i = ACCEPTABLE_RATES.index(baudRate)
     scan_allBR = False
@@ -39,7 +43,7 @@ def main(settings):
         try:
             serial = dynamixel.SerialStream(port=portName,
                                             baudrate=baudRate,
-                                            timeout=1)
+                                            timeout=.1)
         except ValueError as e:
             print e
             i += 1
@@ -47,17 +51,40 @@ def main(settings):
         net = dynamixel.DynamixelNetwork(serial)
     
         # Ping the range of servos that are attached
-        print "Scanning for Dynamixels @%i bps... " % baudRate,
+        print "Scanning for Dynamixels @%i bps... " % baudRate
         sys.stdout.flush()
         try:
             net.scan(1, highestServoId)
         except KeyboardInterrupt:
-            sys.exit(2)
+            sys.exit(USER_ABORT)
 
         myActuators = []
-    
+
+## Print servos' basic (or detailed) settings    
+## http://support.robotis.com/en/product/dynamixel/ax_series/dxl_ax_actuator.htm
+
         for dyn in net.get_dynamixels():
-            print "found #%i !!!" % dyn.id
+            print "** FOUND #%i (return: status level %i (%s) -- delay %iμs)"% (
+                dyn.id, dyn.status_return_level, 
+                ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
+                dyn.return_delay)
+            if with_infos:
+                print """\tmodel number: {} -- firmware: {}
+\tsynchronized: {} -- lock: {}
+\tAngles limit: CCW {} / CW {} => -{:.2f} / +{:.2f} deg.
+\tTemperature: currently @{}°C -- limit {}°C
+\tVoltage: currently @{}V -- limit low {}V / high {}V
+\tTorque: {}abled -- limited @{:.2f}% ({}) / max set to {:.2f}% ({})
+""".format(dyn.model_number, dyn.firmware_version,
+           dyn.synchronized, dyn.lock,
+           dyn.ccw_angle_limit, dyn.cw_angle_limit,
+           dyn.ccw_angle_limit*.29, dyn.cw_angle_limit*.29,
+           dyn.current_temperature, dyn.temperature_limit,
+           dyn.current_voltage, dyn.low_voltage_limit, dyn.high_voltage_limit,
+           dyn.torque_enable and "en" or "dis", 
+           dyn.torque_limit/1023.*100, dyn.torque_limit,
+           dyn.max_torque/1023.*100, dyn.max_torque)
+
             myActuators.append(net[dyn.id])
         if myActuators:
             break       #XXX: keep on scanning for others?
@@ -77,7 +104,7 @@ def main(settings):
         finally:
             if not rep or rep == 'n':
                 print "user abort."
-                sys.exit(2)
+                sys.exit(USER_ABORT)
             elif rep == 's':
                 i += 1
             elif rep == 'a':
@@ -85,12 +112,31 @@ def main(settings):
             i += 1
     
     for actuator in myActuators:
-        actuator.moving_speed = 50
+        actuator.moving_speed = 150
         actuator.synchronized = True
-        actuator.torque_enable = True
-        actuator.torque_limit = 800
-        actuator.max_torque = 800
-    
+
+        #XXX set return for all commands (otherwise timeout errors occur)
+        if statusReturnLevel != None:
+            if int(statusReturnLevel) == 0 and dynamixel.__version__ == '1.1.0':
+                print "/!\ YOU'LL BREAK SCANNING FOR SERVOS WITH VERSION 1.1.0"\
+                  " OF THE DYNAMIXEL PYTHON MODULE /!\\"
+                if raw_input("Continue anyway? [N/y]").lower() != 'y':
+                    sys.exit(USER_ABORT)
+            print "setting #%i status return level to %s" % (actuator.id,
+                                                             statusReturnLevel)
+            actuator.status_return_level = int(statusReturnLevel)
+        
+        #XXX these accessors actually call set_register_value (Tx data)
+        #XXX so they may fail with a timeout.
+        for line in ("actuator.torque_enable = True",
+                     "actuator.torque_limit = 1023",
+                     "actuator.max_torque = 100"):
+            try:
+                exec(line)
+            except dynamixel.stream.TimeoutException as e:
+                if actuator.status_return_level > 1:
+                    print "Unexpected {}: #{}> {}".format(e, actuator.id, line)
+
     # Randomly vary servo position within a small range
     print "Servo \tPosition"
     while True:
@@ -101,20 +147,19 @@ def main(settings):
             actuator.read_all()
             time.sleep(0.01)
         for actuator in myActuators:
-            print actuator._id, "\t", actuator.current_position
+            print "#%i" % actuator._id, "\t", actuator.current_position
         time.sleep(1)
 
 def validateInput(userInput, rangeMin, rangeMax):
-    '''
-    Returns valid user input or None
-    '''
+    """Return: valid user input or None
+    """
     try:
         inTest = int(userInput)
         if inTest < rangeMin or inTest > rangeMax:
-            print "ERROR: Value out of range [" + str(rangeMin) + '-' + str(rangeMax) + "]"
+            print "ERROR: Value out of range [%s-%s]" % (rangeMin,rangeMax)
             return None
     except ValueError:
-        print("ERROR: Please enter an integer")
+        print("ERROR: Integer required")
         return None
     
     return inTest
@@ -122,11 +167,14 @@ def validateInput(userInput, rangeMin, rangeMax):
 if __name__ == '__main__':
     
     parser = optparse.OptionParser()
-    parser.add_option("-c", "--clean",
-                      action="store_true", dest="clean", default=False,
-                      help="Ignore the settings.yaml file if it exists and \
-                      prompt for new settings.")
-    
+    parser.add_option("-c", "--clean", dest="clean", action="store_true",
+                      default=False, help="Ignore the settings.yaml file if it \
+                      exists and prompt for new settings.")
+    parser.add_option("-i", "--infos", dest="infos", action="store_true",
+                      default=False, help="Print servos' settings.")
+    parser.add_option("-r", "--set-SRL", dest="SRL", type="choice",
+                      choices=('0','1','2'), default=None,
+                      help="Set servos' Status Return Level (0, 1 or 2).")
     (options, args) = parser.parse_args()
     
     # Look for a settings.yaml file
@@ -141,11 +189,11 @@ if __name__ == '__main__':
             portPrompt = "Which port corresponds to your USB2Dynamixel? \n"
             # Get a list of ports that mention USB
             try:
-                possiblePorts = subprocess.check_output('cd /dev && ls ttyACM*',
-                                                        shell=True).split()
+                cmd = 'cd /dev && ls ttyACM*'
+                possiblePorts = subprocess.check_output(cmd, shell=True).split()
                 possiblePorts = ['/dev/' + port for port in possiblePorts]
             except subprocess.CalledProcessError:
-                sys.exit("USB2Dynamixel not found. Please connect one.")
+                sys.exit("USB2Dynamixel not found.")
                 
             counter = 1
             portCount = len(possiblePorts)
@@ -161,8 +209,7 @@ if __name__ == '__main__':
                     portChoice = possiblePorts[portTest - 1]
 
         else:
-            portPrompt = "Please enter the port name to which the USB2Dynamixel is connected: "
-            portChoice = raw_input(portPrompt)
+            portChoice = raw_input("Enter USB2Dynamixel port/device name:")
     
         settings['port'] = portChoice
         
@@ -180,7 +227,7 @@ if __name__ == '__main__':
         # Servo ID
         highestServoId = None
         while not highestServoId:
-            hsiTest = raw_input("Please enter the highest ID of the connected servos: ")
+            hsiTest = raw_input("Enter highest ID of the connected servos:")
             highestServoId = validateInput(hsiTest, 1, 255)
         
         settings['highestServoId'] = highestServoId
@@ -188,8 +235,8 @@ if __name__ == '__main__':
         # Save the output settings to a yaml file
         with open(settingsFile, 'w') as fh:
             yaml.dump(settings, fh)
-            print("Your settings have been saved to 'settings.yaml'. \nTo " +
-                   "change them in the future either edit that file or run " +
-                   "this example with -c.")
+            print("Your settings have been saved to 'settings.yaml'.\n"
+                  "To change them in the future either edit that file or run "
+                  "this example with -c.")
     
-    main(settings)
+    main(settings, options.SRL, options.infos)
