@@ -44,12 +44,13 @@ _NEED_WAIT_PATCH = sys.version_info[0] == 2 and sys.version_info[1] < 7
 
 LOG = logging.getLogger(__package__)
 
-BVAL = 0
-RDIST= 1
-TDUR = 2
-DDUR = 3
-DVT  = 4
-VAL  = 5
+## column index for au pool (see set_availables)
+BVAL = 0                                        ## Base Value
+RDIST= 1                                        ## Relative Distance
+TDUR = 2                                        ## Target Duration
+DDUR = 3                                        ## Delta Duration
+DVT  = 4                                        ## Derivative Value
+VAL  = 5                                        ## current Value
 
 
 class FeaturePool(dict):
