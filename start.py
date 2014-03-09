@@ -83,10 +83,10 @@ parser.add_argument("-b", nargs='?', const='blenderplayer',
                     help="use blenderplayer optionally specifying the version"
                     "to use. This option allows using the resolution argument.")
 parser.add_argument("-i", action='store_true',
-                    help="use ironhide (package bumblebee) for dual graphic "\
-                        "card setups")
-
+                    help="use ironhide (package bumblebee) for dual graphic "
+                    "card setups")
 args = parser.parse_args()
+
 if args.i:
 #XXX fun fact: COMMAND.extend(["optirun"]) => vglrun:303:exec: lighty: not found
 #XXX adding an argument makes vglrun work (at least version 2.3.2-20121002).
@@ -154,11 +154,8 @@ if not args.d:
 
 if BACKEND == "blender":
   COMMAND.append(check_blender(args))
-elif BACKEND in ("iCub", "katHD400s_6M"):
-  COMMAND.append(check_backend(args))
 else:
-  print "Unknown backend: '%s', please review config file" % BACKEND
-  exit(EXIT_CONFIG)
+  COMMAND.append(check_backend(args))
 
 ## build environment paths for python
 PYTHONPATH+=";".join(PROJECT_EXTRA_PYTHONPATHS)
@@ -171,4 +168,4 @@ if args.d:
   print "+++ PYTHONPATH=%s" % PYTHONPATH
   print "+++ Running:", COMMAND
 
-os.execvp(COMMAND[0], COMMAND[1:] or [""])
+os.execvp(COMMAND[0], COMMAND[0:])
