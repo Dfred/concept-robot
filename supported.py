@@ -3,7 +3,7 @@
 from math import pi
 
 ## backends. Some backends can be run along others.
-BACKENDS = ('blender', 'katHD400s_6M', 'iCub')
+BACKENDS = ('blender', 'katHD400s_6M', 'iCub', 'dynamixels')
 
 ## protocol keywords
 SECTION_FACE = 'face'
