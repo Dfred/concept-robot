@@ -60,12 +60,14 @@ def loadnCheck_configuration(project_name):
     missing = conf.load(name=project_name,
                         required_entries=REQUIRED_CONF_ENTRIES)
   except conf.LoadingError as e:
-    print "ERROR: unable to find any of these files: ", conf.build_candidates()
+    print "ERROR: unable to load any of these files: ", conf.build_candidates()
     print "ERROR:", e
     return False
   if missing:
     print "ERROR: %s lacks required entries:" % conf.get_loaded(), missing
     return None
+  if conf.CONFIG["addrPort"][1]:
+    conf.CONFIG["addrPort"][1] = int(conf.CONFIG["addrPort"][1])
   return True
 
 def initialize(thread_info, project_name):
