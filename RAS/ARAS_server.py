@@ -40,7 +40,7 @@ import cPickle as pickle
 
 from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
-from utils import conf, EXIT_DEPEND
+from utils import conf, EXIT_DEPEND, EXIT_UNKNOWN
 from RAS.au_pool import FeaturePool
 from supported import SECTIONS
 
@@ -215,15 +215,20 @@ class ARASServer(object):
       try:
         module = __import__('RAS.backends.'+be_name, fromlist=['',])
       except ImportError as e:
-        LOG.error("Error importing backend '%s': %s", be_name, e)
+        LOG.error("Can't import backend '%s': %s", be_name, e)
         sys.exit(EXIT_DEPEND)
       except SyntaxError as e:
-        LOG.error("Error with backend '%s': %s %s:%s", be_name, e.msg,
+        LOG.error("Can't import backend '%s': %s %s:%s", be_name, e.msg,
                   e.filename, e.lineno)
         sys.exit(EXIT_UNKNOWN)
 
       assert hasattr(module,'get_networking_classes'), "error with %s" % module
-      subserv_cls, handler_cls = module.get_networking_classes()
+      try:
+        subserv_cls, handler_cls = module.get_networking_classes()
+      except StandardError as e:
+        LOG.fatal("Can't call get_networking_classes from backend '%s': %s",
+                  be_name, e)
+        sys.exit(EXIT_UNKNOWN)
       assert subserv_cls and handler_cls,("subserver and handler classes can't"
                                           "be None, use base classes if needed")
       ## Everything being set up, try spawning backends expecting something to
