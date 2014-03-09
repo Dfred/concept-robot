@@ -40,7 +40,7 @@ import cPickle as pickle
 
 from utils.comm.meta_server import MetaRequestHandler
 from utils.comm import ASCIICommandProto
-from utils import conf, EXIT_DEPEND, EXIT_UNKNOWN
+from utils import conf, EXIT_DEPEND, EXIT_UNKNOWN, EXIT_CONFIG
 from RAS.au_pool import FeaturePool
 from supported import SECTIONS
 
@@ -235,6 +235,9 @@ class ARASServer(object):
       ## go wrong. Done here as backends might not allow use of ARAS.__init__ .
       try:
         subserver = subserv_cls()
+      except conf.ConfigError as e:
+        LOG.error("Reading %s: %s", conf.get_loaded(), e)
+        sys.exit(EXIT_CONFIG)
       except StandardError as e:
         LOG.error("Error while initializing module '%s':", be_name)
         if LOG.getEffectiveLevel() == logging.DEBUG:
