@@ -76,6 +76,11 @@ class LoadingError(StandardError):
     def __str__(self):
         return "%s %s" % self.args
 
+class ConfigError(StandardError):
+    """2 argument (filename and error_message) Exception."""
+    def __str__(self):
+        return "%s" % self.args
+
 
 def set_name(project_name):
     """Sets the project name and returns the filtered version of it.
