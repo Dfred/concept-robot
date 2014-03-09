@@ -65,7 +65,7 @@ class SrvMix_iCub(FaceServerMixin, SpineServerMixin):
     # props.put("local", "/ARAS/"+name)
     # props.put("remote",root+"/face/eyelids")
     self.ff_port = yarp.BufferedPortBottle()
-    self.ff_port.open(root+"/face/eyelids")     ## for writting
+    self.ff_port.open(root+"/face/eyelids")     ## for writing
 
   def _read_cb(self, bottle):
     """Read a bottle (ascii/bin interface to communication).

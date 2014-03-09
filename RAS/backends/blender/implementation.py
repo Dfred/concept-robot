@@ -58,10 +58,6 @@ from RAS.face import FaceServerMixin, FaceHandlerMixin
 from supported import VALID_AUs
 
 
-def get_networking_classes():
-  return (SrvMix_blender, FaceHandlerMixin)
-
-
 class SrvMix_blender(FaceServerMixin):
   """Blender is our entry point, so make it simple letting blender take over.
   So this script fetches Face's data pool directly in update().
