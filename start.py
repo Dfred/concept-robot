@@ -44,7 +44,6 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from utils import EXIT_DEPEND, EXIT_CONFIG
 from utils import conf
 
-
 BGE_PYTHON_VERS=2.7
 WINSIZE=800,600
 NAME="lighty"
@@ -87,10 +86,6 @@ parser.add_argument("-i", action='store_true',
                     "card setups")
 args = parser.parse_args()
 
-if args.i:
-#XXX fun fact: COMMAND.extend(["optirun"]) => vglrun:303:exec: lighty: not found
-#XXX adding an argument makes vglrun work (at least version 2.3.2-20121002).
-  COMMAND.extend(["optirun", args.d and "-v" or ""])    #XXX spawns 1new process
 if args.W:
   PATH_S_=";z:\\"
 
@@ -122,7 +117,11 @@ print "*** Backend set to", BACKEND
 
 ## define logic checks
 def check_blender(args):
-  global COMMAND, BIN_SUFFIX, PROJECT_NAME
+  global COMMAND, BIN_SUFFIX, PROJECT_NAME, PROJECT_EXTRA_PYTHONPATHS
+  PROJECT_EXTRA_PYTHONPATHS[0] = os.path.join(PROJECT_EXTRA_PYTHONPATHS[0],
+                                              "blender")
+  if args.i:
+    COMMAND.extend(["optirun"])                         #XXX spawns 1new process
   if args.b:
     COMMAND.append(args.b)
     args.w and COMMAND.extend(["-w "]+args.w.split('x',1))  
