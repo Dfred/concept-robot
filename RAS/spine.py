@@ -37,7 +37,7 @@ import math
 import numpy
 import logging
 
-from utils import conf
+from utils.conf import CONFIG, ConfigError
 from utils.comm import ASCIIRequestHandler
 from RAS.au_pool import AUPool
 from RAS.dynamics import INSTANCE as DYNAMICS
@@ -86,11 +86,11 @@ class PoseManager(object):
     for AU, infos in hardware_infos.iteritems():
       p_f, off, HWmin, HWmax, SWmin, SWmax = infos
       rmin,rmax = self.get_rawFromNval(AU,SWmin), self.get_rawFromNval(AU,SWmax)
-      LOG.debug("""AU %4s factor %8s offset %6s
-Hard[%6s/%+.5f %6s/%+.5f]
-Soft[%6s/%+.5f %6s/%+.5f]""",
+      LOG.debug("AU %4s factor %8s offset %6s\n"
+                "Hard[%6iraw<=>%+.5frad %6iraw<=>%+.5frad]\n"
+                "Soft[%6iraw<=>%+.5frad %6iraw<=>%+.5frad]\n",
                 AU, p_f, off,
-                HWmin, (HWmin-off)/p_f, HWmax, HWmax*p_f+off,
+                HWmin, (HWmin-off)/p_f, HWmax, (HWmax-off)/p_f,
                 rmin, SWmin, rmax, SWmax)
       if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
         raise SpineError("AU %s: Software %s %s out of Hardware %s."%
@@ -194,17 +194,20 @@ class SpineServerMixin(object):
   To be mixed with classes ARASServer and comm.BaseServer or a derivate.
   """
 
-  def __init__(self, conf):
-    self.conf = conf
+  def __init__(self):
     self._motors_on = False
     self._lock_handler = None
     self._new_pt = None                                 # pose and triplets
-    self.HWready  = None                                # Hardware action ready
-    self.HWrest   = None                                # Hardware switch-off ok
-    self.configure()
+    self.HW0pos = None                                  # Hardware for soft 0pos
+    self.HWrest = None                                  # Hardware switch-off ok
     self.pmanager = None                                # to be set by backend
+    try:
+      self.conf = CONFIG[self.name+"_HW_setup"]
+      self.configure()
+    except KeyError as e:
+      raise ConfigError("Entry for %s backend: %s required." % (self.name, e))
     #XXX: keep 'AUs' attribute name! see LightHeadHandler.__init__()
-    self.AUs = AUPool('spine',DYNAMICS,threaded=True)
+    self.AUs = AUPool('spine', DYNAMICS, threaded=True)
 
   def commit_AUs(self, fifo):
     """Checks and commits AU updates."""
@@ -237,24 +240,16 @@ class SpineServerMixin(object):
     self._lock_handler = handler
 
   def configure(self):
+    """Load configuration settings all backends should need.
+
+    The conf section relative to hardware shall be copied from the
+    hardware library so that the local config can be modified at will.
+    Return: None
     """
-    """
-    try:
-      hardware = conf.lib_spine[self.conf['backend']]
-    except:
-      raise conf.LoadingError("missing['%s'] in lib_spine" % 
-                               self.conf['backend'])
-    try:
-      self.SW_limits = hardware['AXIS_LIMITS']          # may contain angles
-    except:
-      raise conf.LoadingError("lib_spine['%s'] has no 'AXIS_LIMITS' key"%
-                                self.name)
-    try:
-      self.HWrest = list(hardware['POSE_REST'])
-      self.HWready = list(hardware['POSE_READY_NEUTRAL'])
-    except:
-      raise conf.LoadingError("lib_spine['%s'] need 'POSE_REST' and "
-                               "'POSE_READY_NEUTRAL'" % self.name)
+    self.HW0pos = list(self.conf["0pos"])
+    self.HWrest = list(self.conf["Xpos"])
+    self.SW_limits = { AU : (int(smin),int(smax)) for AU, smin, smax in 
+                       zip(self.conf["AU"],self.conf["Smin"],self.conf["Smax"])}
 
   def is_moving(self):
     """Returns True if moving"""
