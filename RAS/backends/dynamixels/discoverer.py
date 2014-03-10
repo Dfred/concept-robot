@@ -72,14 +72,15 @@ def main(settings, statusReturnLevel, with_infos=False):
                 ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
                 dyn.return_delay)
             if with_infos:
-                print """\tmodel number: {} -- firmware: {}
-\tsynchronized: {} -- lock: {}
-\tAngles limit: CCW {} / CW {} => -{:.2f} / +{:.2f} deg.
-\tTemperature: currently @{}°C -- limit {}°C
-\tVoltage: currently @{}V -- limit low {}V / high {}V
-\tTorque: {}abled -- limited @{:.2f}% ({}) / max set to {:.2f}% ({})
+                dyn.read_all()
+                print """\tmodel number:\t {} -- firmware: {}
+\tAlarm shutdown:\t {} {}
+\tAngles limit:\t CCW {} / CW {} => -{:.2f} / +{:.2f} deg.
+\tTemperature:\t currently @{}°C -- limit {}°C
+\tVoltage:\t currently @{}V -- limit low {}V / high {}V
+\tTorque:\t\t {}abled -- limited @{:.2f}% ({}) / max set to {:.2f}% ({})
 """.format(dyn.model_number, dyn.firmware_version,
-           dyn.synchronized, dyn.lock,
+           dyn.alarm_shutdown, net.error_text(dyn.alarm_shutdown),
            dyn.ccw_angle_limit, dyn.cw_angle_limit,
            dyn.ccw_angle_limit*.29, dyn.cw_angle_limit*.29,
            dyn.current_temperature, dyn.temperature_limit,
@@ -133,7 +134,7 @@ def main(settings, statusReturnLevel, with_infos=False):
         #XXX so they may fail with a timeout.
         for line in ("actuator.torque_enable = True",
                      "actuator.torque_limit = 1023",
-                     "actuator.max_torque = 100"):
+                     "actuator.max_torque = 1000"):
             try:
                 exec(line)
             except dynamixel.stream.TimeoutException as e:
