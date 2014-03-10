@@ -38,7 +38,7 @@ from katHD400s_6M.LH_KNI_wrapper import LHKNI_wrapper
 from RAS.au_pool import BVAL, RDIST, TDUR, DDUR, DVT, VAL
 from RAS.spine import SpineError, SpineServerMixin, PoseManager, Pose
 
-__all__ = ['SpineHW']
+__all__ = ['SrvMix_katana400s']
 
 _MSG_ERR_CFG_SW = """
 Erroneous Software limits for axis %i! SW:%s HW:%s
@@ -57,11 +57,11 @@ LOG = logging.getLogger(__package__)
 
 def LH_KNI_get_poseFromHardware(self, check_SWlimits=False):
   """Implementation of PoseManager.get_poseFromHardware"""
-  assert SpineHW.KNI_instance, "call before hardware initialization is complete"
+  assert SrvMix_katana400s.KNI_instance, "no instance of SrvMix_katana400s yet."
   pose = []
-  for i, enc in enumerate(SpineHW.KNI_instance.getEncoders()):
+  for i, enc in enumerate(SrvMix_katana400s.KNI_instance.getEncoders()):
     try:
-      AU = SpineHW.Axis2AU[i+1]                         # has only enabled AUs
+      AU = SrvMix_katana400s.Axis2AU[i+1]               # has only enabled AUs
     except KeyError:
       continue
     pi_factor, offset = self.infos[AU][0:2]             # self is a pose_manager
@@ -90,7 +90,7 @@ class SrvMix_katana400s(SpineServerMixin):
     self.pmanager = self._init_hardware()       #XXX:sets EPPs (Encoders Per Pi)
     self.pmanager.get_poseFromHardware = LH_KNI_get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
-    SpineHW.KNI_instance = self.KNI
+    SrvMix_katana400s.KNI_instance = self.KNI
     self.switch_on()
     self.AUs.set_availables(*zip(*self.pmanager.get_poseFromHardware().items()))
 
@@ -130,7 +130,7 @@ class SrvMix_katana400s(SpineServerMixin):
 
     def manual_center(axis):
       raw_input(PRESS_MSG+"ready to HOLD axis %i (AU %s)" % (
-          axis, SpineHW.Axis2AU[axis]))
+          axis, SrvMix_katana400s.Axis2AU[axis]))
       self.KNI.motorOff(axis)
       raw_input(PRESS_MSG+"set at the neutral position for AUTOMATIC mode.")
       self.KNI.motorOn(axis)
@@ -138,7 +138,7 @@ class SrvMix_katana400s(SpineServerMixin):
 
     def update_centers(encoders_at_init):
     # Rest and Ready poses unconfigured joints (None value) are set to 0 rad.
-      for name, pose in (('ready',self.HWready),('rest',self.HWrest)):
+      for name, pose in (('ready',self.HW0pos),('rest',self.HWrest)):
         for i,enc in enumerate(pose):
           if enc == None:
             pose[i] = encoders_at_init[i]
@@ -179,14 +179,14 @@ class SrvMix_katana400s(SpineServerMixin):
       self.EPPs = self._review_infos([ float(epc)/2 for epc in EPCs ])
       try:                                      # axis may be out of SW bounds
         pmanager = PoseManager( { AU: (
-              self.EPPs[axis-1],          self.HWready[axis-1],
+              self.EPPs[axis-1],          self.HW0pos[axis-1],
               HW_limits[axis-1][0],       HW_limits[axis-1][1],
               self.SW_limits[AU][0],      self.SW_limits[AU][1] )
                                   for AU,axis in self.AU2Axis.iteritems()
                                   if axis != None } )
       except SpineError as e:
         LOG.warning("error: %s", e[0])
-        encoders_at_init = manual_center(SpineHW.AU2Axis[e[1]])
+        encoders_at_init = manual_center(SrvMix_katana400s.AU2Axis[e[1]])
       else:
         return pmanager
 
@@ -199,7 +199,7 @@ class SrvMix_katana400s(SpineServerMixin):
     """
     for AU in self.SW_limits.iterkeys():
       try:
-        axis = SpineHW.AU2Axis[AU]
+        axis = SrvMix_katana400s.AU2Axis[AU]
       except KeyError:
         LOG.info("AU %s not supported by this backend", AU)
         continue
@@ -251,13 +251,13 @@ class SrvMix_katana400s(SpineServerMixin):
     wait: if True, waits for the pose to be reached before returning
     """
     for AU, raw_val in self.pmanager.get_rawFromPose(pose).items():
-      self.KNI.moveMotFaster(SpineHW.AU2Axis[AU],int(raw_val))          # ~ 20ms
+      self.KNI.moveMotFaster(SrvMix_katana400s.AU2Axis[AU],int(raw_val))# ~ 20ms
     #self.KNI.moveToPosEnc(*encs+[10, ACCEL, TOLER, wait])              # ~460ms
 
   def set_targetTriplets(self, triplets):
     """Unlocks speed control loop to update the AUpool with accurate HW values.
     """
-    super(SpineHW, self).set_targetTriplets(triplets)
+    super(SrvMix_katana400s, self).set_targetTriplets(triplets)
     self.AUs.unblock_wait()
 
   def set_speeds(self, curr_Hpose, step_dur):
@@ -270,7 +270,7 @@ class SrvMix_katana400s(SpineServerMixin):
     for AU,nHval in curr_Hpose.iteritems():
       if self.AUs[AU][DDUR] <= 0:
         continue
-      row, axis = self.AUs[AU], SpineHW.AU2Axis[AU]
+      row, axis = self.AUs[AU], SrvMix_katana400s.AU2Axis[AU]
       next_distance = self.AUs.fct_mov(row) - nHval
       epp = self.EPPs[axis-1]                   # KNI speed is in encoders/0.01s
       needed_spd =  int(abs(epp * next_distance/step_dur *.01))
@@ -324,12 +324,12 @@ class SrvMix_katana400s(SpineServerMixin):
     self.unblock_if_needed()
     self.switch_auto()
     pose_diff = [ abs(cp - rp) for cp,rp in zip(self.KNI.getEncoders(),
-                                                self.HWready) ]
+                                                self.HW0pos) ]
     if max(pose_diff) > TOLER:
       LOG.debug("moving to rest pose (too far from ready pose: +%s)", pose_diff)
       self.reach_raw(self.HWrest)
 
-    self.reach_raw(self.HWready)
+    self.reach_raw(self.HW0pos)
     self.start_speedControl()
 
   def switch_off(self):
@@ -354,8 +354,8 @@ class SrvMix_katana400s(SpineServerMixin):
     axis: KNI axis
     nvalue: normalized angle in [-1,1] (equivalent to [-pi,pi] or [-180,180])
     """
-    enc = int(self.EPPs[axis-1]*nvalue) + self.HWready[axis-1]
-    #print 'nval2enc',nvalue,int(self.EPPs[axis-1]*nvalue), self.HWready[axis-1]
+    enc = int(self.EPPs[axis-1]*nvalue) + self.HW0pos[axis-1]
+    #print 'nval2enc',nvalue,int(self.EPPs[axis-1]*nvalue), self.HW0pos[axis-1]
     return enc
 
   def enc2nval(self, axis, encoder):
@@ -365,7 +365,7 @@ class SrvMix_katana400s(SpineServerMixin):
     encoder: encoder value
     """
     axis -= 1
-    value = float(encoder - self.HWready[axis])/self.EPPs[axis]
+    value = float(encoder - self.HW0pos[axis])/self.EPPs[axis]
     #print "Axis %i: got %i encoder -> %s nvalue" % (axis+1, encoder, value)
     return value
 
