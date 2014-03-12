@@ -23,6 +23,8 @@ class DynamixelEx(dynamixel.Dynamixel):
                         'return_delay', 'status_return_level',
                         'torque_enable', 'torque_limit', 'temperature_limit'
                         ), "invalid attribute: %s" % register
+    if register in ("baud_rate", "id"):
+      print "--- WARNING: SETTING %s @%i !!! ----" % (register, value)
     dynamixel.Dynamixel.__setattr__(self, register, value)
 
 
