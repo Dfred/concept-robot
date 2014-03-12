@@ -23,6 +23,7 @@ Move all attached servos randomly and read back the position they end up in.
 USER_ABORT = 2
 MIN_BAUD_RATE = 7350 # 7343
 MAX_BAUD_RATE = 1000000
+MOD_BAUD_RATE = 75
 SERIAL_TIMEOUT = .5
 
 def create_net(portName, baudRate):
@@ -144,14 +145,17 @@ def main(portName, highestServoId, baudRate,
     except ValueError:
         if baudRate >= MIN_BAUD_RATE:
             ## Non standard baud rate, full scan starting from baudRate
-            ordered_bd = range(baudRate, MAX_BAUD_RATE, 75)
+            ordered_bd = range(baudRate, MAX_BAUD_RATE+MOD_BAUD_RATE,
+                               MOD_BAUD_RATE)
         else:
             ## scan with all BRs (not possible with USB2AX)
-            ordered_bd = range(MIN_BAUD_RATE, MAX_BAUD_RATE, 75)
+            ordered_bd = range(MIN_BAUD_RATE, MAX_BAUD_RATE+MOD_BAUD_RATE,
+                               MOD_BAUD_RATE)
         nbr_tries = len(ordered_bd)*(highestServoId-1)
-        print "Will scan %i IDs with %i baud rates => %i tries" % (
-        highestServoId-1, len(ordered_bd), nbr_tries)
-        print "Will finish aroun %s" % time.ctime(time.time() +
+        print "Will scan %i IDs with %i baud rates (%i every %.2fs) => "\
+        "%i tries" % (highestServoId-1, len(ordered_bd),
+                      MOD_BAUD_RATE, SERIAL_TIMEOUT, nbr_tries)
+        print "Will finish around %s" % time.ctime(time.time() +
                                                   nbr_tries * SERIAL_TIMEOUT)
     else:
         ## Requested a standard baud rate, that might fail..
