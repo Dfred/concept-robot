@@ -8,14 +8,11 @@ import subprocess
 import optparse
 import yaml
 from serial.serialutil import SerialException
-try:
-    import dynamixel
-except ImportError as e:
-    print "dynamixel for python could not be imported."
-    print "Try with easy-install or pip"
-    sys.exit(4)
 
-from consts import BAUD_RATES
+from __init__ import BAUD_RATES
+from dynamixel_ext import DynamixelNetworkEx, DynamixelEx
+
+import dynamixel
 
 """
 EXAMPLE
@@ -24,56 +21,26 @@ Move all attached servos randomly and read back the position they end up in.
 """
 
 USER_ABORT = 2
+MIN_BAUD_RATE = 7350 # 7343
+MAX_BAUD_RATE = 1000000
+SERIAL_TIMEOUT = .5
 
-def main(settings, statusReturnLevel, with_infos=False):
+def create_net(portName, baudRate):
+    # Establish a serial connection to the dynamixel network.
+    # This usually requires a USB2Dynamixel
+    try:
+        serial = dynamixel.SerialStream(port=portName,
+                                        baudrate=baudRate,
+                                        timeout=SERIAL_TIMEOUT)
+    except SerialException as e:
+        print "Error: ", e
+        sys.exit()
+#    return dynamixel.DynamixelNetwork(serial)
+    return DynamixelNetworkEx(serial)
 
-    portName = settings['port']
-    baudRate = settings['baudRate']
-    highestServoId = settings['highestServoId']
-
-    if baudRate not in BAUD_RATES:
-        print "{} isn't a standard baud rate {}".format(baudRate, BAUD_RATES)
-        sys.exit(1)
-    i = BAUD_RATES.index(baudRate)
-    scan_allBR = False
-    while i < len(BAUD_RATES):
-        baudRate = BAUD_RATES[i]
-        # Establish a serial connection to the dynamixel network.
-        # This usually requires a USB2Dynamixel
-        try:
-            serial = dynamixel.SerialStream(port=portName,
-                                            baudrate=baudRate,
-                                            timeout=.1)
-        except SerialException as e:
-            print e
-            sys.exit()
-        except ValueError as e:
-            print e
-            i += 1
-            continue
-        net = dynamixel.DynamixelNetwork(serial)
-    
-        # Ping the range of servos that are attached
-        print "Scanning for Dynamixels @%i bps... " % baudRate
-        sys.stdout.flush()
-        try:
-            net.scan(1, highestServoId)
-        except KeyboardInterrupt:
-            sys.exit(USER_ABORT)
-
-        myActuators = []
-
-## Print servos' basic (or detailed) settings    
-## http://support.robotis.com/en/product/dynamixel/ax_series/dxl_ax_actuator.htm
-
-        for dyn in net.get_dynamixels():
-            print "** FOUND #%i (return: status level %i (%s) -- delay %iμs)"% (
-                dyn.id, dyn.status_return_level, 
-                ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
-                dyn.return_delay)
-            if with_infos:
-                dyn.read_all()
-                print """\tmodel number:\t {} -- firmware: {}
+def show_info(dyn):
+    dyn.read_all()
+    print """\tmodel number:\t {} -- firmware: {}
 \tAlarm shutdown:\t {} {}
 \tAngles limit:\t CCW {} / CW {} => -{:.2f} / +{:.2f} deg.
 \tTemperature:\t currently @{}°C -- limit {}°C
@@ -89,70 +56,149 @@ def main(settings, statusReturnLevel, with_infos=False):
            dyn.torque_limit/1023.*100, dyn.torque_limit,
            dyn.max_torque/1023.*100, dyn.max_torque)
 
-            myActuators.append(net[dyn.id])
-        if myActuators:
-            break       #XXX: keep on scanning for others?
+def set_SRL(dyn, statusReturnLevel):
+    ## set return for all commands (otherwise timeout errors occur)
+    if int(statusReturnLevel) == 0 and dynamixel.__version__ == '1.1.0':
+        print "/!\ YOU'LL BREAK SCANNING FOR SERVOS WITH VERSION "\
+          "1.1.0 OF THE DYNAMIXEL PYTHON MODULE /!\\"
+        if raw_input("Continue anyway? [N/y]").lower() != 'y':
+            sys.exit(USER_ABORT)
+        print "-*-*- setting #%i status return level to %s" % (
+            dyn.id, statusReturnLevel)
+        dyn.status_return_level = int(statusReturnLevel)
 
-        print 'No Dynamixels Found!'
-        if i == len(BAUD_RATES)-1:
-            print "No further baud rate to check. Bailing out."
-            sys.exit(3)
-        if scan_allBR:
-            i += 1
-            continue
-        rep = None
-        try:
-            rep = raw_input("scan with %i baud rate? [Y/n/skip/all]"%
-                            BAUD_RATES[i+1])
-            rep = rep and rep[0].lower()
-        finally:
-            if not rep or rep == 'n':
-                print "user abort."
-                sys.exit(USER_ABORT)
-            elif rep == 's':
-                i += 1
-            elif rep == 'a':
-                scan_allBR = True
-            i += 1
+def discover(portName, baudRate, highestServoId):
+    myActuators = []
+    net = create_net(portName, baudRate)
     
+    # Ping the range of servos that are attached
+    try:
+        print "Scanning for Dynamixels @%i bps... max ID: %i" % (
+            baudRate, highestServoId)
+        net.scan(1, highestServoId)
+    except KeyboardInterrupt:
+        sys.exit(USER_ABORT)
+
+## Print servos' basic (or detailed) settings    
+## http://support.robotis.com/en/product/dynamixel/ax_series/dxl_ax_actuator.htm
+
+    for dyn in net.get_dynamixels():
+        print "** FOUND #%i (return: status level %s (%i) -- delay %iμs)"% (
+            dyn.id, ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
+            dyn.status_return_level, dyn.return_delay)
+        myActuators.append(net[dyn.id])
+    return myActuators
+
+def discover_loop(portName, baudRates, highestServoId):
+    myActuators, found_baud_rates = [], []
+    BD_it = baudRates.__iter__()
+    baud_rate, BD_next = None, None
+    scan_allBR = False
+    try:
+        while True:
+            if baud_rate is None:
+                try:
+                    baud_rate = BD_it.next()
+                except StopIteration:
+                    if baud_rate is None:
+                        break;
+            try:
+                acts = discover(portName, baud_rate, highestServoId)
+                acts and myActuators.extend(acts)
+            except KeyboardInterrupt:
+                break
+            try:
+                BD_next = BD_it.next()
+            except StopIteration:
+                BD_next = None
+            if BD_next and not scan_allBR:
+                try:
+                    rep = 'n'
+                    rep = raw_input("scan with %i baud rate? [Y/n/skip/all]"%
+                                    BD_next).lower()
+                finally:
+                    if not rep:
+                        pass
+                    elif rep[0] == 'n':
+                        print "\nUser abort."
+                        sys.exit(USER_ABORT)
+                    elif rep[0] == 's':
+                        BD_next = BD_it.next()
+                    elif rep[0] == 'a':
+                        scan_allBR = True
+            baud_rate = BD_next
+            BD_next = None
+    finally:
+        print "\nBaud rates found with replying servos: ", found_baud_rates
+        return myActuators
+
+def main(portName, highestServoId, baudRate, 
+         newStatusReturnLevel, newBaudRate, newServoId,
+         with_infos=False):
+    if newBaudRate and newBaudRate not in BAUD_RATES:
+        print "{} isn't a standard baud rate {}".format(newBaudRate, BAUD_RATES)
+        sys.exit(1)
+    
+    try:
+        BD_i = BAUD_RATES.index(baudRate)
+    except ValueError:
+        if baudRate >= MIN_BAUD_RATE:
+            ## Non standard baud rate, full scan starting from baudRate
+            ordered_bd = range(baudRate, MAX_BAUD_RATE, 75)
+        else:
+            ## scan with all BRs (not possible with USB2AX)
+            ordered_bd = range(MIN_BAUD_RATE, MAX_BAUD_RATE, 75)
+        nbr_tries = len(ordered_bd)*(highestServoId-1)
+        print "Will scan %i IDs with %i baud rates => %i tries" % (
+        highestServoId-1, len(ordered_bd), nbr_tries)
+        print "Will finish aroun %s" % time.ctime(time.time() +
+                                                  nbr_tries * SERIAL_TIMEOUT)
+    else:
+        ## Requested a standard baud rate, that might fail..
+        ordered_bd = BAUD_RATES[:]
+        ordered_bd[0] = ordered_bd[BD_i]
+        ordered_bd[BD_i] = BAUD_RATES[0]
+    myActuators = discover_loop(portName, ordered_bd, highestServoId)
+
+    ## Summary
     for actuator in myActuators:
-        actuator.moving_speed = 150
+        ## critical settings 1st...
+        if new_baudRate != None:                        ## set servo's baud rate
+            print "-*-*- setting #%i baud rate @%ibps" % (dyn.id, baudRate)
+#            dyn.baud_rate = new_baudRate
+        if statusReturnLevel != None:
+            set_SRL(statusReturnLevel)
+        if with_infos:
+            show_infos(dyn)
+        ## now more generic settings
+        actuator.moving_speed = 0xff
         actuator.synchronized = True
 
-        #XXX set return for all commands (otherwise timeout errors occur)
-        if statusReturnLevel != None:
-            if int(statusReturnLevel) == 0 and dynamixel.__version__ == '1.1.0':
-                print "/!\ YOU'LL BREAK SCANNING FOR SERVOS WITH VERSION 1.1.0"\
-                  " OF THE DYNAMIXEL PYTHON MODULE /!\\"
-                if raw_input("Continue anyway? [N/y]").lower() != 'y':
-                    sys.exit(USER_ABORT)
-            print "setting #%i status return level to %s" % (actuator.id,
-                                                             statusReturnLevel)
-            actuator.status_return_level = int(statusReturnLevel)
-        
         #XXX these accessors actually call set_register_value (Tx data)
         #XXX so they may fail with a timeout.
-        for line in ("actuator.torque_enable = True",
+        for line in ("actuator.torque_enable = False",
                      "actuator.torque_limit = 1023",
-                     "actuator.max_torque = 1000"):
+                     "actuator.max_torque = 1023"):
             try:
                 exec(line)
             except dynamixel.stream.TimeoutException as e:
                 if actuator.status_return_level > 1:
                     print "Unexpected {}: #{}> {}".format(e, actuator.id, line)
 
+    if not myActuators:
+        return
     # Randomly vary servo position within a small range
-    print "Servo \tPosition"
+    print myActuators, "Position"
     while True:
         for actuator in myActuators:
-            actuator.goal_position = random.randrange(450, 600)
+            actuator.goal_position = random.randrange(0, 1023)
         net.synchronize()
         for actuator in myActuators:
             actuator.read_all()
             time.sleep(0.01)
         for actuator in myActuators:
             print "#%i" % actuator._id, "\t", actuator.current_position
-        time.sleep(1)
+        time.sleep(2)
 
 def validateInput(userInput, rangeMin, rangeMax):
     """Return: valid user input or None
@@ -174,11 +220,23 @@ if __name__ == '__main__':
     parser.add_option("-c", "--clean", dest="clean", action="store_true",
                       default=False, help="Ignore the settings.yaml file if it \
                       exists and prompt for new settings.")
+    parser.add_option("-b", "--use-baud-rate", dest="BR", type="int",
+                      default=None, help="Use any of %s or 0 to scan using baud"
+                      " rates from %i to %i bps (quite long), 1 to do the same"
+                      " but without stopping on 1st find(very long)" % (
+            [0]+BAUD_RATES, MIN_BAUD_RATE, MAX_BAUD_RATE) )
     parser.add_option("-i", "--infos", dest="infos", action="store_true",
                       default=False, help="Print servos' settings.")
-    parser.add_option("-r", "--set-SRL", dest="SRL", type="choice",
+    parser.add_option("-B", "--set-baud-rate", dest="newBR", type="choice",
+                      choices=[str(br) for br in BAUD_RATES], default=None,
+                      help="Set servo's Baud Rate. Works if a single servo is "
+                      "found. Possible baud rates are %s." % BAUD_RATES)
+    parser.add_option("-I", "--set-ID", dest="newID", type="int", default=0,
+                      help="Set servo's ID. Works if a single servo is found.")
+    parser.add_option("-R", "--set-SRL", dest="newSRL", type="choice",
                       choices=('0','1','2'), default=None,
                       help="Set servos' Status Return Level (0, 1 or 2).")
+    
     (options, args) = parser.parse_args()
     
     # Look for a settings.yaml file
@@ -243,5 +301,8 @@ if __name__ == '__main__':
             print("Your settings have been saved to 'settings.yaml'.\n"
                   "To change them in the future either edit that file or run "
                   "this example with -c.")
+
     
-    main(settings, options.SRL, options.infos)
+    main(settings['port'], settings['highestServoId'], 
+         settings['baudRate'] if options.BR is None else int(options.BR),
+         options.newSRL, options.newBR, options.newID, options.infos)
