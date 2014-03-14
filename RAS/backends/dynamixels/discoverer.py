@@ -39,7 +39,7 @@ def create_net(portName, baudRate):
 #    return dynamixel.DynamixelNetwork(serial)
     return DynamixelNetworkEx(serial)
 
-def show_info(dyn):
+def show_infos(net, dyn):
     dyn.read_all()
     print """\tmodel number:\t {} -- firmware: {}
 \tAlarm shutdown:\t {} {}
@@ -77,6 +77,7 @@ def discover(portName, baudRate, highestServoId):
         print "Scanning for Dynamixels @%i bps... max ID: %i" % (
             baudRate, highestServoId)
         net.scan(1, highestServoId)
+#        net.add_dynamixel(1)
     except KeyboardInterrupt:
         sys.exit(USER_ABORT)
 
@@ -88,13 +89,14 @@ def discover(portName, baudRate, highestServoId):
             dyn.id, ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
             dyn.status_return_level, dyn.return_delay)
         myActuators.append(net[dyn.id])
-    return myActuators
+    return net, myActuators
 
 def discover_loop(portName, baudRates, highestServoId):
     myActuators, found_baud_rates = [], []
     BD_it = baudRates.__iter__()
     baud_rate, BD_next = None, None
     scan_allBR = False
+    net = None
     try:
         while True:
             if baud_rate is None:
@@ -104,8 +106,10 @@ def discover_loop(portName, baudRates, highestServoId):
                     if baud_rate is None:
                         break;
             try:
-                acts = discover(portName, baud_rate, highestServoId)
-                acts and myActuators.extend(acts)
+                net, acts = discover(portName, baud_rate, highestServoId)
+                if acts:
+                    myActuators.extend(acts)
+                    found_baud_rates.append(baud_rate)
             except KeyboardInterrupt:
                 break
             try:
@@ -114,15 +118,16 @@ def discover_loop(portName, baudRates, highestServoId):
                 BD_next = None
             if BD_next and not scan_allBR:
                 try:
-                    rep = 'n'
+                    rep = 'y'
                     rep = raw_input("scan with %i baud rate? [Y/n/skip/all]"%
                                     BD_next).lower()
+                except KeyboardInterrupt:
+                    rep = 'n'
                 finally:
                     if not rep:
                         pass
                     elif rep[0] == 'n':
-                        print "\nUser abort."
-                        sys.exit(USER_ABORT)
+                        break
                     elif rep[0] == 's':
                         BD_next = BD_it.next()
                     elif rep[0] == 'a':
@@ -131,7 +136,7 @@ def discover_loop(portName, baudRates, highestServoId):
             BD_next = None
     finally:
         print "\nBaud rates found with replying servos: ", found_baud_rates
-        return myActuators
+        return net, myActuators
 
 def main(portName, highestServoId, baudRate, 
          newStatusReturnLevel, newBaudRate, newServoId,
@@ -162,18 +167,18 @@ def main(portName, highestServoId, baudRate,
         ordered_bd = BAUD_RATES[:]
         ordered_bd[0] = ordered_bd[BD_i]
         ordered_bd[BD_i] = BAUD_RATES[0]
-    myActuators = discover_loop(portName, ordered_bd, highestServoId)
+    net, myActuators = discover_loop(portName, ordered_bd, highestServoId)
 
     ## Summary
     for actuator in myActuators:
         ## critical settings 1st...
-        if new_baudRate != None:                        ## set servo's baud rate
-            print "-*-*- setting #%i baud rate @%ibps" % (dyn.id, baudRate)
-#            dyn.baud_rate = new_baudRate
-        if statusReturnLevel != None:
-            set_SRL(statusReturnLevel)
+        if newBaudRate != None:                        ## set servo's baud rate
+            print "-*-*- setting #%i baud rate @%ibps" % (dyn.id, newBaudRate)
+#            dyn.baud_rate = newBaudRate
+        if newStatusReturnLevel != None:
+            set_SRL(newStatusReturnLevel)
         if with_infos:
-            show_infos(dyn)
+            show_infos(net, actuator)
         ## now more generic settings
         actuator.moving_speed = 0xff
         actuator.synchronized = True
@@ -191,18 +196,21 @@ def main(portName, highestServoId, baudRate,
 
     if not myActuators:
         return
-    # Randomly vary servo position within a small range
-    print myActuators, "Position"
-    while True:
-        for actuator in myActuators:
-            actuator.goal_position = random.randrange(0, 1023)
-        net.synchronize()
-        for actuator in myActuators:
-            actuator.read_all()
-            time.sleep(0.01)
-        for actuator in myActuators:
-            print "#%i" % actuator._id, "\t", actuator.current_position
-        time.sleep(2)
+    try:
+        # Randomly vary servo position within a small range
+        print "ID\tPosition"
+        while True:
+            for actuator in myActuators:
+                actuator.goal_position = random.randrange(0, 1023)
+            net.synchronize()
+            for actuator in myActuators:
+                actuator.read_all()
+                time.sleep(0.01)
+            for actuator in myActuators:
+                print "#%i" % actuator._id, "\t", actuator.current_position
+            time.sleep(2)
+    except KeyboardInterrupt:
+        return
 
 def validateInput(userInput, rangeMin, rangeMax):
     """Return: valid user input or None
@@ -220,10 +228,10 @@ def validateInput(userInput, rangeMin, rangeMax):
 
 if __name__ == '__main__':
     
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser("%s [options] [serial_comm]" % sys.argv[0])
     parser.add_option("-c", "--clean", dest="clean", action="store_true",
-                      default=False, help="Ignore the settings.yaml file if it \
-                      exists and prompt for new settings.")
+                      default=False, help="Ignore the settings.yaml file if it "
+                      "exists and prompt for new settings.")
     parser.add_option("-b", "--use-baud-rate", dest="BR", type="int",
                       default=None, help="Use any of %s or 0 to scan using baud"
                       " rates from %i to %i bps (quite long), 1 to do the same"
@@ -306,7 +314,7 @@ if __name__ == '__main__':
                   "To change them in the future either edit that file or run "
                   "this example with -c.")
 
-    
-    main(settings['port'], settings['highestServoId'], 
+    main(len(args) and args[0] or settings['port'],
+         settings['highestServoId'], 
          settings['baudRate'] if options.BR is None else int(options.BR),
          options.newSRL, options.newBR, options.newID, options.infos)
