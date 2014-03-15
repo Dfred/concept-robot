@@ -44,6 +44,28 @@ PRE_NFO="*** INFO: "
 PRE_WRN="*** WARNING: "
 PRE_ERR="*** ERROR: "
 
+# A word on threading:
+# The server can run in its thread, handlers (connected clients) can also run in
+#  their own. With standard python VM, no threading is supposedly faster.
+# NOW READ THIS CAREFULLY:
+# ------------------------
+# If THREADED_CLIENTS is True, you need to use locking facilities properly (see
+#  comm.BaseServer.threadsafe_start/stop).
+# If THREADED_CLIENTS is False and THREADED_SERVER is True, ONLY ONE CLIENT can
+#  connect and its handler will indeed run in the server thread.
+THREADED_SERVER  = False
+THREADED_CLIENTS = False
+THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
+
+OBJ_PREFIX = "OB"
+CTR_SUFFIX = "#CONTR#"
+SH_ACT_LEN = 50
+MAX_FPS = 60
+INFO_PERIOD = 360
+# Naming Convention: regular objects are lower case, bones are title-ized.
+REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
+
+
 if not hasattr(G,"initialized"):
   print "BlenderPlayer's python is:", filter(lambda x: x not in
                                                      "\r\n", sys.version) 
@@ -104,26 +126,6 @@ class SrvMix_blender(FaceServerMixin):
            G.getCurrentScene().active_camera.modelview_matrix )
 
 
-# A word on threading:
-# The server can run in its thread, handlers (connected clients) can also run in
-#  their own. With standard python VM, no threading is supposedly faster.
-# NOW READ THIS CAREFULLY:
-# ------------------------
-# If THREADED_CLIENTS is True, you need to use locking facilities properly (see
-#  comm.BaseServer.threadsafe_start/stop).
-# If THREADED_CLIENTS is False and THREADED_SERVER is True, ONLY ONE CLIENT can
-#  connect and its handler will indeed run in the server thread.
-THREADED_SERVER  = False
-THREADED_CLIENTS = False
-THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
-
-OBJ_PREFIX = "OB"
-CTR_SUFFIX = "#CONTR#"
-SH_ACT_LEN = 50
-MAX_FPS = 60
-INFO_PERIOD = 10
-# Naming Convention: regular objects are lower case, bones are title-ized.
-REQUIRED_OBJECTS = ('eye_L', 'eye_R', 'tongue', 'Skeleton')
 
 
 def exiting():                                  #TODO: any reliable way to this?
@@ -368,7 +370,7 @@ def main():
     except StandardError as e:
       fatal("initialization error: %s" % e)
     else:
-      print '--- initialization OK ---'
+      print '--- BGE backend initialization OK ---'
       
 #    yappi.start()
 
