@@ -142,7 +142,7 @@ class AUPool(dict):
   def Log_AUs(self, AUpool=None):
     AP = AUpool or self
     for au,nval_row in sorted(AP.iteritems(),key=lambda x: x[0]):
-      LOG.info("%5s :"+" %.5f"*len(nval_row), au, *nval_row)
+      LOG.debug("%5s :"+" %.5f"*len(nval_row), au, *nval_row)
 
   def set_availables(self, AUs, values=None):
     """Register supported AUs, optionally setting their initial values.
@@ -162,7 +162,7 @@ class AUPool(dict):
                            (('BVAL','RDIST','TDUR','DDUR','DVT','VAL'),AUs) )
     for i,au in enumerate(AUs):
       self[au] = self.FP[self.origin][i]                # view or shallow copy
-    LOG.info("Available AUs:\n")
+    LOG.debug("Available AUs:")
     self.Log_AUs()
 
   def update_targets(self, iterable):
