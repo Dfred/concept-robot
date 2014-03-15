@@ -1,5 +1,43 @@
 # -*- coding: utf-8 -*-
 
+# ARAS is the open source software (OSS) version of the basic component of
+# Syntheligence's software suite. This software is provided for academic
+# research only. Any other use is not permitted.
+# Syntheligence SAS is a robotics and software company established in France.
+# For more information, visit http://www.syntheligence.com .
+
+# ARAS stands for Abstract Robotic Animation System, and features actuator,
+# sensor, animation and remote management high-level interfaces.
+# Copyright 2013 Syntheligence, fdelaunay@syntheligence.com
+
+# This software was originally named LightHead, the Human-Robot-Interaction part
+# of the CONCEPT project, which took place at the University of Plymouth (UK).
+# The project originated as the PhD pursued by Frédéric Delaunay, who was under
+# the supervision of Prof. Tony Belpaeme.
+# This PhD project started in late 2008 and ended in late 2011.
+# Visit http://www.tech.plym.ac.uk/SoCCE/CONCEPT/ for more information.
+
+#  This program is free software: you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License as
+#   published by the Free Software Foundation, either version 3 of the
+#   License, or (at your option) any later version.
+
+#  This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+Inspired by the python dynamixel module's example (from Patrick Goebel).
+Added all options but -c. This is covered by the GPL.
+
+--- Original comment ---
+Move all attached servos randomly and read back the position they end up in.
+"""
+
 import os
 import time
 import random
@@ -9,22 +47,14 @@ import optparse
 import yaml
 from serial.serialutil import SerialException
 
-from __init__ import BAUD_RATES
+from __init__ import BAUD_RATES, ALL_BAUD_RATES, MAX_BAUD_RATE, MIN_BAUD_RATE
 from dynamixel_ext import DynamixelNetworkEx, DynamixelEx
 
 import dynamixel
 
-"""
-EXAMPLE
- 
-Move all attached servos randomly and read back the position they end up in.
-"""
-
 USER_ABORT = 2
-MIN_BAUD_RATE = 7350 # 7343
-MAX_BAUD_RATE = 1000000
 MOD_BAUD_RATE = 75
-SERIAL_TIMEOUT = .5
+SERIAL_TIMEOUT = .1
 
 def create_net(portName, baudRate):
     # Establish a serial connection to the dynamixel network.
@@ -42,13 +72,13 @@ def create_net(portName, baudRate):
 def show_infos(net, dyn):
     dyn.read_all()
     print """\tmodel number:\t {} -- firmware: {}
-\tAlarm shutdown:\t {} {}
+\tConfigured Alarm shutdown:\t {}
 \tAngles limit:\t CCW {} / CW {} => -{:.2f} / +{:.2f} deg.
 \tTemperature:\t currently @{}°C -- limit {}°C
 \tVoltage:\t currently @{}V -- limit low {}V / high {}V
 \tTorque:\t\t {}abled -- limited @{:.2f}% ({}) / max set to {:.2f}% ({})
 """.format(dyn.model_number, dyn.firmware_version,
-           dyn.alarm_shutdown, net.error_text(dyn.alarm_shutdown),
+           net.error_text(dyn.alarm_shutdown),
            dyn.ccw_angle_limit, dyn.cw_angle_limit,
            dyn.ccw_angle_limit*.29, dyn.cw_angle_limit*.29,
            dyn.current_temperature, dyn.temperature_limit,
@@ -67,6 +97,9 @@ def set_SRL(dyn, statusReturnLevel):
         print "-*-*- setting #%i status return level to %s" % (
             dyn.id, statusReturnLevel)
         dyn.status_return_level = int(statusReturnLevel)
+
+#    "Smin": [-1.2215, -1.047, -0.5235],
+#    "Smax": [1.2215, 0.5235, 0.5235]
 
 def discover(portName, baudRate, highestServoId):
     myActuators = []
@@ -97,46 +130,47 @@ def discover_loop(portName, baudRates, highestServoId):
     baud_rate, BD_next = None, None
     scan_allBR = False
     net = None
-    try:
-        while True:
-            if baud_rate is None:
-                try:
-                    baud_rate = BD_it.next()
-                except StopIteration:
-                    if baud_rate is None:
-                        break;
+    while True:
+        if baud_rate is None:
             try:
-                net, acts = discover(portName, baud_rate, highestServoId)
-                if acts:
-                    myActuators.extend(acts)
-                    found_baud_rates.append(baud_rate)
-            except KeyboardInterrupt:
-                break
-            try:
-                BD_next = BD_it.next()
+                baud_rate = BD_it.next()
             except StopIteration:
-                BD_next = None
-            if BD_next and not scan_allBR:
-                try:
-                    rep = 'y'
-                    rep = raw_input("scan with %i baud rate? [Y/n/skip/all]"%
-                                    BD_next).lower()
-                except KeyboardInterrupt:
-                    rep = 'n'
-                finally:
-                    if not rep:
-                        pass
-                    elif rep[0] == 'n':
-                        break
-                    elif rep[0] == 's':
-                        BD_next = BD_it.next()
-                    elif rep[0] == 'a':
-                        scan_allBR = True
-            baud_rate = BD_next
+                if baud_rate is None:
+                    break;
+        try:
+            net, acts = discover(portName, baud_rate, highestServoId)
+            if acts:
+                myActuators.extend(acts)
+                found_baud_rates.append(baud_rate)
+        except KeyboardInterrupt:
+            break
+        try:
+            BD_next = BD_it.next()
+        except StopIteration:
             BD_next = None
-    finally:
-        print "\nBaud rates found with replying servos: ", found_baud_rates
-        return net, myActuators
+        if BD_next and not scan_allBR:
+            try:
+                rep = 'y'
+                rep = raw_input("scan with %i baud rate? [Y/n/skip/all/quit]" %
+                                BD_next).lower()
+            except KeyboardInterrupt:
+                print ""
+                rep = 'q'
+            finally:
+                if not rep:
+                    pass
+                elif rep[0] == 'n':
+                    break
+                elif rep[0] == 's':
+                    BD_next = BD_it.next()
+                elif rep[0] == 'a':
+                    scan_allBR = True
+                elif rep[0] == 'q':
+                    sys.exit(2)
+        baud_rate = BD_next
+        BD_next = None
+    print "\nBaud rates found with replying servos: ", found_baud_rates
+    return net, myActuators
 
 def main(portName, highestServoId, baudRate, 
          newStatusReturnLevel, newBaudRate, newServoId,
@@ -144,22 +178,19 @@ def main(portName, highestServoId, baudRate,
     if newBaudRate and newBaudRate not in BAUD_RATES:
         print "{} isn't a standard baud rate {}".format(newBaudRate, BAUD_RATES)
         sys.exit(1)
-    
+
+    #TDL iterate pings of a specific ID over all baud rates, then next ID.
     try:
         BD_i = BAUD_RATES.index(baudRate)
     except ValueError:
         if baudRate >= MIN_BAUD_RATE:
-            ## Non standard baud rate, full scan starting from baudRate
-            ordered_bd = range(baudRate, MAX_BAUD_RATE+MOD_BAUD_RATE,
-                               MOD_BAUD_RATE)
+            ordered_bd = [ bd for bd in ALL_BAUD_RATES if bd >= MIN_BAUD_RATE ]
         else:
             ## scan with all BRs (not possible with USB2AX)
-            ordered_bd = range(MIN_BAUD_RATE, MAX_BAUD_RATE+MOD_BAUD_RATE,
-                               MOD_BAUD_RATE)
+            ordered_bd = ALL_BAUD_RATES
         nbr_tries = len(ordered_bd)*(highestServoId-1)
-        print "Will scan %i IDs with %i baud rates (%i every %.2fs) => "\
-        "%i tries" % (highestServoId-1, len(ordered_bd),
-                      MOD_BAUD_RATE, SERIAL_TIMEOUT, nbr_tries)
+        print "Will scan %i IDs with %i baud rates %i tries (@%.2fs/try)" % (
+            highestServoId, len(ordered_bd), nbr_tries, SERIAL_TIMEOUT)
         print "Will finish around %s" % time.ctime(time.time() +
                                                   nbr_tries * SERIAL_TIMEOUT)
     else:
@@ -173,10 +204,17 @@ def main(portName, highestServoId, baudRate,
     for actuator in myActuators:
         ## critical settings 1st...
         if newBaudRate != None:                        ## set servo's baud rate
-            print "-*-*- setting #%i baud rate @%ibps" % (dyn.id, newBaudRate)
-#            dyn.baud_rate = newBaudRate
+            print "-*-*- setting #%i baud rate @%ibps" % (actuator.id,
+                                                          newBaudRate)
+            actuator.baud_rate = newBaudRate
         if newStatusReturnLevel != None:
             set_SRL(newStatusReturnLevel)
+        if newServoId != None:
+            print "-*-*- setting #%i to #%i and quitting." % (actuator.id,
+                                                              newServoId)
+            actuator.id = newServoId
+            print "done"
+            return
         if with_infos:
             show_infos(net, actuator)
         ## now more generic settings
@@ -201,7 +239,7 @@ def main(portName, highestServoId, baudRate,
         print "ID\tPosition"
         while True:
             for actuator in myActuators:
-                actuator.goal_position = random.randrange(0, 1023)
+                actuator.goal_position = random.randrange(384, 640)
             net.synchronize()
             for actuator in myActuators:
                 actuator.read_all()
@@ -243,7 +281,7 @@ if __name__ == '__main__':
                       choices=[str(br) for br in BAUD_RATES], default=None,
                       help="Set servo's Baud Rate. Works if a single servo is "
                       "found. Possible baud rates are %s." % BAUD_RATES)
-    parser.add_option("-I", "--set-ID", dest="newID", type="int", default=0,
+    parser.add_option("-I", "--set-ID", dest="newID", type="int", default=None,
                       help="Set servo's ID. Works if a single servo is found.")
     parser.add_option("-R", "--set-SRL", dest="newSRL", type="choice",
                       choices=('0','1','2'), default=None,
