@@ -55,46 +55,119 @@ class SpineError(StandardError):
   pass
 
 
-#TDL Move(dict): """Same as Pose but with duration information per axis."""
-class Pose(dict):
-  """Dictionnary of AU and associated normalized value.
-  """
-
-  def __init__(self, *args, **kwds):
-    """Same as Dict, but asserts keys are strings and values are floats.
-    """
-    super(Pose,self).__init__(*args, **kwds)
-    assert isinstance(self.keys()[0], basestring), "AUs must be strings"
-    assert isinstance(self.values()[0], float), "values must be floats"
-
-
 class PoseManager(object):
   """Represents a pose in normalized values."""
 
-  def __init__(self, hardware_infos):
-    """Initializes a PoseManager with hardware infos.
 
-    hardware_infos: {AU_name : (
-                        pi_factor,      # pi_factor * nval + offset = raw value 
-                        offset,         # ready pose hardware value
-                        HWmin, HWmax,   # RAW VALUES: foolproof for weird values
-                        SWmin, SWmax    # normalized values
-                        )}
+  class Pose(dict):
+    """Dictionnary of AU and associated normalized value."""
+    def __init__(self, *args, **kwds):
+      """A dict, but asserts keys are strings and values are floats."""
+      super(PoseManager.Pose,self).__init__(*args, **kwds)
+      assert isinstance(self.keys()[0], basestring), "AUs must be strings"
+      assert isinstance(self.values()[0], float), "values must be floats"
+
+
+  class Move(Pose):
+    """Same as Pose but with duration information per axis."""
+    def __init__(self, *args, **kwds):
+      """Asserts each value is a 2-tuple of floats."""
+      super(PoseManager.Pose,self).__init__(*args, **kwds)
+      assert isinstance(self.values()[1], float), "duration must be a float"
+
+
+  class AxisInfo():
+    def __init__(self, act_id, smin, smax):
+      self.axisID = act_id
+      self.pif = None
+      self.off = None
+      self.softMin, self.softMax = smin, smax
+      self.hardMin, self.hardMax = None, None
+
+
+  def __init__(self, boundsNposes):
     """
-    self.infos = hardware_infos
+    >boundsNposes: { AU_name : (
+      act_ID,                           # (str) actuator identifier
+      min_nor_value, max_nor_value,     # (float) soft bound normalized values
+      HW_neutral,                       # (float) raw value for neutral pose
+      HW_resting,                       # (float) raw value for resting pose
+      ) }
+    """
+    self.infos = {}                             # { ID : AxisInfo object }
+    self.ID2AU = {}
+    self.poseN = None
+    self.poseX = None
+    self.__pX, self.__p0  = {}, {}
+
+    infos_used = []
+    for AU, infos in boundsNposes.iteritems():
+      if infos[0] is None:
+        LOG.warning("AU %s disabled (null actuator ID)", AU)
+      else:
+        infos_used.append((AU, infos))
+    for AU,(ID,sm,sM,h0,hX) in infos_used:
+      self.infos[AU] = self.AxisInfo(ID,sm,sM)
+      self.ID2AU[ID] = AU
+      self.__pX[AU], self.__p0[AU] = hX, h0
+
+  def get_ID(self, AU):
+    """Return: actuator ID from AU
+    """
+    return self.infos[AU].axisID
+
+  def get_AU(self, ID):
+    """Return: AU from actuator ID
+    """
+    return self.ID2AU[ID]
+
+  def set_hardware_infos(self, hardware_infos):
+    """
+    >hardware_infos: { AU_name : (
+      pi_factor,                        # pi_factor * nval + offset = raw value 
+      offset,                           # ready pose hardware value
+      hardW_Min, hardW_Max,             # RAW VALUES: foolproof checks.
+      ) }
+    """
     LOG.debug("Hardware infos:")
-    for AU, infos in hardware_infos.iteritems():
-      p_f, off, HWmin, HWmax, SWmin, SWmax = infos
-      rmin,rmax = self.get_rawFromNval(AU,SWmin), self.get_rawFromNval(AU,SWmax)
+    for AU, (p_f, off, hMin, hMax) in hardware_infos.iteritems():
+      infos = self.infos[AU]
+      infos.pif, infos.off, infos.hardMin, infos.hardMax = p_f, off, hMin, hMax
+      rmin = self.get_raw(AU, infos.softMin)
+      rmax = self.get_raw(AU, infos.softMax)
       LOG.debug("AU %4s factor %8s offset %6s\n"
                 "Hard[%6iraw<=>%+.5frad %6iraw<=>%+.5frad]\n"
                 "Soft[%6iraw<=>%+.5frad %6iraw<=>%+.5frad]\n",
                 AU, p_f, off,
-                HWmin, (HWmin-off)/p_f, HWmax, (HWmax-off)/p_f,
-                rmin, SWmin, rmax, SWmax)
-      if ( not self.is_inHWlimits(AU,rmin) or not self.is_inHWlimits(AU,rmax) ):
-        raise SpineError("AU %s: Software %s %s out of Hardware %s."%
-                         (AU, infos[4:6], (rmin, rmax), infos[2:4]), AU)
+                hMin, self.get_val(AU, hMin), hMax, self.get_val(AU, hMax),
+                rmin, infos.softMin, rmax, infos.softMax)
+      if ( not self.is_rvalWithinHWlimits(AU,rmin) or
+           not self.is_rvalWithinHWlimits(AU,rmax) ):
+        raise SpineError("AU %s: Software limits %s %s %s out of Hardware %s." %
+                         (AU, infos.softMin, infos.softMax, (rmin, rmax),
+                          (infos.hardMin, infos.hardMax)) )
+
+    ## check poses are within boundaries
+    for AU, h0 in self.__p0.items():
+      if not self.is_rvalWithinHWlimits(AU, h0):
+        raise ConfigError("Raw value %i out of bounds for Neutral pose (AU %s)"%
+                          (h0, AU) )
+    for AU, hX in self.__pX.items():
+      if not self.is_rvalWithinHWlimits(AU, hX):
+        LOG.warning("Raw value %i out of defined bounds for Rest pose (AU %s)",
+                    hX, AU )
+    self.poseN = self.Pose({ AU : self.get_val(AU,h0) for AU, h0 in
+                             self.__p0.items() })
+    self.poseX = self.Pose({ AU : self.get_val(AU,hX) for AU, hX in
+                             self.__pX.items() })
+
+  def get_raw(self, AU, norm_val):
+    """Returns raw (hardware) value from normalized value."""
+    return self.infos[AU].pif * norm_val + self.infos[AU].off
+
+  def get_val(self, AU, raw_val):
+    """Returns normalized value from raw (hardware) value."""
+    return (raw_val - self.infos[AU].off) / self.infos[AU].pif
 
   def get_poseFromNval(self, map_or_iterable, check_SWlimits=True):
     """Create a pose from a mapping of AUs and normalized values.
@@ -103,13 +176,10 @@ class PoseManager(object):
                      software-defined limits.
     Return: Pose instance
     """
-    pose = Pose(map_or_iterable)
+    pose = self.Pose(map_or_iterable)
     if check_SWlimits:
-      for AU,nval in pose.iteritems():
-        if not self.is_inSWlimits(AU, nval):
-          raise SpineError("AU %s: nvalue %s is off soft limits [%s]" % (
-              AU, nval, self.infos[AU][-2:]), AU)
-    pose.manager = self
+      for AU, nval in pose.iteritems():
+        self.is_nvalWithinSWlimits(AU, nval, _raise=True)
     return pose
 
   def get_poseFromPool(self, AUpool,
@@ -124,8 +194,8 @@ class PoseManager(object):
     """
     assert hasattr(AUpool,'__getitem__'), "argument isn't an AUpool."
     # normalized target value = base normalized value + normalized distance
-    return Pose( [(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()
-                  if filter_fct(infs)], self, check_SWlimits )
+    return self.Pose( [(AU,infs[0]+infs[1]) for AU,infs in AUpool.iteritems()
+                       if filter_fct(infs)], self, check_SWlimits )
 
   def get_poseFromHardware(self, check_SWlimits=False):
     """Returns a pose from Hardware.
@@ -133,31 +203,50 @@ class PoseManager(object):
     raise NotImplementedError("Override this function (assign or inherit).")
 
   def get_rawFromPose(self, pose, check_SWlimits=True):
-    """Returns the pose converted in raw units: { AU : raw_value }
+    """Returns the pose converted in raw units: { axisID : raw_value }
 
     Raises SpineError if check_SWlimits is True and value is off soft limits.
     """
-    ret = {}
-    for AU,norm_val in pose.iteritems():
-      if check_SWlimits and not self.is_inSWlimits(AU, norm_val):
-        raise SpineError("AU %s: nvalue %s off SW limits" % (AU, norm_val), AU)
-      ret[AU] = self.infos[AU][0]*norm_val + self.infos[AU][1]
+    ret = { self.infos[AU].axisID : self.get_raw(AU,norm_val) for AU,norm_val in
+            pose.iteritems() }
+    if check_SWlimits:
+      for AU, norm_val in pose.iteritems():
+        self.is_nvalWithinSWlimits(AU, norm_val, _raise=True)
     return ret
 
-  def get_rawFromNval(self, AU, norm_val):
-    """Returns raw (hardware) value from normalized value."""
-    return self.infos[AU][0]*norm_val + self.infos[AU][1]
+  def get_rawNeutralPose(self):
+    """
+    Return: { axis_id : raw_val }
+    """
+    return { self.get_ID(AU) : raw for AU, raw in self.__p0.items() }
 
-  def is_inHWlimits(self, AU, rvalue):
+  def get_rawRestingPose(self):
+    """
+    Return: { axis_id : raw_val }
+    """
+    return { self.get_ID(AU) : raw for AU, raw in self.__pX.items() }
+
+  def is_rvalWithinHWlimits(self, AU, rvalue, _raise=False):
     """rvalue: raw (hardware) value
     """
-#    LOG.debug("checking raw %s against %s", rvalue, self.infos[AU][2:4])
-    return self.infos[AU][2] <= rvalue <= self.infos[AU][3]
+    LOG.debug("checking raw %s against %s", rvalue, (self.infos[AU].hardMin,
+                                                     self.infos[AU].hardMax))
+    test = self.infos[AU].hardMin <= rvalue <= self.infos[AU].hardMax
+    if not test and _raise:
+      raise SpineError("AU %s: raw value %s is off hard limits %s" %
+                       (AU, rvalue, [self.infos[AU].hardMin,
+                                    self.infos[AU].hardMax ] ) )
+    return test
 
-  def is_inSWlimits(self, AU, nvalue):
+  def is_nvalWithinSWlimits(self, AU, nvalue, _raise=False):
     """nvalue: normalized value
     """
-    return self.infos[AU][4] <= nvalue <= self.infos[AU][5]
+    test = self.infos[AU].softMin <= nvalue <= self.infos[AU].softMax
+    if not test and _raise:
+      raise SpineError("AU %s: normalized value %s is off soft limits %s" %
+                       (AU, nvalue, [self.infos[AU].softMin,
+                                    self.infos[AU].softMax ] ) )
+    return test
 
 
 class SpineHandlerMixin(ASCIIRequestHandler):
@@ -197,27 +286,40 @@ class SpineServerMixin(object):
   def __init__(self):
     self._motors_on = False
     self._lock_handler = None
-    self._new_pt = None                                 # pose and triplets
-    self.HW0pos = None                                  # Hardware for soft 0pos
-    self.HWrest = None                                  # Hardware switch-off ok
-    self.pmanager = None                                # to be set by backend
+    self._new_pt = None                         ## PoseManager.Move()
+    self.pmanager = None                        ## _configure + backend update
     try:
       self.conf = CONFIG[self.name+"_HW_setup"]
-      self.configure()
+      self._configure()
     except KeyError as e:
       raise ConfigError("Entry for %s backend: %s required." % (self.name, e))
     #XXX: keep 'AUs' attribute name! see LightHeadHandler.__init__()
     self.AUs = AUPool('spine', DYNAMICS, threaded=True)
 
+  def _configure(self):
+    """Load configuration settings all backends should need.
+
+    The conf section relative to hardware shall be copied from the
+    hardware library so that the local config can be modified at will.
+    Return: None
+    """
+    self.pmanager = PoseManager(dict(
+        zip(self.conf["AU"],
+            zip(self.conf["ID"],
+                [ float(HWval) for HWval in self.conf["Smin"] ],
+                [ float(HWval) for HWval in self.conf["Smax"] ],
+                [ float(HWval) for HWval in self.conf["0pos"] ],
+                [ float(HWval) for HWval in self.conf["Xpos"] ] ) ) ))
+
   def commit_AUs(self, fifo):
     """Checks and commits AU updates."""
     try:
       self.set_targetTriplets(fifo.__copy__())                  # thread safe
-    except StandardError as e:                                  #TODO:SpineError
-      LOG.warning("can't set pose %s (%s)", list(fifo), e)
+    except (StandardError, SpineError) as e:
+      LOG.warning("can't set triplet %s (%s)", list(fifo), e)
 
   # Note: property decorators are great but don't allow child class to define
-  #       just the setter...
+  #       just the setter easily...
 
   def get_tolerance(self):
     """In radians"""
@@ -239,27 +341,16 @@ class SpineServerMixin(object):
     """function to call upon collision detection locking"""
     self._lock_handler = handler
 
-  def configure(self):
-    """Load configuration settings all backends should need.
-
-    The conf section relative to hardware shall be copied from the
-    hardware library so that the local config can be modified at will.
-    Return: None
-    """
-    self.HW0pos = list(self.conf["0pos"])
-    self.HWrest = list(self.conf["Xpos"])
-    self.SW_limits = { AU : (int(smin),int(smax)) for AU, smin, smax in 
-                       zip(self.conf["AU"],self.conf["Smin"],self.conf["Smax"])}
-
   def is_moving(self):
     """Returns True if moving"""
+    raise NotImplementedError()
 
   def unlock(self):
     """Unlock spine after collision detection cause locking"""
     raise NotImplementedError()
 
   def set_targetTriplets(self, triplets, wait=False):
-    """Sets the targets (a Pose), the backend shall override this function.
+    """Sets the targets (a Move), the backend shall override this function.
     >triplets: iterable of triplet, i.e: ( (AU, target_nval, duration), ... )
     >wait: boolean, if True: wait for previous pose to be reached.
     Return: None
@@ -267,12 +358,13 @@ class SpineServerMixin(object):
     if wait:
       while self._new_pt != None:
         time.sleep(.05)
-    AU_nval = [ (AU,nval) for AU,nval,att_dur in triplets if att_dur > 0 ]
+    AU__nval__dur = [(AU,(nval,att_d)) for AU,nval,att_d in triplets if
+                     att_d > 0]
     # check attacks
-    if len(AU_nval) != len(triplets):
+    if len(AU__nval__dur) != len(triplets):
       raise SpineError("attack duration can't be <= 0")
     # check values
-    self._new_pt = Pose(AU_nval,self.pmanager) , triplets
+    self._new_pt = self.pmanager.Move(AU__nval__dur)
 
   def reach_pose(self, pose):
     """
