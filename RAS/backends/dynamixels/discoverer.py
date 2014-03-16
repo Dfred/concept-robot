@@ -106,19 +106,16 @@ def discover(portName, baudRate, highestServoId):
     net = create_net(portName, baudRate)
     
     # Ping the range of servos that are attached
-    try:
-        print "Scanning for Dynamixels @%i bps... max ID: %i" % (
-            baudRate, highestServoId)
-        net.scan(1, highestServoId)
-#        net.add_dynamixel(1)
-    except KeyboardInterrupt:
-        sys.exit(USER_ABORT)
+    print "Scanning for Dynamixels @%i bps... max ID: %i" % (
+        baudRate, highestServoId)
+    net.scan(0, highestServoId)
+#    net.add_dynamixel(1)
 
 ## Print servos' basic (or detailed) settings    
 ## http://support.robotis.com/en/product/dynamixel/ax_series/dxl_ax_actuator.htm
 
     for dyn in net.get_dynamixels():
-        print "** FOUND #%i (return: status level %s (%i) -- delay %iμs)"% (
+        print "*-*-* FOUND #%i (return: status level %s (%i) -- delay %iμs)" % (
             dyn.id, ["PING only","Rx only","Rx/Tx"][dyn.status_return_level],
             dyn.status_return_level, dyn.return_delay)
         myActuators.append(net[dyn.id])
@@ -170,6 +167,13 @@ def discover_loop(portName, baudRates, highestServoId):
         baud_rate = BD_next
         BD_next = None
     print "\nBaud rates found with replying servos: ", found_baud_rates
+    if found_baud_rates:
+        if len(found_baud_rates) == 1:
+            net, myActuators = discover(portName, found_baud_rates[0],
+                                        max([d.id for d in myActuators]))
+        else:
+            print "various baud rates. Exiting"
+            sys.exit(0)
     return net, myActuators
 
 def main(portName, highestServoId, baudRate, 
@@ -184,7 +188,7 @@ def main(portName, highestServoId, baudRate,
         BD_i = BAUD_RATES.index(baudRate)
     except ValueError:
         if baudRate >= MIN_BAUD_RATE:
-            ordered_bd = [ bd for bd in ALL_BAUD_RATES if bd >= MIN_BAUD_RATE ]
+            ordered_bd = [ bd for bd in ALL_BAUD_RATES if bd >= baudRate ]
         else:
             ## scan with all BRs (not possible with USB2AX)
             ordered_bd = ALL_BAUD_RATES
