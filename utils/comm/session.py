@@ -573,7 +573,7 @@ class BasePeer(object):
     """Sets reading timeout.
     timeout: time waiting for data (in seconds).
     * if >= 0, specifies a poll and never blocks.
-    * if None, read() blocks until socket's ready.
+    * if None, read() blocks until socket has data.
     """
     self._read_timeout = timeout
     LOG.debug("%s> %sSetting read timeout to %s", id(self), "" if self._socket
@@ -608,8 +608,12 @@ class BasePeer(object):
     """
     LOG.debug("%s> Aborting!", id(self))
     if self._connected and self._socket:
-      self._socket.shutdown(socket.SHUT_RDWR)   #XXX ensures exiting select()
-      LOG.debug("%s> now closed", id(self))
+        #XXX ensure exiting select()
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        LOG.debug("%s> now closed", id(self))
     self._connected = False
     self._running = False
     self.handle_disconnect()
@@ -622,7 +626,7 @@ class BasePeer(object):
     """
     try:
       buff = self._socket.recv(size)
-      if not buff and self.read_timeout == None:
+      if not buff and self.read_timeout is None:
         return self.abort()
     except socket.error as e:
       if e.errno == errno.ETIMEDOUT:
@@ -699,16 +703,14 @@ class BasePeer(object):
     self._running = True
     while self._running:
       self.read_once()
-#        return False
       self.each_loop and self.each_loop()
     return True
 
-  # TODO: test
   def set_threaded(self, threaded):
     """Enable thread safe socket writing for clients/handlers.
 
     It's not the best design, but it allows transparent threading.
-    threaded: True => set thread-safe socket writes
+    >threaded: True => set thread-safe socket writes
     Return: None
     """
     def th_send_msg(self, msg):
