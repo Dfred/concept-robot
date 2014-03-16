@@ -137,95 +137,45 @@ class ChlasProtocol(object):
         """
         """
         self.tag = None
-        self.tag_count = 0
-        self.pending_tag = None
-        self.tags_arrived = set()
+        self._tag_count = 0
+        self._tags_callbacks = {}
+        self._datablock = None
         self.reset_datablock()
 
     def cmd_ACK(self, argline):
         arg = argline.strip()
-        LOG.debug('processed tag %s', arg)
+        LOG.debug('processing tag %s', arg)
         self.tag = arg
+        fct = self._tags_callbacks.pop(arg, None)
+        fct and fct(arg, "ACK")
     def cmd_NACK(self, argline):
         arg = argline.strip()
         LOG.error('bad message (%s)', arg)
         self.tag = arg
+        fct = self._tags_callbacks.pop(arg, None)
+        fct and fct(arg, "NACK")
     def cmd_INT(self, argline):
         LOG.warning('animation interruption')
         self.tag = None
+        fct = self._tags_callbacks.pop(arg, None)
+        fct and fct(arg, "INT")
     def cmd_DSC(self, argline):
         LOG.warning('the RAS is disconnected!')
-        self.tags_arrived.clear()
+        fct = self._tags_callbacks.pop(arg, None)
+        fct and fct(arg, "DSC")
 
-    def reset_datablock(self):
-        """Forgets values previously stored with set_ functions.
+    def get_transform(self, vector, trnsf_type):
+        """Translates a vector of floats into a CHLAS transform string.
+        >vector: (float,)*3, transform vector
+        >trnsf_type: char, transform type identifier. see format_element().
+        Return: string, a transform formatted according to CHLAS protocol.
         """
-        self.datablock = ['']*5
+        assert trnsf_type in ('r','o','t','p',None), "unknown transform"
+        return ( ("%s%%s%s" % self.ROTP_PRE_SUFF[trnsf_type]) %
+                 str([round(v,3) for v in vector])[1:-1] )
 
-    def set_fExpression(self, name, intensity=None, duration=None):
-        """Sets (and returns) the facial expression part of our CHLAS datablock.
-        name: facial expression identifier, no colon (:) allowed.
-        intensity: float, normalized gain.
-        duration: float, duration of facial expression in seconds.
-        """
-        assert type(name) is str , 'name should be a string'
-        if not name:
-            return
-        return self.format_DB(0, name, None, intensity, duration)
-
-    def set_text(self, text):
-        """Sets (and returns) the text part of our CHLAS datablock.
-        text: text to utter, no double-quotes (") allowed.
-        """
-        assert type(text) is str, 'text should be a string'
-        if not text:
-            return
-        return self.format_DB(1, '"%s"'%text)
-
-    def set_gaze(self, vector3, transform='p', duration=None):
-        """Sets (and returns) the eye-gaze part of our CHLAS datablock.
-        vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
-        """
-        assert len(vector3)==3, "vector3: wrong type"
-        if not vector3:
-            return
-        return self.format_DB(2, vector3, transform, None, duration)
-
-    def set_neck(self, vector3, transform='o', duration=None):
-        """Places head. Arguments: see format_DB()."""
-        assert len(vector3)==3, "vector3: wrong type"
-        if not vector3:
-            return
-        return self.format_DB(3, vector3, transform, None, duration,
-                              keywd='Cervicals')
-
-    def set_thorax(self, vector3, tranform='o', duration=None):
-        """Places thorax. Arguments: see format_DB()."""
-        assert len(vector3)==3, "vector3: wrong type"
-        if not vector3:
-            return
-        return self.format_DB(3, vector3, transform, None, duration,
-                              keywd='Thorax')
-
-    def set_spine(self, spine_section, vector3, transform, duration):
-        """Generic Spine placement."""
-        if not spine_section:
-            return
-        return self.format_DB(3, vector3, transform, None, duration,
-                              spine_section)
-
-    def set_instinct(self, command):
-        """Sets (and returns) the instinct part of our CHLAS datablock.
-        command: you should know what you are doing when dealing with this.
-        """
-        assert type(command) is str, 'wrong types'
-        if not command:
-            return
-        self.datablock[4] = command
-        return self.datablock[4]
-
-    def format_DB(self, i, value, trnsf=None, intns=None, durtn=None,
-                  keywd=None, args=None):
+    def format_element(self, i, value, trnsf=None, intns=None, durtn=None,
+                       keywd=None, args=None):
         """Sets (and returns) an element of our CHLAS datablock.
 
         Transforms use right handedness (ie: with y+ pointing forward).
@@ -236,44 +186,108 @@ class ChlasProtocol(object):
         durtn:  float, duration of action in seconds.
         keywd:  string, see CHLAS' documentation.
         """
-        FIELDS = ['Facial Expression', 'Utterance', 'Gaze', 'Spine', 'Instinct']
+        FIELDS = ['Animation', 'Utterance', 'Gaze', 'Spine', 'Reflexes']
         assert durtn is None or type(durtn) is float, "duration isn't a float"
-        if self.datablock[i]:
+        if self._datablock[i]:
             if i in (1,4):
                 LOG.warning("appending to %s field!", FIELDS[i])
-            self.datablock[i] += '|'
+            self._datablock[i] += '|'
         if keywd:
-            self.datablock[i] += keywd+':'
+            self._datablock[i] += keywd+':'
         if trnsf:
-            self.datablock[i] += self.get_transform(value, trnsf)
+            self._datablock[i] += self.get_transform(value, trnsf)
         else:
-            self.datablock[i] += "%s" % value
+            self._datablock[i] += "%s" % value
         if intns:
-            self.datablock[i] += "*%.3f" % intns
+            self._datablock[i] += "*%.3f" % intns
         if durtn:
-            self.datablock[i] += "/%.2f" % durtn
-        return self.datablock[i]
+            self._datablock[i] += "/%.2f" % durtn
+        return self._datablock[i]
 
-    def get_transform(self, vector, trnsf_type):
+    def set_animation(self, name, intensity=None, duration=None):
+        """Sets (and returns) the animation part of our CHLAS datablock.
+        name: animation identifier, no colon (:) allowed.
+        intensity: float, normalized gain.
+        duration: float, duration of facial expression in seconds.
         """
-        """
-        assert trnsf_type in ('r','o','t','p',None), "unknown transform"
-        return ( ("%s%%s%s" % self.ROTP_PRE_SUFF[trnsf_type]) %
-                 str([round(v,3) for v in vector])[1:-1] )
+        assert hasattr(name, 'lower'), 'name should be a string'
+        if not name:
+            return
+        return self.format_element(0, name, None, intensity, duration)
 
-    def send_datablock(self, tag=''):
-        """Sends self.datablock to server and resets self.datablock.
+    def set_speech(self, text):
+        """Sets (and returns) the speech (text) part of our CHLAS datablock.
+        text: text to utter, no double-quotes (") allowed.
+        """
+        assert hasattr(text, 'lower'), 'text should be a string'
+        if not text:
+            return
+        return self.format_element(1, '"%s"'%text)
+
+    def set_gaze(self, vector3, transform='o', duration=None):
+        """Sets (and returns) the eye-gaze part of our CHLAS datablock.
+        vector3: (x,y,z) : right handedness (ie: with y+ pointing forward)
+        """
+        assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
+        return self.format_element(2, vector3, transform, None, duration)
+
+    def set_neck(self, vector3, transform='o', duration=None):
+        """Places head. Arguments: see format_element()."""
+        assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
+        return self.format_element(3, vector3, transform, None, duration,
+                              keywd='Cervicals')
+
+    def set_thorax(self, vector3, tranform='o', duration=None):
+        """Places thorax. Arguments: see format_element()."""
+        assert len(vector3)==3, "vector3: wrong type"
+        if not vector3:
+            return
+        return self.format_element(3, vector3, transform, None, duration,
+                              keywd='Thorax')
+
+    def set_spine(self, spine_section, vector3, transform, duration):
+        """Generic Spine placement."""
+        if not spine_section:
+            return
+        return self.format_element(3, vector3, transform, None, duration,
+                              spine_section)
+
+    def set_reflexes(self, command):
+        """Sets (and returns) the reflex part of our CHLAS datablock.
+        command: you should know what you are doing when dealing with this.
+        """
+        assert hasattr(command, 'lower'), 'wrong types'
+        if not command:
+            return
+        self._datablock[4] = command
+        return self._datablock[4]
+
+    def reset_datablock(self):
+        """Forgets values previously stored with set_ functions.
+        """
+        self._datablock = ['']*5
+
+    def send_datablock(self, tag='', callback=None, return_datablock=False):
+        """Sends self._datablock to server and resets self._datablock.
         Use wait_reply to block until server replies for your tag.
-        tag: string identifying your datablock.
-        Returns: tag, part of it is generated. You may need it for wait_reply().
+
+        >tag: string identifying your datablock.
+        >callback: fct(tag, CHLAS_reply) -> None, called upon CHLAS reply.
+        Returns: tag, part of it is generated, need for wait_reply().
         """
         if not tag:
-            self.tag_count += 1
-            tag = str(self.tag_count)
-        datablock = ';'.join(self.datablock)+';'
+            self._tag_count += 1
+            tag = str(self._tag_count)
+        datablock = ';'.join(self._datablock)+';'
         self.reset_datablock()
+        if callback:
+            self._tags_callbacks[tag] = callback
         self.send_msg(datablock+tag)
-        return tag
+        return tag, datablock if return_datablock else tag
 
     def send_my_datablock(self, datablock):
         """Sends a raw datablock, so you have to know datablock formatting.
