@@ -125,7 +125,8 @@ class ThreadedComm(ASCIICommandClient):
     super(ThreadedComm,self).disconnect()
     LOG.debug("joining thread '%s'", name)
     self.abort()
-    self.__thread.join()
+    if not threading.current_thread() == self.__thread:
+      self.__thread.join()
     self.set_threaded(False)
     LOG.debug('joined thread %s', self)
 
@@ -134,10 +135,10 @@ class ThreadedComm(ASCIICommandClient):
   ##
 
   def connect(self):
-    if not self.__thread:
+    if not self.__thread:                               ## 1st call
       self.connect_and_run()
     else:
-      super(ThreadedComm,self).connect()
+      super(ThreadedComm,self).connect()                ## 2nd call (baseclass)
 
   def connect_and_run(self):
     """Connect to the remote server within the spawned thread.
