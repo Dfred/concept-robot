@@ -240,8 +240,8 @@ class ARASServer(object):
         sys.exit(EXIT_CONFIG)
       except StandardError as e:
         LOG.error("Error while initializing module '%s':", be_name)
+        LOG.error("StandardError: %s", e) 
         if LOG.getEffectiveLevel() == logging.DEBUG:
-          LOG.error("StandardError: %s", e) 
           import pdb; pdb.post_mortem()
         sys.exit(EXIT_UNKNOWN)
       if not hasattr(subserver,"name"):
