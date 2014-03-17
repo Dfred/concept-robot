@@ -66,7 +66,7 @@ def loadnCheck_configuration(project_name):
   if missing:
     print "ERROR: %s lacks required entries:" % conf.get_loaded(), missing
     return None
-  if conf.CONFIG["addrPort"][1]:
+  if hasattr(conf.CONFIG["addrPort"][1],'lower'):
     conf.CONFIG["addrPort"][1] = int(conf.CONFIG["addrPort"][1])
   return True
 
@@ -102,6 +102,7 @@ def initialize(thread_info, project_name):
       f.write(str(os.getpid()))
   except StandardError as e:
     LOG.error("Couldn't write PID file (%s), expect issues with the SDK.",e)
+  LOG.info("--- server started %s ---", conf.CONFIG["addrPort"])
   return server
 
 def cleanUp(server):
