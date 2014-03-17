@@ -62,7 +62,7 @@ from presentation import BasePresentation
 LOG = logging.getLogger(__package__)
 
 FATAL_ERRORS = ( errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EADDRNOTAVAIL )
-DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF ]
+DISCN_ERRORS = [ errno.ECONNRESET, errno.ECONNABORTED, errno.EBADF, errno.EPIPE]
 if platform.system() == "Windows":
     DISCN_ERRORS += (errno.WSAECONNRESET, errno.WSAECONNABORTED)
 
@@ -701,6 +701,8 @@ class BasePeer(object):
     Return: True if stopped running, False on error.
     """
     self._running = True
+    LOG.debug("entering read_while_running from thread %s",
+              threading.currentThread())
     while self._running:
       self.read_once()
       self.each_loop and self.each_loop()
@@ -733,6 +735,10 @@ class BasePeer(object):
       LOG.debug('%s> client in single-thread. send_msg is %s',
                 id(self), self.send_msg)
 
+  def is_threaded(self):
+      """
+      """
+      return bool(self._th_save)
 
 #TODO: clean class (of set_looping)
 class BaseRequestHandler(BasePeer):

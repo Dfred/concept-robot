@@ -115,6 +115,7 @@ class ASCIICommandProto(BasePresentation):
     # of parsing (self.data, self.data_end) is not accessible until call returns
       ret = self.handle_notfound(ASCIICommandProto.CMD_PREFIX+cmd, args)
     else:
+      LOG.debug("calling callback %s", bound_fct)
       ret = bound_fct(args)
     if ret:                                                 # data to be ignored
       self.read(ret)
