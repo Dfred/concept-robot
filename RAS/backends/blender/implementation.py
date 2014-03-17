@@ -57,6 +57,7 @@ THREADED_SERVER  = False
 THREADED_CLIENTS = False
 THREAD_INFO = (THREADED_SERVER, THREADED_CLIENTS)
 
+CFG_PREFIX = "blender_"
 OBJ_PREFIX = "OB"
 CTR_SUFFIX = "#CONTR#"
 SH_ACT_LEN = 50
@@ -141,8 +142,9 @@ except ImportError:
 def fatal(error):
   """Common function to gracefully quit."""
   print PRE_ERR+'--- Fatal: %s ---' % error
-  if sys.exc_info() != (None,None,None) and (
-    hasattr(G,'CONFIG') and G.CONFIG["verbosity"].startswith("DEBUG")):
+  if (sys.exc_info() != (None,None,None) and
+      (hasattr(G,'CONFIG') and
+       G.CONFIG[CFG_PREFIX+"verbosity"].startswith("DEBUG") ):
     try: import pdb; pdb.post_mortem()
     except ValueError: pass
   shutdown(G.getCurrentController())
@@ -243,12 +245,13 @@ def initialize(server):
   print PRE_NFO+"Material mode:",['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                                   'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
-  if G.CONFIG["verbosity"].startswith("DEBUG"):
+  if G.CONFIG[CFG_PREFIX+"verbosity"].startswith("DEBUG"):
     INFO_PERIOD = None
-  if (G.CONFIG.has_key('use_projMat') and G.CONFIG['use_projMat'] and
-      G.CONFIG.has_key('proj_matrix')):
+  if (G.CONFIG.has_key(CFG_PREFIX+'use_projMat') and
+      G.CONFIG[CFG_PREFIX+'use_projMat'] and
+      G.CONFIG.has_key(CFG_PREFIX+'proj_matrix') ):
     try:
-      cam.projection_matrix = G.CONFIG['proj_matrix']
+      cam.projection_matrix = G.CONFIG[CFG_PREFIX+'proj_matrix']
     except StandardError as e:
       print PRE_ERR+"Couldn't set projection matrix (%s)" % e
   print PRE_NFO+"camera: lens %s\nview matrix: %s\nproj matrix: %s" % (
