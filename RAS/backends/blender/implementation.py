@@ -143,8 +143,7 @@ def fatal(error):
   """Common function to gracefully quit."""
   print PRE_ERR+'--- Fatal: %s ---' % error
   if (sys.exc_info() != (None,None,None) and
-      (hasattr(G,'CONFIG') and
-       G.CONFIG[CFG_PREFIX+"verbosity"].startswith("DEBUG") ):
+      (hasattr(G,'CONFIG') and G.CONFIG["verbosity"].startswith("DEBUG") )):
     try: import pdb; pdb.post_mortem()
     except ValueError: pass
   shutdown(G.getCurrentController())
@@ -245,7 +244,7 @@ def initialize(server):
   print PRE_NFO+"Material mode:",['TEXFACE_MATERIAL','MULTITEX_MATERIAL',
                                   'GLSL_MATERIAL'][Rasterizer.getMaterialMode()]
   cam = G.getCurrentScene().active_camera
-  if G.CONFIG[CFG_PREFIX+"verbosity"].startswith("DEBUG"):
+  if G.CONFIG["verbosity"].startswith("DEBUG"):
     INFO_PERIOD = None
   if (G.CONFIG.has_key(CFG_PREFIX+'use_projMat') and
       G.CONFIG[CFG_PREFIX+'use_projMat'] and
