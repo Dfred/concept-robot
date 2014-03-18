@@ -308,8 +308,8 @@ class SpineServerMixin(object):
             zip(self.conf["ID"],
                 [ float(HWval) for HWval in self.conf["Smin"] ],
                 [ float(HWval) for HWval in self.conf["Smax"] ],
-                [ float(HWval) for HWval in self.conf["0pos"] ],
-                [ float(HWval) for HWval in self.conf["Xpos"] ] ) ) ))
+                [ float(HWval) for HWval in self.conf["pos0"] ],
+                [ float(HWval) for HWval in self.conf["posX"] ] ) ) ))
 
   def commit_AUs(self, fifo):
     """Checks and commits AU updates."""
