@@ -41,7 +41,7 @@ import platform
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from utils import EXIT_DEPEND, EXIT_CONFIG
+from utils import EXIT_DEPEND, EXIT_CONFIG, EXIT_CMDLINE
 from utils import conf
 
 BGE_PYTHON_VERS=2.7
@@ -167,4 +167,8 @@ if args.d:
   print "+++ PYTHONPATH=%s" % PYTHONPATH
   print "+++ Running:", COMMAND
 
-os.execvp(COMMAND[0], COMMAND[0:])
+try:
+  os.execvp(COMMAND[0], COMMAND[0:])
+except OSError as e:
+  print "Couldn't start command \"%s\" (%s)" % (COMMAND, e)
+  sys.exit(EXIT_CMDLINE)
