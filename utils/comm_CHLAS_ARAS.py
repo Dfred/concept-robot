@@ -139,15 +139,17 @@ class ChlasProtocol(object):
         self.tag = None
         self._tag_count = 0
         self._tags_callbacks = {}
-        self._datablock = None
+        self._datablock = []
         self.reset_datablock()
 
     def cmd_ACK(self, argline):
         arg = argline.strip()
-        LOG.debug('processing tag %s', arg)
         self.tag = arg
         fct = self._tags_callbacks.pop(arg, None)
-        fct and fct(arg, "ACK")
+        if fct:
+            LOG.debug('calling callback %s for tag %s', fct, arg)
+            fct(arg, "ACK")
+        LOG.debug("no ACK callback for tag %s", arg)
     def cmd_NACK(self, argline):
         arg = argline.strip()
         LOG.error('bad message (%s)', arg)
@@ -215,14 +217,19 @@ class ChlasProtocol(object):
             return
         return self.format_element(0, name, None, intensity, duration)
 
-    def set_speech(self, text):
+    def set_speech(self, text, language=None):
         """Sets (and returns) the speech (text) part of our CHLAS datablock.
-        text: text to utter, no double-quotes (") allowed.
+        >text: string, text to utter, no double-quotes (") allowed.
+        >language: string, default to None (no language change)
         """
-        assert hasattr(text, 'lower'), 'text should be a string'
+        assert hasattr(text, 'lower'), "text should be a string"
+        assert '"' not in text, "no \" allowed"
         if not text:
             return
-        return self.format_element(1, '"%s"'%text)
+        text = '"%s"' % text
+        if language:
+            text = "%s:%s" % (language, text)
+        return self.format_element(1, text)
 
     def set_gaze(self, vector3, transform='o', duration=None):
         """Sets (and returns) the eye-gaze part of our CHLAS datablock.
@@ -280,6 +287,7 @@ class ChlasProtocol(object):
         Returns: tag, part of it is generated, need for wait_reply().
         """
         if not tag:
+            LOG.debug("using tag %i", self._tag_count)
             self._tag_count += 1
             tag = str(self._tag_count)
         datablock = ';'.join(self._datablock)+';'
@@ -287,7 +295,7 @@ class ChlasProtocol(object):
         if callback:
             self._tags_callbacks[tag] = callback
         self.send_msg(datablock+tag)
-        return tag, datablock if return_datablock else tag
+        return (tag, datablock) if return_datablock else tag
 
     def send_my_datablock(self, datablock):
         """Sends a raw datablock, so you have to know datablock formatting.
@@ -299,6 +307,7 @@ class ChlasComm(ASCIICommandClient, ChlasProtocol):
     """Class dedicated for client communication with expression server.
     """
 
+    ## possible race: reply received before reading from here.
     def wait_reply(self, tag):
         """Waits for a reply from the server.
         """
@@ -307,23 +316,23 @@ class ChlasComm(ASCIICommandClient, ChlasProtocol):
         old_to = self.read_timeout
         self.read_timeout = None
         while self.tag != tag:
-            print 'read_once', self.read_timeout
-            self.read_once()
+            if not self.is_threaded():
+                self.read_once()
         LOG.debug("tag '%s' complete (curr. %s)", tag,self.tag)
         self.tag = None
         self.read_timeout = old_to
 
-    def sendDB_waitReply(self, datablock='', tag='', wait=True):
+    def sendDB_waitReply(self, my_datablock='', my_tag='', wait=True):
         """Sends (given or internal) datablock and returns upon reply about it.
-        datablock: string without tag, if None use internal datablock
-        tag: string
+        >my_datablock: string without tag, if None use internal datablock
+        >my_tag: string
         """
-        if datablock:
-            assert tag, "when sending your own datablock, provide a tag"
-            self.send_my_datablock(datablock, tag)
+        if my_datablock:
+            assert my_tag, "when sending your own datablock, provide a tag"
+            self.send_my_datablock(my_datablock+my_tag)
         else:
-            tag = self.send_datablock(tag)
-        wait and self.wait_reply(tag)
+            my_tag = self.send_datablock(tag=my_tag)
+        wait and self.wait_reply(my_tag)
 
 
 class ChlasCommTh(ThreadedComm, ChlasComm):
