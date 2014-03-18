@@ -38,7 +38,7 @@ import math
 import logging
 
 from . import BAUD_RATES
-from dynamixel_ext import DynamixelNetworkEx, DynamixelEx
+from dynamixel_ext import DynamixelNetworkEx
 from dynamixel import SerialStream
 
 from utils import EXIT_DEPEND, EXIT_CONFIG
@@ -49,9 +49,9 @@ from RAS.spine import (SpineServerMixin, SpineHandlerMixin, PoseManager,
 
 LOG = logging.getLogger(__package__)
 
-OFFSET = 512                                            # goal value @0deg
 ## Doc conflict: .29*1024 = 296.96 , but 300/1024 ~= .293 (~3 degrees)
-PIF = (1024-OFFSET)/math.radians(296.96)                # pi factor
+PIF = (1024-512)/math.radians(296.96)           ## pi factor
+MINRAWDELTA_READY = 50                          ## to prevent weird startups
 
   
 class SrvMix_Dynamixel(SpineServerMixin):
@@ -64,50 +64,53 @@ class SrvMix_Dynamixel(SpineServerMixin):
     self.name = "dynamixels"
     super(SrvMix_Dynamixel,self).__init__()             ## sets self.SW_limits
     self.daisy_chain = None
-    self.pmanager.set_hardware_infos( { AU : (PIF, OFFSET, 0, 1023) for AU in 
-                                        self.pmanager.ID2AU.values() } )
     self.__init_hardware()
     self.pmanager.get_poseFromHardware = self.get_poseFromHardware.__get__(
       self.pmanager, PoseManager)
     self.AUs.set_availables(*zip(*self.pmanager.get_poseFromHardware().items()))
     self.ready()
+    print "done ready"
 
   def __init_hardware(self):
     """
     """
+    pman = self.pmanager
+    pman.set_hardware_infos({ pman.ID2AU[ID] : (PIF, rVal, 0, 1023) for
+                              ID, rVal in pman.get_rawNeutralPose().items() } )
     portID, baudsR = CONFIG[self.name+"_serial_port"]
     try:
       #XXX these arguments are passed over to python's serial module
-      serial = SerialStream(port=portID, baudrate=baudsR,
-                            timeout=.1)
+      serial = SerialStream(port=portID, baudrate=baudsR, timeout=.1)
       LOG.debug("opened port %s @%ibps", portID, baudsR)
       self.daisy_chain = DynamixelNetworkEx(serial)
     except ValueError as e:
       LOG.fatal("Cannot start dynamixel: %s", e)
 
     pose_manager_info = {}
-    for ID, AU in self.pmanager.ID2AU.iteritems():
+    for ID, AU in pman.ID2AU.iteritems():
       self.daisy_chain.add_dynamixel(ID)
       servo = self.daisy_chain[ID]
       servo.read_all()
       LOG.debug("dynamixel #%i:\n"
                 "\tstatus_return_level: %i\n"
-                "\tError status (alarm shutdown): %s\n"
+                "\tWill shutdown for alarms: %s\n"
                 "\tcurrent position: %i\n"
                 "\tcurrent temperature: %i°C\n",
                 ID, servo.status_return_level, 
                 self.daisy_chain.error_text(servo.alarm_shutdown),
                 servo.goal_position, servo.current_temperature)
-      servo.moving_speed = 1000                                  ## 50%
       servo.synchronized = True                                 ## only internal
-      servo.torque_enable = False
+      servo.torque_enable = False                               ## HW protect
       servo.torque_limit = 1023                                 ## 100%
-      servo.max_torque = 512
+      servo.max_torque = 960
 
       if self.AUs.has_key(AU):
         LOG.warning("AU %s already present in pool.", AU)
 ##TDL use that if needed, (requires some traffic on serial).
 #    LOG.debug("serial statistics: %s", self.daisy_chain.dump_statistics())
+    self.daisy_chain[1].moving_speed = 512
+    self.daisy_chain[2].moving_speed = 50
+    self.daisy_chain[3].moving_speed = 512
 
   def _nval2enc(self, nval, axis):
     """Translates from normalized AU value to iCub value.
@@ -125,9 +128,25 @@ class SrvMix_Dynamixel(SpineServerMixin):
   def ready(self):
     """
     """
+    ## Ensure the configuration is very close to the resting pose
+    pose_it = self.pmanager.get_rawRestingPose().iteritems()
+    while True:
+      try:
+        ID, rVal = pose_it.next()
+      except StopIteration:
+        break
+      else:
+        servo = self.daisy_chain[ID]
+        if abs(servo.current_position - rVal) > MINRAWDELTA_READY:
+          LOG.warning("AU %s (servo %i) is too far from rest position (%i).", 
+                      self.pmanager.get_AU(ID), ID, servo.current_position)
+          raw_input("--- Press Enter when ready ---")
+          pose_it = self.pmanager.get_rawRestingPose().iteritems()
+    
+    ## Now go into neutral pose
     for ID, rVal in self.pmanager.get_rawNeutralPose().items():
       LOG.debug("servo #%i setting from %i -> %i", ID,
-                self.daisy_chain[ID].goal_position, rVal)
+                self.daisy_chain[ID].current_position, rVal)
       self.daisy_chain[ID].goal_position = int(rVal)
     self.daisy_chain.synchronize()
 
@@ -150,6 +169,7 @@ class SrvMix_Dynamixel(SpineServerMixin):
     except SpineError as e:
       LOG.warning("can't update hardware: %s", e)
     self.daisy_chain.synchronize()
+    print "AU commited"
 
   def get_AU__vals(self):
     """Read servos values and translate them to RAS internal AU format.
