@@ -26,11 +26,12 @@ __license__ = "GPL"
 import time
 import logging
 
-from HMS.communication import MTExpressionComm
+from utils.comm import get_addrPort
+from utils.comm_CHLAS_ARAS import ChlasCommTh
 from utils import conf, LOGFORMATINFO
+from RAS import REQUIRED_CONF_ENTRIES
 
-
-LOG = logging.getLogger(__package__)
+LOG = None
 
 class Script(object):
   """
@@ -74,18 +75,38 @@ class Script(object):
     return 'EOF'
 
 
-class MonologuePlayer(object):
+class MonologuePlayer():
   """A simple player reading monologue file.
   """
 
-  def run(self, skip_to=None):
+  def __init__(self, addrPort, filepath):
+    """
+    """
+    self.comm_expr = ChlasCommTh(get_addrPort(addrPort),
+                                 fct_connected=self.connected,
+                                 fct_disconnected=self.disconnected)
+    #XXX: on_bad_command() could miss the 1st datablocks (although unlikely).
+    setattr(self.comm_expr,'cmd_NACK',self.on_bad_command)
+    self.script = Script(filepath)
+    self.__wait_reply = True
+    self.__running = False
+    self.no_fail = False
+    self.comm_expr.connect()
+
+  def set_wait_reply(self, wait_flag):
+    """
+    """
+    self.__wait_reply = wait_flag
+
+  def launch(self, skip_to=None):
     """Awaits connection, then processes all of the monologue file.
     """
     skip_to and self.script.skip_to(skip_to)
-    while not self.running:     # waiting for connection
+    while not self.__running:     # waiting for connection
+      print "waiting for connection"
       time.sleep(.5)
     pause, sent_t, recv_t = 0, 0, 0
-    while self.running:         # until disconnection or EOF
+    while self.__running:         # until disconnection or EOF
       if pause:
         delay = pause - (recv_t - sent_t)
         if delay < 0:
@@ -101,12 +122,13 @@ class MonologuePlayer(object):
       if line:
         lineno, pause, datablock = line
         datablock, tag = datablock.rsplit(';', 1)
-        LOG.debug('sending line #%i and waiting reply for tag "%s"', lineno,tag)
+        LOG.debug('sending line #%i %sfor tag "%s"', lineno, 
+                  "and waiting reply " if self.__wait_reply else "", tag)
         sent_t = time.time()
-        if self.wait_reply:
+        if self.__wait_reply:
           self.comm_expr.sendDB_waitReply(datablock+';', tag)
         else:
-          self.comm_expr.send_my_datablock(datablock+';'+tag)
+          self.comm_expr.send_my_datablock(datablock, tag)
         recv_t = time.time()
 
   def cleanup(self):
@@ -117,65 +139,58 @@ class MonologuePlayer(object):
     LOG.error("command with tag '%s' has an error", argline)
     if self.no_fail:
       return
-    self.running = False
+    self.__running = False
 
   def connected(self):
-    self.running = True
+    LOG.debug("connected")
+    self.__running = True
 
   def disconnected(self):
-    LOG.warning('disconnected from server')
-    self.running = False
-
-  def __init__(self, filepath):
-    """
-    """
-    missing = conf.load(required_entries=('ROBOT','expression_server'))
-    if missing:
-      LOG.warning('\nmissing configuration entries: %s', missing)
-      exit(1)
-
-    self.running = False
-    self.comm_expr = MTExpressionComm(conf.expression_server,
-                                      connection_lost_fct=self.disconnected,
-                                      connection_succeded_fct=self.connected)
-    #XXX: on_bad_command() could miss the 1st datablocks (although unlikely).
-    setattr(self.comm_expr,'cmd_NACK',self.on_bad_command)
-    self.script = Script(filepath)
-    self.wait_reply = True
-    self.no_fail = False
+    LOG.debug("disconnected")
+    self.__running = False
 
 
 if __name__ == '__main__':
   import sys, logging
-  debug = len(sys.argv) > 2 and sys.argv[1].startswith('-v') and sys.argv.pop(1)
-  logging.basicConfig(level=(debug and logging.DEBUG or logging.INFO),
+  from optparse import OptionParser
+
+  parser = OptionParser("%s remote_addrPort script_path" % sys.argv[0])
+  parser.add_option("-v", "--verbose", dest="verbosity", action='count',
+                    default=0, help="start in debug mode")
+  parser.add_option("-n", "--no-waitACK", dest="noACK", action="store_true", 
+                    help="don't wait for ACK to send next datablock.")
+  parser.add_option("-d", "--dont-stopNACK", dest="deaf", action="store_true", 
+                    help="don't stop after receiving a NACK.")
+  parser.add_option("-s", "--skip", dest="skip", type=int, default=None,
+                    help="skip the 1st SKIP lines of the script.")
+  opts, args = parser.parse_args()
+
+  logging.basicConfig(level=[logging.WARNING,
+                             logging.INFO,
+                             logging.DEBUG][opts.verbosity],
                       **LOGFORMATINFO)
-  # skip to line
-  skip = len(sys.argv) > 2 and sys.argv[1].startswith('-s') and sys.argv.pop(1)
-  # don't wait for ACK
-  noACK = len(sys.argv) > 2 and sys.argv[1].startswith('-n') and sys.argv.pop(1)
-  # don't stop on NACK
-  deaf = len(sys.argv) > 2 and sys.argv[1].startswith('-d') and sys.argv.pop(1)
-  conf.set_name('lightHead')
+  LOG = logging.getLogger(__package__)
 
+  conf.set_name('lighty')
+  
   try:
-    m = MonologuePlayer(sys.argv[1])                          # also loads conf
-  except IndexError:
-    print 'usage: %s monologue_file' % sys.argv[0]
-    exit(1)
+    addrPort, filepath = args
+  except:
+    print "arguments required"
+    sys.exit(1)
+  m = MonologuePlayer(*args)                            # also loads conf
 
-  if skip:
-    skip = int(skip[2:])
-    print "-- will start from line %i --" % skip
-  if noACK:
-    m.wait_reply = False
+  if opts.skip:
+    print "-- will start from line %i --" % opts.skip
+  if opts.noACK:
+    m.set_wait_reply(False)
     print "-- won't wait for ACK --"
-  if deaf:
+  if opts.deaf:
     m.no_fail = True
     print "-- won't stop on NACK --"
 
   try:
-    m.run(skip and skip)
+    m.launch(opts.skip)
   except KeyboardInterrupt:
     print '\n--- user interruption ---'
   else:

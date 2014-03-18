@@ -7,6 +7,6 @@ else
     cd ../..
     source ./common/source_me_to_set_env.sh lightHead
 
-    python $EXP_DIR/player_monologue.py -n "$EXP_DIR/$@"
+    python $EXP_DIR/player_monologue.py -dn "$EXP_DIR/$@"
 fi
 
