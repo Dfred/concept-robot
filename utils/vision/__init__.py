@@ -254,6 +254,26 @@ class CamUtils(CamCapture):
         self.eyes_detector = None
         super(CamUtils,self).__init__(sensor_name)
 
+    def set_depth_fct(self, fct_string):
+        """/!\ THIS IS HIGHLY INSECURE: ARBITRARY CODE CAN BE EXECUTED!
+        >fct_str: string describing the function
+        """
+        assert isinstance(fct_string, str)
+        ## compile depth_fct
+        fct = eval('lambda x:'+fct_string)                  #SEC rework ASAP!
+        try:
+            fct(10)
+        except Exception, e:
+            LOG.critical("[conf] error with depth_fct expression: %s",e)
+            return
+        else:
+            self.depth_fct = fct
+
+    def set_XY_factors(self, X, Y):
+        """
+        """
+        self.XY_factors = (X, Y)
+
     def set_camera(self, name):
         """Overriding to add our properties.
         >name: camera identifier as found in configuration file.
@@ -272,16 +292,7 @@ class CamUtils(CamCapture):
                 raise conf.ConfigErrror("Camera '%s' has no '%s' property in "
                                         "your configuration file." % (name, e))
         assert isinstance(self.XY_factors, tuple) and all(self.XY_factors)
-        assert isinstance(self.depth_fct, str)
-        ## compile depth_fct
-        fct = eval('lambda x:'+self.depth_fct)
-        try:
-            fct(10)
-        except Exception, e:
-            LOG.critical("[conf] error with depth_fct expression: %s",e)
-            return None
-        else:
-            self.depth_fct = fct
+        self.set_depth_fct(self.depth_fct)
 
     def mark_rects(self, rects, thickness=1, color='blue'):
         """Outlines the given rects in our video stream.
@@ -325,7 +336,7 @@ class CamUtils(CamCapture):
             return
         if not haar_cascade_path:
             try:
-                haar_cascade_path = conf.ROBOT['mod_vision']['haar_cascade']
+                haar_cascade_path = conf.CONFIG['mod_vision']['haar_cascade']
             except (KeyError,TypeError):
                 pass
         if not haar_cascade_path:
@@ -373,6 +384,8 @@ http://people.hofstra.edu/stefan_waner/realworld/newgraph/regressionframes.html
         e.g. 'depth_fct': '0.249136*x**-0.443607' for the function above
         Return: (gaze_vector, ...)
         """
+        assert self.depth_fct, "depth function required, use set_depth_fct"
+        assert self.XY_factors, "XY factors required, use set_XY_factors"
         w, h = float(self.camera.size[0]), float(self.camera.size[1])
         fw, fh = self.XY_factors
         if not hasattr(rects, '__iter__'):
