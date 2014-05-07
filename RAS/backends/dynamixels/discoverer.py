@@ -56,6 +56,7 @@ USER_ABORT = 2
 MOD_BAUD_RATE = 75
 SERIAL_TIMEOUT = .1
 
+
 def create_net(portName, baudRate):
     # Establish a serial connection to the dynamixel network.
     # This usually requires a USB2Dynamixel
@@ -68,6 +69,7 @@ def create_net(portName, baudRate):
         sys.exit()
 #    return dynamixel.DynamixelNetwork(serial)
     return DynamixelNetworkEx(serial)
+
 
 def show_infos(net, dyn):
     dyn.read_all()
@@ -87,6 +89,7 @@ def show_infos(net, dyn):
            dyn.torque_limit/1023.*100, dyn.torque_limit,
            dyn.max_torque/1023.*100, dyn.max_torque)
 
+
 def set_SRL(dyn, statusReturnLevel):
     ## set return for all commands (otherwise timeout errors occur)
     if int(statusReturnLevel) == 0 and dynamixel.__version__ == '1.1.0':
@@ -100,6 +103,7 @@ def set_SRL(dyn, statusReturnLevel):
 
 #    "Smin": [-1.2215, -1.047, -0.5235],
 #    "Smax": [1.2215, 0.5235, 0.5235]
+
 
 def discover(portName, baudRate, highestServoId):
     myActuators = []
@@ -120,6 +124,7 @@ def discover(portName, baudRate, highestServoId):
             dyn.status_return_level, dyn.return_delay)
         myActuators.append(net[dyn.id])
     return net, myActuators
+
 
 def discover_loop(portName, baudRates, highestServoId):
     myActuators, found_baud_rates = [], []
@@ -148,15 +153,15 @@ def discover_loop(portName, baudRates, highestServoId):
         if BD_next and not scan_allBR:
             try:
                 rep = 'y'
-                rep = raw_input("scan with %i baud rate? [Y/n/skip/all/quit]" %
-                                BD_next).lower()
+                rep = raw_input("scan with %i baud rate? "
+                                "[Yes/all/skip/done/quit]" % BD_next ).lower()
             except KeyboardInterrupt:
                 print ""
                 rep = 'q'
             finally:
                 if not rep:
                     pass
-                elif rep[0] == 'n':
+                elif rep[0] == 'd':
                     break
                 elif rep[0] == 's':
                     BD_next = BD_it.next()
@@ -176,9 +181,10 @@ def discover_loop(portName, baudRates, highestServoId):
             sys.exit(0)
     return net, myActuators
 
+
 def main(portName, highestServoId, baudRate, 
          newStatusReturnLevel, newBaudRate, newServoId,
-         with_infos=False):
+         with_infos=False, rand_range=None):
     if newBaudRate and newBaudRate not in BAUD_RATES:
         print "{} isn't a standard baud rate {}".format(newBaudRate, BAUD_RATES)
         sys.exit(1)
@@ -242,9 +248,10 @@ def main(portName, highestServoId, baudRate,
         # Randomly vary servo position within a small range
         print "ID\tPosition"
         while True:
-            for actuator in myActuators:
-                actuator.goal_position = random.randrange(384, 640)
-            net.synchronize()
+            if rand_range:
+                for actuator in myActuators:
+                    actuator.goal_position = random.randrange(*rand_range)
+                net.synchronize()
             for actuator in myActuators:
                 actuator.read_all()
                 time.sleep(0.01)
@@ -253,6 +260,7 @@ def main(portName, highestServoId, baudRate,
             time.sleep(2)
     except KeyboardInterrupt:
         return
+
 
 def validateInput(userInput, rangeMin, rangeMax):
     """Return: valid user input or None
@@ -267,6 +275,7 @@ def validateInput(userInput, rangeMin, rangeMax):
         return None
     
     return inTest
+
 
 if __name__ == '__main__':
     
@@ -290,6 +299,8 @@ if __name__ == '__main__':
     parser.add_option("-R", "--set-SRL", dest="newSRL", type="choice",
                       choices=('0','1','2'), default=None,
                       help="Set servos' Status Return Level (0, 1 or 2).")
+    parser.add_option("-r", "--rand-values", dest="rand", type="int", nargs=2,
+                      default=False, help="send random values in set range.")
     
     (options, args) = parser.parse_args()
     
@@ -356,7 +367,14 @@ if __name__ == '__main__':
                   "To change them in the future either edit that file or run "
                   "this example with -c.")
 
+    if options.rand:
+        options.rand = (validateInput(options.rand[0], 0, 1023),
+                        validateInput(options.rand[1], 0, 1023) )
+        if options.rand[0] > options.rand[1]:
+            options.rand = sorted(options.rand)
+
     main(len(args) and args[0] or settings['port'],
          settings['highestServoId'], 
          settings['baudRate'] if options.BR is None else int(options.BR),
-         options.newSRL, options.newBR, options.newID, options.infos)
+         options.newSRL, options.newBR, options.newID, options.infos,
+         options.rand )
