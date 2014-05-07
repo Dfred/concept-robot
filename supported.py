@@ -112,7 +112,7 @@ DEFAULTS = {
 HW_LIBRARIES = {
   ## entries' identifiers are built with vendor_id:device_id
   LIB_VISION : {
-    "408:2fb1" : { "label" : "Quanta Computer HD Camera",
+    "408:2fb1" : { "description" : "Quanta Computer HD Camera",
                    "dev_index" : 0,
                    "resolution" : (800,600),
                    "XY_factors" : (.2, .1),
@@ -121,7 +121,7 @@ HW_LIBRARIES = {
     },
 
   LIB_HEARING : {
-    "8086:1c20" : { "label" : "Intel 6 Series/C200 Series HD Audio (rev 05)",
+    "8086:1c20" : { "description":"Intel 6 Series/C200 Series HD Audio (rev 5)",
                     "dev_index" : (6,6),                ## stereo capable
                     "dB_factor" : .1,
                     },
