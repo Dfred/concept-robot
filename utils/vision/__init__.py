@@ -28,6 +28,7 @@
 import math
 import threading
 import logging
+import collections
 
 import cv
 try:
@@ -135,23 +136,28 @@ class CamCapture(object):
         """
         self.cam_info = {'dev_index':dev_index, 'resolution':resolution}
 
-    def set_camera(self, name):
+    def set_camera(self, hwID=None):
         """
-        >name: identifier of camera as found in conf.
+        >hwID: str or None; identifier from HW lib, None to use config values.
         Raise: conf.ConfigError
         Return: None
         """
-        LOG.debug("vision using camera '%s'", name)
+        if hwID:
+            raise NotImplementedError
+        else:
+            try:
+                self.cam_info = conf.CONFIG["lib_vision_active_entry"]
+            except KeyError as e:
+                raise conf.ConfigError("Camera '%s' not found in your"
+                                       " configuration file." % (e) )
+            hwID = "in conf"
+
         ## Required attributes
-        try:
-            cam_props = conf.lib_vision[name]
-            self.set_device(cam_props['dev_index'], cam_props['resolution'])
-        except AttributeError:
-            raise conf.ConfigError("Camera '%s' has no definition in your"
-                                   " configuration file." % name)
-        except KeyError, e:
-            raise conf.ConfigError("Camera '%s' has no '%s' property in your"
-                                   " configuration file." % (name, e))
+        for prop in ('description', 'dev_index', 'resolution', 'name'):
+            if not self.cam_info.has_key(prop):
+                raise conf.ConfigErrror("Camera %s has no '%s' property in "
+                                    "your configuration file." % (hwID, prop) )
+        LOG.debug("vision using camera '%s'", self.cam_info["name"])
 
     def set_featurePool(self, feature_pool):
         """Attach the feature_pool for further registration of self.AUs .
@@ -173,6 +179,8 @@ class CamCapture(object):
         Raise: VisionException if camera can't be grabbed.
         Return: None
         """
+        assert isinstance(self.cam_info['dev_index'], int)
+        assert isinstance(self.cam_info['resolution'], collections.Sequence)
         self.camera = Webcam(self.cam_info['dev_index'], 
                              self.cam_info['resolution'])
         if not self.camera.grab():
@@ -258,7 +266,7 @@ class CamUtils(CamCapture):
         """/!\ THIS IS HIGHLY INSECURE: ARBITRARY CODE CAN BE EXECUTED!
         >fct_str: string describing the function
         """
-        assert isinstance(fct_string, str)
+        assert isinstance(fct_string, basestring)
         ## compile depth_fct
         fct = eval('lambda x:'+fct_string)                  #SEC rework ASAP!
         try:
@@ -272,27 +280,26 @@ class CamUtils(CamCapture):
     def set_XY_factors(self, X, Y):
         """
         """
-        self.XY_factors = (X, Y)
+        self.XY_factors = (float(X), float(Y))
 
-    def set_camera(self, name):
+    def set_camera(self, hwID=None):
         """Overriding to add our properties.
-        >name: camera identifier as found in configuration file.
+        >hwID: str or None; camera identifier from HW lib or None to use conf's.
         Raise: conf.ConfigError
         Return: None
         """
-        super(CamUtils,self).set_camera(name)
+        super(CamUtils,self).set_camera(hwID)
 
         #TDL create a nice calibration tool to get factors (for 3d info)
 
         ## Required attributes
         for prop in ('XY_factors', 'depth_fct'):
-            try:
-                setattr(self,prop,conf.lib_vision[name][prop])
-            except KeyError, e:
+            if not self.cam_info.has_key(prop):
                 raise conf.ConfigErrror("Camera '%s' has no '%s' property in "
-                                        "your configuration file." % (name, e))
-        assert isinstance(self.XY_factors, tuple) and all(self.XY_factors)
-        self.set_depth_fct(self.depth_fct)
+                                        "your configuration file." % (
+                        self.cam_info["name"], prop ) )
+        self.set_XY_factors(*self.cam_info["XY_factors"])
+        self.set_depth_fct(self.cam_info["depth_fct"])
 
     def mark_rects(self, rects, thickness=1, color='blue'):
         """Outlines the given rects in our video stream.
