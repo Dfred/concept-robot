@@ -1,23 +1,33 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# LightHead is a programm part of CONCEPT, a HRI PhD project at the University
-#  of Plymouth. LightHead is a Robotic Animation System including face, eyes,
-#   head and other supporting algorithms for vision and basic emotions.
-# Copyright (C) 2010-2011 Frederic Delaunay, frederic.delaunay@plymouth.ac.uk
+################################################################################
+# This software is provided for academic research only: it is OSS but not GPL!
+# In such a case, you can redistribute this software and/or modify it,
+# provided you do not modify this license. Any other use is not permitted.
 
-#  This program is free software: you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License as
-#   published by the Free Software Foundation, either version 3 of the
-#   License, or (at your option) any later version.
+# ARAS is the open source software (OSS) version of the basic component of
+# LightHead's software suite. 
 
-#  This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#   General Public License for more details.
+# ARAS stands for Abstract Robotic Animation System, and features actuator,
+# sensor, animation and remote management high-level interfaces.
+# In particular, ARAS helps animating a head (virtual or physical), provides
+# supporting algorithms for vision and hearing, as well as contributions from
+# other scholars.
+# Copyright 2009 - Frédéric Delaunay: dr.frederic.delaunay@gmail.com
 
-#  You should have received a copy of the GNU General Public License
-#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This software is the low-level Human-Robot-Interaction part of the CONCEPT
+# project, which took place at the University of Plymouth (UK).
+# The project stemed from by Frédéric Delaunay's PhD, himself under the
+# supervision of professor Tony Belpaeme. The PhD project started in late 2008
+# and ended in late 2011 but this part of the software is still maintained.
+# Visit http://www.tech.plym.ac.uk/SoCCE/CONCEPT/ for more information.
+
+# This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  General Public License for more details.
+################################################################################
 
 """Main package for Human-Robot Interaction subsystems of the lightHead Robotic
 Animation System.

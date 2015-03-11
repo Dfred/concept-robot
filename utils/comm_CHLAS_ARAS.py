@@ -1,35 +1,33 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+################################################################################
+# This software is provided for academic research only: it is OSS but not GPL!
+# In such a case, you can redistribute this software and/or modify it,
+# provided you do not modify this license. Any other use is not permitted.
+
 # ARAS is the open source software (OSS) version of the basic component of
-# Syntheligence's software suite. This software is provided for academic
-# research only. Any other use is not permitted.
-# Syntheligence SAS is a robotics and software company established in France.
-# For more information, visit http://www.syntheligence.com .
+# LightHead's software suite. 
 
 # ARAS stands for Abstract Robotic Animation System, and features actuator,
 # sensor, animation and remote management high-level interfaces.
-# Copyright 2013 Syntheligence, fdelaunay@syntheligence.com
+# In particular, ARAS helps animating a head (virtual or physical), provides
+# supporting algorithms for vision and hearing, as well as contributions from
+# other scholars.
+# Copyright 2009 - Frédéric Delaunay: dr.frederic.delaunay@gmail.com
 
-# This software was originally named LightHead, the Human-Robot-Interaction part
-# of the CONCEPT project, taking place at the University of Plymouth (UK).
-# The project originated as the PhD pursued by Frédéric Delaunay, who was under
-# the supervision of Prof. Tony Belpaeme.
-# This PhD project started in late 2008 and ended in late 2011.
+# This software is the low-level Human-Robot-Interaction part of the CONCEPT
+# project, which took place at the University of Plymouth (UK).
+# The project stemed from by Frédéric Delaunay's PhD, himself under the
+# supervision of professor Tony Belpaeme. The PhD project started in late 2008
+# and ended in late 2011 but this part of the software is still maintained.
 # Visit http://www.tech.plym.ac.uk/SoCCE/CONCEPT/ for more information.
 
-#  This program is free software: you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License as
-#   published by the Free Software Foundation, either version 3 of the
-#   License, or (at your option) any later version.
-
-#  This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#   General Public License for more details.
-
-#  You should have received a copy of the GNU General Public License
-#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  General Public License for more details.
+################################################################################
 
 """
 """
